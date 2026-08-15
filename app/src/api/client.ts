@@ -60,6 +60,7 @@ export class ApiClient {
     sessionId: string,
     fileUri: string,
     capturedAt: string,
+    mimeType: string = 'image/jpeg',
   ): Promise<FrameUploadResponse> {
     const result = await FileSystem.uploadAsync(
       `${this.baseUrl}/v1/sessions/${sessionId}/frames`,
@@ -68,7 +69,7 @@ export class ApiClient {
         httpMethod: 'POST',
         uploadType: FileSystem.FileSystemUploadType.MULTIPART,
         fieldName: 'frame',
-        mimeType: 'image/jpeg',
+        mimeType,
         parameters: { captured_at: capturedAt },
       },
     );
