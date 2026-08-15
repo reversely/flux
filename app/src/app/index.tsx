@@ -1,9 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,14 +12,17 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnswerText } from '@/components/AnswerText';
+import { HomeBackdrop } from '@/components/HomeBackdrop';
 import { TopBar, TopBarButton } from '@/components/TopBar';
-import { launchTool } from '@/lib/launch';
 import { REFERENCE_TITLE } from '@/data/reference';
+import { launchTool } from '@/lib/launch';
 import { type ChatMessage, useChat } from '@/store/chat';
 import { useSession } from '@/store/session';
+import { darkHome, HOME_BIOME } from '@/theme/biome';
 import { aeonikFace } from '@/theme/fonts';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
@@ -34,14 +37,18 @@ function Message({ message }: { message: ChatMessage }) {
   }
   return (
     <View style={[styles.bubble, styles.assistantBubble]}>
-      {message.pending ? <ActivityIndicator color={colors.ink3} /> : <AnswerText text={message.text} />}
+      {message.pending ? (
+        <ActivityIndicator color={darkHome.ink3} />
+      ) : (
+        <AnswerText text={message.text} color={darkHome.ink} linkColor={darkHome.link} />
+      )}
       {message.tool && (
         <Pressable
           accessibilityRole="button"
           onPress={() => launchTool(router, message.tool!)}
           style={styles.tool}
         >
-          <Feather name="video" size={14} color={colors.signature} />
+          <Feather name="video" size={14} color={HOME_BIOME.glow} />
           <Text style={styles.toolLabel}>{message.tool.label}</Text>
         </Pressable>
       )}
@@ -55,8 +62,12 @@ export default function ChatHome() {
   const { ask } = useLocalSearchParams<{ ask?: string }>();
   const { messages, send } = useChat();
   const [draft, setDraft] = useState('');
-  const listRef = useRef<FlatList<ChatMessage>>(null);
+  const listRef = useRef<Animated.FlatList<ChatMessage>>(null);
   const askedRef = useRef<string | undefined>(undefined);
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
 
   // Silent health check of the stored server URL, once per launch.
   useEffect(() => {
@@ -84,15 +95,33 @@ export default function ChatHome() {
 
   return (
     <View style={styles.screen}>
-      <TopBar title="LifeKit">
-        <TopBarButton icon="video" label="Video mode" onPress={() => router.push('/capture')} />
+      <StatusBar style="light" />
+      <HomeBackdrop scrollY={scrollY} />
+      <TopBar title="LifeKit" dark>
+        <TopBarButton
+          icon="video"
+          label="Video mode"
+          color={darkHome.ink2}
+          onPress={() => router.push('/capture')}
+        />
         <TopBarButton
           icon="book-open"
           label="View encyclopedia"
+          color={darkHome.ink2}
           onPress={() => router.push('/encyclopedia')}
         />
-        <TopBarButton icon="map" label="Map" onPress={() => router.push('/map')} />
-        <TopBarButton icon="server" label="Server" onPress={() => router.push('/connect')} />
+        <TopBarButton
+          icon="map"
+          label="Map"
+          color={darkHome.ink2}
+          onPress={() => router.push('/map')}
+        />
+        <TopBarButton
+          icon="server"
+          label="Server"
+          color={darkHome.ink2}
+          onPress={() => router.push('/connect')}
+        />
       </TopBar>
       <KeyboardAvoidingView
         style={styles.body}
@@ -106,12 +135,14 @@ export default function ChatHome() {
             </Text>
           </View>
         ) : (
-          <FlatList
+          <Animated.FlatList
             ref={listRef}
             data={messages}
             keyExtractor={(m) => m.id}
             renderItem={({ item }) => <Message message={item} />}
             contentContainerStyle={styles.list}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
             onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           />
         )}
@@ -122,7 +153,7 @@ export default function ChatHome() {
               value={draft}
               onChangeText={setDraft}
               placeholder="Ask a question"
-              placeholderTextColor={colors.ink3}
+              placeholderTextColor={darkHome.ink3}
               returnKeyType="send"
               onSubmitEditing={submit}
             />
@@ -133,7 +164,7 @@ export default function ChatHome() {
               disabled={!draft.trim()}
               style={[styles.send, !draft.trim() && styles.sendDisabled]}
             >
-              <Feather name="arrow-up" size={20} color={colors.card} />
+              <Feather name="arrow-up" size={20} color={darkHome.ink} />
             </Pressable>
           </View>
           <Pressable
@@ -152,7 +183,7 @@ export default function ChatHome() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: darkHome.field,
   },
   body: {
     flex: 1,
@@ -168,6 +199,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
+    color: darkHome.ink2,
   },
   bubble: {
     maxWidth: '85%',
@@ -181,15 +213,13 @@ const styles = StyleSheet.create({
   },
   userText: {
     ...typography.body,
-    color: colors.card,
+    color: darkHome.ink,
   },
   assistantBubble: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.card,
-    shadowColor: colors.ink,
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    backgroundColor: darkHome.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: darkHome.line,
   },
   tool: {
     flexDirection: 'row',
@@ -198,21 +228,21 @@ const styles = StyleSheet.create({
     gap: spacing.xs + 2,
     height: sizes.chip,
     borderRadius: radius.chip,
-    backgroundColor: colors.signatureSoft,
+    backgroundColor: 'rgba(143, 198, 191, 0.14)',
     paddingHorizontal: spacing.m,
   },
   toolLabel: {
     ...aeonikFace('medium'),
     fontSize: 12,
-    color: colors.signature,
+    color: HOME_BIOME.glow,
   },
   inputArea: {
     gap: spacing.s,
     paddingHorizontal: spacing.l,
     paddingTop: spacing.m,
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(11, 17, 24, 0.70)',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line,
+    borderTopColor: darkHome.line,
   },
   inputRow: {
     flexDirection: 'row',
@@ -223,10 +253,10 @@ const styles = StyleSheet.create({
     flex: 1,
     height: sizes.control,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: darkHome.line,
     borderRadius: radius.control,
     paddingHorizontal: spacing.m,
-    color: colors.ink,
+    color: darkHome.ink,
     fontSize: 15,
   },
   send: {
@@ -245,6 +275,7 @@ const styles = StyleSheet.create({
   },
   sourceText: {
     ...typography.annotation,
+    color: darkHome.ink3,
     textAlign: 'center',
   },
 });

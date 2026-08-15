@@ -11,7 +11,15 @@ const CHAPTER_MENTION = /([Cc]hapter\s+(\d+))/g;
  * the full-text reference. The deterministic client-side pass keeps the wire
  * shape plain text.
  */
-export function AnswerText({ text }: { text: string }) {
+export function AnswerText({
+  text,
+  color,
+  linkColor = colors.signature,
+}: {
+  text: string;
+  color?: string;
+  linkColor?: string;
+}) {
   const router = useRouter();
   const parts = text.split(CHAPTER_MENTION);
   // split with two capture groups yields [prose, mention, number, ...] tuples.

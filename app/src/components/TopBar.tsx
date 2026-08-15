@@ -4,6 +4,7 @@ import type { ComponentProps, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { darkHome } from '@/theme/biome';
 import { colors, sizes, spacing, typography } from '@/theme/tokens';
 
 type IconName = ComponentProps<typeof Feather>['name'];
@@ -12,10 +13,12 @@ export function TopBarButton({
   icon,
   label,
   onPress,
+  color = colors.ink2,
 }: {
   icon: IconName;
   label: string;
   onPress: () => void;
+  color?: string;
 }) {
   return (
     <Pressable
@@ -25,25 +28,36 @@ export function TopBarButton({
       hitSlop={8}
       style={styles.action}
     >
-      <Feather name={icon} size={20} color={colors.ink2} />
+      <Feather name={icon} size={20} color={color} />
     </Pressable>
   );
 }
 
-/** 56px app bar on the card surface; back chevron appears off the home screen. */
+/**
+ * 56px app bar. Light screens give it the card surface; the dark home lays
+ * it transparently over the backdrop (chrome approaches zero there).
+ */
 export function TopBar({
   title,
   back,
+  dark,
   children,
 }: {
   title: string;
   back?: boolean;
+  dark?: boolean;
   children?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   return (
-    <View style={[styles.bar, { paddingTop: insets.top, height: sizes.topBar + insets.top }]}>
+    <View
+      style={[
+        styles.bar,
+        dark ? styles.barDark : styles.barLight,
+        { paddingTop: insets.top, height: sizes.topBar + insets.top },
+      ]}
+    >
       {back && (
         <Pressable
           accessibilityRole="button"
@@ -52,10 +66,12 @@ export function TopBar({
           hitSlop={8}
           style={styles.action}
         >
-          <Feather name="chevron-left" size={20} color={colors.ink2} />
+          <Feather name="chevron-left" size={20} color={dark ? darkHome.ink2 : colors.ink2} />
         </Pressable>
       )}
-      <Text style={[typography.surfaceTitle, styles.title]}>{title}</Text>
+      <Text style={[typography.surfaceTitle, styles.title, dark && { color: darkHome.ink }]}>
+        {title}
+      </Text>
       <View style={styles.actions}>{children}</View>
     </View>
   );
@@ -65,11 +81,17 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.line,
     paddingHorizontal: spacing.l,
     gap: spacing.s,
+  },
+  barLight: {
+    backgroundColor: colors.card,
+    borderBottomColor: colors.line,
+  },
+  barDark: {
+    backgroundColor: 'transparent',
+    borderBottomColor: darkHome.line,
   },
   title: {
     flex: 1,
