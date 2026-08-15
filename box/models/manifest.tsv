@@ -1,0 +1,15 @@
+# name	role	source	ref	license	status
+qwen2.5-vl-7b-instruct	vlm-captions-qa	hf	Qwen/Qwen2.5-VL-7B-Instruct	apache-2.0	fetch
+cosmos-reason1-7b	vlm-captions-qa	hf	nvidia/Cosmos-Reason1-7B	nvidia-open-model	fetch
+nvila-lite-8b	vlm-lora-target	hf	Efficient-Large-Model/NVILA-Lite-8B	verify	fetch
+cosmos-embed1-448p	video-text-embedding	hf	nvidia/Cosmos-Embed1-448p	nvidia-open-model	fetch
+grounding-dino-base	open-vocab-detector	hf	IDEA-Research/grounding-dino-base	apache-2.0	fetch
+sam2.1-hiera-large	segmenter	hf	facebook/sam2.1-hiera-large	apache-2.0	fetch
+bioclip	species-classifier	hf	imageomics/bioclip	mit	fetch
+bioclip-2	species-classifier	hf	imageomics/bioclip-2	mit	fetch
+megadetector-v5a	wildlife-detector	url	https://github.com/agentmorris/MegaDetector/releases/download/v5.0/md_v5a.0.0.pt	mit	fetch
+birdnet-analyzer	bioacoustics	git	https://github.com/birdnet-team/BirdNET-Analyzer	cc-by-nc-sa-4.0	fetch
+speciesnet	wildlife-classifier	kaggle	google/speciesnet	apache-2.0	pending
+rtmpose	pose-estimator	url	mmpose-checkpoint-url-unverified	apache-2.0	pending
+fungitastic-df20	fungi-classifier	url	fungitastic-onnx-url-unverified	verify	pending
+snakeclef	snake-classifier	url	snakeclef-recipe-unverified	verify	pending
