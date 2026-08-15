@@ -32,6 +32,58 @@ export interface ChatAnswer {
   citations?: unknown[];
 }
 
+/**
+ * Content shapes for GET /v1/content, mirroring the pack schema
+ * (contracts/pack-format.md tables chapter, section, block).
+ */
+export type BlockType =
+  | 'principle'
+  | 'checklist'
+  | 'procedure_step'
+  | 'materials'
+  | 'warning'
+  | 'note'
+  | 'reference'
+  | 'mnemonic'
+  | 'military_archive';
+
+export interface ChapterSummary {
+  id: string;
+  tile_id: number | null;
+  fm_number: number;
+  title: string;
+  priority_order: number;
+}
+
+export interface SectionSummary {
+  id: string;
+  title: string;
+  order: number;
+}
+
+export interface ChapterDetail extends ChapterSummary {
+  sections: SectionSummary[];
+}
+
+export interface Block {
+  id: string;
+  order: number;
+  type: BlockType;
+  text: string;
+  figure_ref: string | null;
+  source: string;
+  review_status: 'auto' | 'needs_review';
+}
+
+export interface SectionDetail {
+  id: string;
+  chapter_id: string;
+  fm_heading: string | null;
+  title: string;
+  order: number;
+  blocks: Block[];
+}
+
 export interface SessionResults {
   session_id: string;
   status: 'in_progress' | 'complete';

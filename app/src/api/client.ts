@@ -1,6 +1,13 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
-import type { ChatAnswer, FrameUploadResponse, SessionResults } from './types';
+import type {
+  ChapterDetail,
+  ChapterSummary,
+  ChatAnswer,
+  FrameUploadResponse,
+  SectionDetail,
+  SessionResults,
+} from './types';
 
 const HEALTH_TIMEOUT_MS = 4000;
 
@@ -35,6 +42,26 @@ export class ApiClient {
       throw new Error(`chat failed: ${response.status}`);
     }
     return (await response.json()) as ChatAnswer;
+  }
+
+  async listChapters(): Promise<ChapterSummary[]> {
+    return this.getJson<ChapterSummary[]>('/v1/content/chapters');
+  }
+
+  async getChapter(chapterId: string): Promise<ChapterDetail> {
+    return this.getJson<ChapterDetail>(`/v1/content/chapters/${chapterId}`);
+  }
+
+  async getSection(sectionId: string): Promise<SectionDetail> {
+    return this.getJson<SectionDetail>(`/v1/content/sections/${sectionId}`);
+  }
+
+  private async getJson<T>(path: string): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`);
+    if (!response.ok) {
+      throw new Error(`${path} failed: ${response.status}`);
+    }
+    return (await response.json()) as T;
   }
 
   async createSession(): Promise<string> {
