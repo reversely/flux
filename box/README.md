@@ -46,6 +46,22 @@ BioCLIP zero-shot over taxonomic label strings, and FungiTastic-Mini class score
 starter list of Pacific Northwest species applies. `scripts/build_gbif_checklist.py`
 turns a GBIF SPECIES_LIST extract into `checklist.tsv` plus that label file.
 
+## Nemotron chat endpoint
+
+The chat LLM the flux server calls is the VSS stack's own Nemotron Nano 9B v2
+FP8 container, OpenAI-compatible on box port 30081 with native tool calling
+enabled (model id `nvidia/NVIDIA-Nemotron-Nano-9B-v2-FP8`). The flux server
+reaches it as `FLUX_NEMOTRON_URL=http://<box-ip>:30081/v1`.
+
+The mirrored Nemotron Super 49B FP8 stays on disk unserved: its ~50 GB of
+weights cannot be resident next to the VSS stack and the perception service
+inside the GN100's 121 GB unified memory. `scripts/verify_nemotron.sh`
+records the endpoint facts and round-trips a chat completion against it:
+
+```
+bash box/scripts/verify_nemotron.sh
+```
+
 ## Fetching data and corpora
 
 Pack data divides into universal content that ships in every pack
