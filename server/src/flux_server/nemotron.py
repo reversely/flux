@@ -5,11 +5,17 @@ NemotronRetriever calls the box's OpenAI-compatible chat-completions endpoint
 FLUX_NEMOTRON_URL) with a system prompt built from the committed guide corpus
 (app/src/data/guide-corpus.json). The model answers survival questions in the
 guide's voice and names chapters in prose so the client can hyperlink
-"chapter N" mentions. Tool launches ride the endpoint's native tool-calling:
-the request declares one launch_tool function mirroring the ChatTool wire
-shape, and a returned call becomes the answer's tool field after validation.
-Any model failure degrades to a plain answer with no tool; the route never
-errors because the box is down.
+"chapter N" mentions.
+
+The tool decision is a second, tiny chat completion (ticket #53): a
+classification prompt sorts the question into one of the skill categories,
+which maps deterministically onto the ChatTool wire shape. On 14 hand-labeled
+questions this scored 14/14, against 9/14 for the #50 keyword floor, 4/14 for
+prompt-forced tool calling, and 3/14 for tool_choice "required" (the model
+never auto-calls a declared function under this serving template, and forced
+calls are junk). The keyword floor survives only for the model-unreachable
+path, where no classification is possible. Any model failure degrades to a
+plain answer; the route never errors because the box is down.
 """
 
 import json
@@ -19,7 +25,6 @@ import uuid
 from pathlib import Path
 
 import httpx
-from pydantic import ValidationError
 
 from flux_server.models import ChatAnswer, ChatTool
 
@@ -36,21 +41,18 @@ UNREACHABLE_TEXT = (
     "closest to your question and read its chapter."
 )
 
-# The camera skills the tool field may launch (ticket #44); anything else the
-# model invents is dropped rather than sent to a client that cannot render it.
+# The camera skills the tool field may launch (ticket #44).
 KNOWN_PRIMES = {"knot-verification", "species-id", "wildlife-id"}
 
-# The model often calls the tool without a label; the button still needs one.
 DEFAULT_LABELS = {
     "knot-verification": "Check my knot",
     "species-id": "Identify a plant",
     "wildlife-id": "Identify an animal",
 }
 
-# Deterministic attachment floor (#50): the model does not call launch_tool
-# reliably, so when its response carries no valid tool the question itself
-# decides, with exactly the shipped frontend mock's keyword map
-# (app/src/api/chat.ts history). First matching group wins.
+# Keyword floor (#50), now only for the model-unreachable path: the camera
+# skills run without the LLM, so the question's keywords still attach one.
+# Exactly the shipped frontend mock's map (app/src/api/chat.ts history).
 KEYWORD_TOOLS = [
     (("knot", "rope", "lash", "cord"), "knot-verification"),
     (("eat", "food", "plant", "berry", "edib", "mushroom"), "species-id"),
@@ -96,44 +98,24 @@ Rules:
   default. When you are unsure, say so plainly and point to the chapter.
 - You are offline support for a wilderness situation: no links, no "consult
   a professional" filler when no professional is reachable, though you should
-  say when something needs evacuation or rescue.
-
+  say when something needs evacuation or rescue.\
 """
 
-_TOOL_RULES = """\
-Call the launch_tool function only when the question directly maps to a
-skill, and still answer in text alongside the call. The text is always full
-sentences spoken to the user; never repeat the tool call's arguments as the
-text:
-- Checking a tied knot or lashing by camera: kind "camera", prime
-  "knot-verification", subject naming the knot in kebab-case if known.
-- Identifying a plant or fungus by camera: kind "camera", prime "species-id".
-- Identifying an animal, track, or scat by camera: kind "camera", prime
-  "wildlife-id".
-- Pointing to a chapter to read in full: kind "reference" with the chapter
-  number.
-Do not call it for a question that none of these fit.\
-"""
+# The measured classification prompt (#53); wording matches the probe run
+# that scored 14/14, so a rewording is a re-measurement.
+CLASSIFY_PROMPT = (
+    "/no_think\n"
+    "Classify the user's question into exactly one category. Reply with only "
+    "the category token, nothing else.\n"
+    "- knot-verification: tying, checking, or fixing knots and lashings\n"
+    "- species-id: identifying or judging plants, berries, fungi, mushrooms\n"
+    "- wildlife-id: identifying animals, snakes, tracks, scat, or animal signs\n"
+    "- reference: asking to read a chapter or the manual itself\n"
+    "- none: anything else (fire, water, shelter, weather, navigation, general "
+    "survival procedure)"
+)
 
-LAUNCH_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "launch_tool",
-        "description": "Open a skill widget under the answer",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "kind": {"type": "string", "enum": ["camera", "chat", "reference"]},
-                "label": {"type": "string"},
-                "prime": {"type": "string"},
-                "subject": {"type": "string"},
-                "question": {"type": "string"},
-                "chapter": {"type": "integer"},
-            },
-            "required": ["kind"],
-        },
-    },
-}
+CATEGORIES = KNOWN_PRIMES | {"reference"}
 
 
 def _render_corpus(corpus: dict) -> str:
@@ -164,63 +146,42 @@ def _render_corpus(corpus: dict) -> str:
     return "\n".join(lines)
 
 
-def build_system_prompt(corpus: dict, include_tools: bool = True) -> str:
-    """Prompt for the chat request; the text-only retry drops the tool rules
-    so their vocabulary cannot leak into the prose."""
-    parts = [_RULES]
-    if include_tools:
-        parts.append(_TOOL_RULES)
-    parts.append(_render_corpus(corpus))
-    return "\n\n".join(parts)
+def build_system_prompt(corpus: dict) -> str:
+    return f"{_RULES}\n\n{_render_corpus(corpus)}"
 
 
 def _strip_think(content: str) -> str:
     return re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
 
 
-def _parse_tool(message: dict) -> ChatTool | None:
-    """Turn the message's first launch_tool call into a validated ChatTool.
+def _parse_category(content: str) -> str | None:
+    words = _strip_think(content).split()
+    if not words:
+        return None
+    token = words[0].strip(".,:").lower()
+    return token if token in CATEGORIES else None
 
-    Anything malformed, and any prime outside the known skills, is dropped:
-    a bad tool must never cost the user the text answer.
-    """
-    calls = message.get("tool_calls") or []
-    for call in calls:
-        function = call.get("function") or {}
-        if function.get("name") != "launch_tool":
-            continue
-        try:
-            arguments = json.loads(function.get("arguments") or "")
-        except json.JSONDecodeError:
-            return None
-        if not isinstance(arguments, dict):
-            return None
-        if not arguments.get("label"):
-            arguments["label"] = _default_label(arguments)
-        if not arguments.get("label"):
-            return None
-        try:
-            tool = ChatTool.model_validate(arguments)
-        except ValidationError:
-            return None
-        if tool.prime is not None and tool.prime not in KNOWN_PRIMES:
-            return None
-        if tool.kind == "camera" and tool.prime is None:
-            return None
-        return tool
-    return None
+
+def _knot_subject(question: str) -> str | None:
+    lowered = question.lower()
+    return next(
+        (kebab for name, kebab in KNOT_SUBJECTS.items() if name in lowered), None
+    )
+
+
+def _first_chapter_mention(text: str) -> int | None:
+    match = re.search(r"\bchapter\s+(\d+)", text, flags=re.IGNORECASE)
+    return int(match.group(1)) if match else None
 
 
 def _tool_from_question(question: str) -> ChatTool | None:
-    """The deterministic floor: derive a camera tool from question keywords.
+    """The unreachable-path floor: derive a camera tool from question keywords.
 
     A named knot triggers knot-verification on its own: the map's keywords
     miss "How do I tie a bowline?", the exact question that motivated #50.
     """
     lowered = question.lower()
-    subject = next(
-        (kebab for name, kebab in KNOT_SUBJECTS.items() if name in lowered), None
-    )
+    subject = _knot_subject(question)
     prime = next(
         (
             prime
@@ -241,26 +202,6 @@ def _tool_from_question(question: str) -> ChatTool | None:
     )
 
 
-def _default_label(arguments: dict) -> str | None:
-    if arguments.get("prime") in DEFAULT_LABELS:
-        return DEFAULT_LABELS[arguments["prime"]]
-    if arguments.get("kind") == "reference" and arguments.get("chapter"):
-        return f"Open chapter {arguments['chapter']}"
-    return None
-
-
-def _degenerate(text: str, tool: ChatTool | None) -> bool:
-    """True when the text is not an answer a user should read.
-
-    Live runs showed the model sometimes echoing the tool arguments as its
-    content ("camera, knot-verification, bowline"); a prime leaking into the
-    text marks that failure mode.
-    """
-    if not text:
-        return True
-    return tool is not None and tool.prime is not None and tool.prime in text
-
-
 class NemotronRetriever:
     """Answers through the box's OpenAI-compatible Nemotron endpoint."""
 
@@ -275,62 +216,103 @@ class NemotronRetriever:
         self.model = model
         corpus = json.loads(Path(corpus_path).read_text())
         self.system_prompt = build_system_prompt(corpus)
-        self.text_only_prompt = build_system_prompt(corpus, include_tools=False)
+        self._tiles = [
+            (tile["title"], tile["chapter"]) for tile in corpus.get("tiles", [])
+        ]
         self._client = http_client or httpx.Client(timeout=CHAT_TIMEOUT_S)
 
     def answer(self, question: str) -> ChatAnswer:
         answer_id = f"ans_{uuid.uuid4().hex[:8]}"
         try:
-            message = self._complete(question, with_tools=True)
+            content = self._answer_text(question)
         except (httpx.HTTPError, KeyError, IndexError, TypeError) as error:
             logger.error("Nemotron chat completion failed: %s", error)
-            # The camera skills run without the LLM, so the keyword floor
-            # still applies when the model is down.
             return ChatAnswer(
                 answer_id=answer_id,
                 text=UNREACHABLE_TEXT,
                 tool=_tool_from_question(question),
             )
-        # A model-emitted tool wins when present and valid; the keyword map
-        # is the floor, not the ceiling (#50).
-        tool = _parse_tool(message) or _tool_from_question(question)
-        text = _strip_think(message.get("content") or "")
-        if _degenerate(text, tool):
-            # The model answered with only a tool call, or echoed the call's
-            # arguments as its text; ask again without tools for the prose
-            # the user reads. A failure here still ships the tool under a
-            # minimal line rather than erroring.
-            text = self._text_only(question, tool)
-        return ChatAnswer(answer_id=answer_id, text=text, tool=tool)
+        text = _strip_think(content) or UNREACHABLE_TEXT
+        return ChatAnswer(
+            answer_id=answer_id,
+            text=text,
+            tool=self._decide_tool(question, text),
+        )
 
-    def _text_only(self, question: str, tool: ChatTool | None) -> str:
+    def _decide_tool(self, question: str, answer_text: str) -> ChatTool | None:
+        """Classify the question and map the category onto a ChatTool.
+
+        A classification failure drops the tool, never the answer.
+        """
         try:
-            message = self._complete(question, with_tools=False)
-            text = _strip_think(message.get("content") or "")
+            category = _parse_category(self._classify(question))
         except (httpx.HTTPError, KeyError, IndexError, TypeError) as error:
-            logger.error("Nemotron text-only retry failed: %s", error)
-            text = ""
-        if text:
-            return text
-        if tool is not None:
-            return f"Use the tool below: {tool.label}."
-        return UNREACHABLE_TEXT
+            logger.error("Nemotron classification failed: %s", error)
+            return None
+        if category in KNOWN_PRIMES:
+            subject = (
+                _knot_subject(question) if category == "knot-verification" else None
+            )
+            return ChatTool(
+                kind="camera",
+                label=DEFAULT_LABELS[category],
+                prime=category,
+                subject=subject,
+            )
+        if category == "reference":
+            chapter = self._resolve_chapter(question, answer_text)
+            if chapter is None:
+                return None
+            return ChatTool(
+                kind="reference", label=f"Open chapter {chapter}", chapter=chapter
+            )
+        return None
 
-    def _complete(self, question: str, with_tools: bool) -> dict:
-        prompt = self.system_prompt if with_tools else self.text_only_prompt
-        body: dict = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": question},
-            ],
-            "temperature": 0.2,
-            "max_tokens": 1024,
-        }
-        if with_tools:
-            body["tools"] = [LAUNCH_TOOL]
-            body["tool_choice"] = "auto"
-        response = self._client.post(f"{self.base_url}/chat/completions", json=body)
+    def _resolve_chapter(self, question: str, answer_text: str) -> int | None:
+        """The answer's first chapter mention wins; the tile map covers the
+        rest by matching a tile-title word in the question."""
+        mentioned = _first_chapter_mention(answer_text)
+        if mentioned is not None:
+            return mentioned
+        lowered = question.lower()
+        for title, chapter in self._tiles:
+            words = [
+                word for word in re.findall(r"[a-z]+", title.lower()) if len(word) > 3
+            ]
+            if any(word in lowered for word in words):
+                return chapter
+        return None
+
+    def _answer_text(self, question: str) -> str:
+        message = self._complete(
+            system=self.system_prompt,
+            question=question,
+            temperature=0.2,
+            max_tokens=1024,
+        )
+        return message.get("content") or ""
+
+    def _classify(self, question: str) -> str:
+        message = self._complete(
+            system=CLASSIFY_PROMPT, question=question, temperature=0.0, max_tokens=16
+        )
+        return message.get("content") or ""
+
+    def _complete(
+        self, system: str, question: str, temperature: float, max_tokens: int
+    ) -> dict:
+        response = self._client.post(
+            f"{self.base_url}/chat/completions",
+            json={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": question},
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+        )
         response.raise_for_status()
         message = response.json()["choices"][0]["message"]
         if not isinstance(message, dict):

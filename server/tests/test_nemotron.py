@@ -1,8 +1,9 @@
-"""Tests for the Nemotron-backed answerer (#44), against a mocked endpoint.
+"""Tests for the Nemotron-backed answerer (#44, #53), against a mocked endpoint.
 
 No test here reaches the box: every retriever gets an httpx.MockTransport
-client standing in for the vLLM chat-completions endpoint, answering in the
-OpenAI shape with native tool calls.
+client standing in for the vLLM chat-completions endpoint. The mock routes by
+request shape: the tiny max_tokens=16 call is the classification (#53), the
+large one is the answer.
 """
 
 import json
@@ -12,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 from flux_server.main import create_app
 from flux_server.nemotron import (
+    CLASSIFY_PROMPT,
     DEFAULT_CORPUS_PATH,
     UNREACHABLE_TEXT,
     NemotronRetriever,
@@ -21,38 +23,56 @@ from flux_server.retrieval import NoPackRetriever, retriever_from_env
 
 MODEL = "nvidia/NVIDIA-Nemotron-Nano-9B-v2-FP8"
 
+# The 14 hand-labeled questions from the #53 strategy comparison, where the
+# classification call scored 14/14. The mock plays the measured category
+# back; the assertions cover the category -> ChatTool mapping.
+CASES = [
+    ("What knots should I learn?", "knot-verification"),
+    ("How do I tie a bowline?", "knot-verification"),
+    ("My taut-line hitch keeps slipping, what am I doing wrong?", "knot-verification"),
+    ("How do I bind two poles together at a right angle?", "knot-verification"),
+    ("Can I eat these red berries I found?", "species-id"),
+    ("Is this mushroom safe?", "species-id"),
+    ("What plants make good cordage fiber?", "species-id"),
+    ("A snake just bit my friend, what do I do?", "wildlife-id"),
+    ("There are large paw prints near my camp, should I worry?", "wildlife-id"),
+    ("How do I start a fire in the rain?", None),
+    ("How do I purify pond water?", None),
+    ("Which direction is north without a compass?", None),
+    ("How cold is too cold to sleep outside?", None),
+    ("Where can I read the full chapter on shelters?", "reference"),
+]
 
-def message_body(content: str | None, tool_arguments: dict | None = None) -> dict:
-    message: dict = {"role": "assistant", "content": content, "tool_calls": []}
-    if tool_arguments is not None:
-        message["tool_calls"] = [
-            {
-                "id": "call_1",
-                "type": "function",
-                "function": {
-                    "name": "launch_tool",
-                    "arguments": json.dumps(tool_arguments),
-                },
-            }
-        ]
-    return {"choices": [{"message": message}]}
+EXPECTED_SUBJECTS = {
+    "How do I tie a bowline?": "bowline",
+    "My taut-line hitch keeps slipping, what am I doing wrong?": "taut-line-hitch",
+}
+
+
+def completion(content: str | None) -> dict:
+    return {"choices": [{"message": {"role": "assistant", "content": content}}]}
 
 
 def make_retriever(
-    replies: list[dict] | None = None,
-    status_code: int = 200,
+    answer_content: str | None = "Some guide prose.",
+    category: str | None = "none",
+    classify_status: int = 200,
+    answer_status: int = 200,
     seen: list[dict] | None = None,
 ) -> NemotronRetriever:
-    """Retriever wired to a mock endpoint; replies are consumed in order."""
-    queue = list(replies or [])
+    """Retriever whose mock endpoint routes by call shape (#53)."""
 
     def handle(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
         if seen is not None:
-            seen.append(json.loads(request.content))
-        if status_code != 200:
-            return httpx.Response(status_code, text="boom")
-        body = queue.pop(0) if len(queue) > 1 else queue[0]
-        return httpx.Response(200, json=body)
+            seen.append(body)
+        if body["max_tokens"] == 16:
+            if classify_status != 200:
+                return httpx.Response(classify_status, text="boom")
+            return httpx.Response(200, json=completion(category))
+        if answer_status != 200:
+            return httpx.Response(answer_status, text="boom")
+        return httpx.Response(200, json=completion(answer_content))
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
     return NemotronRetriever(
@@ -60,130 +80,124 @@ def make_retriever(
     )
 
 
-def test_text_and_tool_call_become_the_answer() -> None:
-    reply = message_body(
-        "Practice the bowline; chapter 12 covers cordage.",
-        {"kind": "camera", "prime": "knot-verification", "subject": "bowline"},
-    )
-    answer = make_retriever([reply]).answer("Is my bowline right?")
-    assert "chapter 12" in answer.text
+@pytest.mark.parametrize(("question", "category"), CASES)
+def test_measured_case_maps_to_the_right_tool(
+    question: str, category: str | None
+) -> None:
+    answer = make_retriever(
+        answer_content="Chapter 5 covers shelters.", category=category or "none"
+    ).answer(question)
+    if category is None:
+        assert answer.tool is None
+        return
     assert answer.tool is not None
-    assert answer.tool.kind == "camera"
-    assert answer.tool.prime == "knot-verification"
-    assert answer.tool.subject == "bowline"
-    # The model omitted the label; the server fills the skill's default.
-    assert answer.tool.label == "Check my knot"
+    if category == "reference":
+        assert answer.tool.kind == "reference"
+        assert answer.tool.chapter == 5
+        assert answer.tool.label == "Open chapter 5"
+    else:
+        assert answer.tool.kind == "camera"
+        assert answer.tool.prime == category
+    assert answer.tool.subject == EXPECTED_SUBJECTS.get(question)
 
 
-def test_plain_reply_carries_no_tool() -> None:
-    reply = message_body("Boil water for one minute; chapter 6 has the methods.")
-    answer = make_retriever([reply]).answer("How long do I boil water?")
-    assert answer.tool is None
-    assert "chapter 6" in answer.text
-
-
-def test_null_content_with_tool_call_retries_for_prose() -> None:
-    with_tool = message_body(
-        None, {"kind": "camera", "prime": "species-id", "label": "Identify a plant"}
-    )
-    prose = message_body(
-        "Point the camera at the whole plant; chapter 10 lists hazards."
-    )
+def test_two_calls_answer_then_classify() -> None:
     seen: list[dict] = []
-    answer = make_retriever([with_tool, prose], seen=seen).answer("What plant is this?")
-    assert answer.tool is not None
-    assert answer.tool.prime == "species-id"
-    assert "chapter 10" in answer.text
-    first, second = seen
-    assert "tools" in first
-    assert "tools" not in second
+    make_retriever(category="none", seen=seen).answer("How do I purify pond water?")
+    answer_call, classify_call = seen
+    assert "tools" not in answer_call
+    assert "tools" not in classify_call
+    assert answer_call["max_tokens"] == 1024
+    assert classify_call["max_tokens"] == 16
+    assert classify_call["temperature"] == 0.0
+    assert classify_call["messages"][0]["content"] == CLASSIFY_PROMPT
+    assert "chapter" in answer_call["messages"][0]["content"]
+    assert "hazardous" in answer_call["messages"][0]["content"]
 
 
-def test_argument_echo_content_retries_for_prose() -> None:
-    echo = message_body(
-        "camera, knot-verification, bowline",
-        {"kind": "camera", "prime": "knot-verification", "subject": "bowline"},
-    )
-    prose = message_body("Load the loop and check it holds; chapter 12 covers knots.")
-    answer = make_retriever([echo, prose]).answer("Check my bowline?")
-    assert answer.tool is not None
-    assert "chapter 12" in answer.text
-
-
-def test_leaked_think_trace_is_stripped() -> None:
-    reply = message_body("<think>the user wants fire</think>Gather tinder.")
-    assert make_retriever([reply]).answer("Fire?").text == "Gather tinder."
-
-
-def test_http_failure_degrades_to_a_plain_answer() -> None:
-    answer = make_retriever(status_code=500).answer("How do I splint a leg?")
-    assert answer.text == UNREACHABLE_TEXT
-    assert answer.tool is None
-
-
-def test_unknown_prime_is_dropped_but_text_survives() -> None:
-    reply = message_body(
-        "Check the blade angle.",
-        {"kind": "camera", "label": "Check", "prime": "blade-sharpening"},
-    )
-    answer = make_retriever([reply]).answer("Is my knife sharp?")
-    assert answer.text == "Check the blade angle."
-    assert answer.tool is None
-
-
-def test_malformed_tool_arguments_are_dropped() -> None:
-    body = message_body("ok")
-    body["choices"][0]["message"]["tool_calls"] = [
-        {
-            "id": "call_1",
-            "type": "function",
-            "function": {"name": "launch_tool", "arguments": "not json"},
-        }
-    ]
-    answer = make_retriever([body]).answer("q")
-    assert answer.tool is None
-    assert answer.text == "ok"
-
-
-def test_reference_tool_without_label_gets_a_chapter_label() -> None:
-    reply = message_body("Read the full text.", {"kind": "reference", "chapter": 7})
-    answer = make_retriever([reply]).answer("Where do I read about fire?")
-    assert answer.tool is not None
-    assert answer.tool.label == "Open chapter 7"
-    assert answer.tool.chapter == 7
-
-
-def test_request_carries_corpus_prompt_tools_and_question() -> None:
-    seen: list[dict] = []
-    make_retriever([message_body("ok")], seen=seen).answer("Which moss is safe?")
-    (request,) = seen
-    assert request["model"] == MODEL
-    assert request["tools"][0]["function"]["name"] == "launch_tool"
-    system, user = request["messages"]
-    assert system["role"] == "system"
-    assert "chapter" in system["content"]
-    assert "hazardous" in system["content"]
-    assert user == {"role": "user", "content": "Which moss is safe?"}
-
-
-def test_system_prompt_names_chapters_without_tile_ids() -> None:
+def test_answer_prompt_carries_no_tool_rules() -> None:
     corpus = json.loads(DEFAULT_CORPUS_PATH.read_text())
     prompt = build_system_prompt(corpus)
+    assert "launch_tool" not in prompt
     for tile in corpus["tiles"]:
         assert f"chapter {tile['chapter']}" in prompt
         assert tile["title"] in prompt
     # A box probe showed the model conflating tile ids with chapter numbers,
     # so the rendering keeps ids out of the prompt.
     assert "Tile 8" not in prompt
-    assert "tile 8" not in prompt
+
+
+def test_reference_chapter_comes_from_the_answer_text_first() -> None:
+    answer = make_retriever(
+        answer_content="Chapter 19 covers signaling.", category="reference"
+    ).answer("Where do I read about rescue signals?")
+    assert answer.tool is not None
+    assert answer.tool.chapter == 19
+
+
+def test_reference_chapter_falls_back_to_the_tile_map() -> None:
+    answer = make_retriever(
+        answer_content="The guide covers that in full.", category="reference"
+    ).answer("Where can I read the full chapter on shelters?")
+    assert answer.tool is not None
+    assert answer.tool.chapter == 5
+    assert answer.tool.label == "Open chapter 5"
+
+
+def test_reference_without_any_resolvable_chapter_drops_the_tool() -> None:
+    answer = make_retriever(
+        answer_content="The guide covers that.", category="reference"
+    ).answer("Where can I read more?")
+    assert answer.tool is None
+
+
+def test_unknown_category_token_drops_the_tool() -> None:
+    answer = make_retriever(category="blade-sharpening").answer("Is my knife sharp?")
+    assert answer.tool is None
+    assert answer.text == "Some guide prose."
+
+
+def test_classification_failure_keeps_the_answer() -> None:
+    answer = make_retriever(
+        answer_content="Boil it for one minute.", classify_status=500
+    ).answer("How do I purify pond water?")
+    assert answer.text == "Boil it for one minute."
+    assert answer.tool is None
+
+
+def test_category_token_survives_punctuation_and_think_traces() -> None:
+    answer = make_retriever(category="<think>hm</think>species-id.").answer(
+        "Is this mushroom safe?"
+    )
+    assert answer.tool is not None
+    assert answer.tool.prime == "species-id"
+
+
+def test_leaked_think_trace_is_stripped_from_the_answer() -> None:
+    answer = make_retriever(
+        answer_content="<think>the user wants fire</think>Gather tinder."
+    ).answer("Fire?")
+    assert answer.text == "Gather tinder."
+
+
+def test_unreachable_model_uses_the_keyword_floor() -> None:
+    answer = make_retriever(answer_status=500).answer("Is this mushroom safe?")
+    assert answer.text == UNREACHABLE_TEXT
+    assert answer.tool is not None
+    assert answer.tool.prime == "species-id"
+
+
+def test_unreachable_model_without_keywords_has_no_tool() -> None:
+    answer = make_retriever(answer_status=500).answer("How do I splint a leg?")
+    assert answer.text == UNREACHABLE_TEXT
+    assert answer.tool is None
 
 
 def test_route_serializes_tool_and_omits_absent_fields(tmp_path) -> None:
-    reply = message_body(
-        "Point the camera at the plant.",
-        {"kind": "camera", "label": "Identify a plant", "prime": "species-id"},
+    retriever = make_retriever(
+        answer_content="Point the camera at the plant.", category="species-id"
     )
-    app = create_app(data_dir=tmp_path, retriever=make_retriever([reply]))
+    app = create_app(data_dir=tmp_path, retriever=retriever)
     body = (
         TestClient(app)
         .post("/v1/chat", json={"question": "What plant is this?"})
@@ -194,68 +208,6 @@ def test_route_serializes_tool_and_omits_absent_fields(tmp_path) -> None:
         "label": "Identify a plant",
         "prime": "species-id",
     }
-
-
-def test_prose_only_knot_question_gets_the_fallback_tool() -> None:
-    # The deterministic floor (#50): the model attached nothing, the
-    # question's keywords decide, and the named knot becomes the subject.
-    reply = message_body("Form a small loop, pass the end up through it.")
-    answer = make_retriever([reply]).answer("How do I tie a bowline?")
-    assert answer.tool is not None
-    assert answer.tool.kind == "camera"
-    assert answer.tool.prime == "knot-verification"
-    assert answer.tool.label == "Check my knot"
-    assert answer.tool.subject == "bowline"
-
-
-def test_fallback_covers_all_three_keyword_groups() -> None:
-    cases = {
-        "Can I eat these red berries?": ("species-id", "Identify a plant"),
-        "A snake is near our camp, is it dangerous?": (
-            "wildlife-id",
-            "Identify an animal",
-        ),
-        "My cordage keeps fraying, what do I do?": (
-            "knot-verification",
-            "Check my knot",
-        ),
-    }
-    for question, (prime, label) in cases.items():
-        answer = make_retriever([message_body("Some prose.")]).answer(question)
-        assert answer.tool is not None, question
-        assert answer.tool.prime == prime
-        assert answer.tool.label == label
-
-
-def test_fallback_subject_handles_apostrophe_knot_names() -> None:
-    reply = message_body("Tie a loop mid-line and pull through.")
-    answer = make_retriever([reply]).answer("Help with my trucker's hitch on a rope?")
-    assert answer.tool is not None
-    assert answer.tool.subject == "truckers-hitch"
-
-
-def test_model_tool_wins_over_the_keyword_floor() -> None:
-    # The question's keywords say knot, but the model's valid call says
-    # reference; the model wins.
-    reply = message_body(
-        "Chapter 12 covers cordage.", {"kind": "reference", "chapter": 12}
-    )
-    answer = make_retriever([reply]).answer("Where do I read about rope?")
-    assert answer.tool is not None
-    assert answer.tool.kind == "reference"
-    assert answer.tool.chapter == 12
-
-
-def test_question_without_keywords_still_gets_no_tool() -> None:
-    reply = message_body("Head downhill and follow running water.")
-    assert make_retriever([reply]).answer("I am lost, which way do I go?").tool is None
-
-
-def test_unreachable_model_still_attaches_the_keyword_tool() -> None:
-    answer = make_retriever(status_code=500).answer("Is this mushroom safe?")
-    assert answer.text == UNREACHABLE_TEXT
-    assert answer.tool is not None
-    assert answer.tool.prime == "species-id"
 
 
 def test_env_selects_the_nemotron_retriever(monkeypatch: pytest.MonkeyPatch) -> None:
