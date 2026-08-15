@@ -22,7 +22,7 @@ from flux_server.models import (
     VideoUploadResponse,
 )
 from flux_server.retrieval import Retriever, retriever_from_env
-from flux_server.storage import SessionStore
+from flux_server.storage import SessionStore, UnplayableVideoError
 from flux_server.vss import VideoHandoff, handoff_from_env
 
 DEFAULT_DATA_DIR = Path("data/sessions")
@@ -82,7 +82,12 @@ def create_app(
     ) -> VideoUploadResponse:
         require_session(session_id)
         data = await video.read()
-        video_id = store.add_video(session_id, data, captured_at)
+        try:
+            video_id = store.add_video(session_id, data, captured_at)
+        except UnplayableVideoError as error:
+            raise HTTPException(
+                status_code=422, detail=f"unreadable video container: {error}"
+            ) from error
         return VideoUploadResponse(video_id=video_id)
 
     @app.post("/v1/sessions/{session_id}/finish", response_model=SessionFinished)

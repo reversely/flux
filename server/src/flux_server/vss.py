@@ -1,19 +1,22 @@
 """VSS handoff: forward a finished session's MP4 files for summarization.
 
-PRD 3.4 routes buffered video through VSS's OpenAI-style REST surface:
-POST /files uploads each MP4, POST /summarize runs the summary against the
-returned file id, and PRD 3.5 makes the client delete files after use with
-retry on pending deletion.
+PRD 3.4 routes buffered video through the VSS agent API. Per video: POST
+/api/v1/videos {filename} returns the VST storage URL, the bytes upload
+multipart to that URL and the response names the VST sensor, and POST
+/generate runs the agent loop (vst_video_list, video_understanding) whose
+answer follows the final agent-think block in the returned value. PRD 3.5
+makes the client remove the sensor after use with retry on pending deletion.
 
 The VideoHandoff protocol is the seam. VSSHandoff talks to a real deployment
-whose base URL comes from VSS_BASE_URL (the GN100 bring-up, ticket #29, slots
-in via that env var alone). When VSS_BASE_URL is unset, NotConfiguredHandoff
-records what it would have sent and returns nothing, so the session honestly
-stays in_progress instead of receiving a fabricated summary.
+whose agent API base URL comes from VSS_BASE_URL (port 8000 on the GN100).
+When VSS_BASE_URL is unset, NotConfiguredHandoff records what it would have
+sent and returns nothing, so the session honestly stays in_progress instead
+of receiving a fabricated summary.
 """
 
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +29,23 @@ logger = logging.getLogger(__name__)
 SUMMARIZE_TIMEOUT_S = 600.0
 DELETE_ATTEMPTS = 3
 DELETE_RETRY_DELAY_S = 1.0
+
+SUMMARY_PROMPT = (
+    "Call the video_understanding tool to summarize the video {sensor_id}: "
+    "describe the route, notable landmarks, hazards, and anything a hiker "
+    "retracing it would need to know."
+)
+
+_AGENT_THINK_RE = re.compile(r"<agent-think>.*</agent-think>", flags=re.DOTALL)
+
+
+def answer_from_generate_value(value: str) -> str:
+    """Strip the agent-think markup from a /generate value.
+
+    /generate has no clean-answer field; the consumable answer is the text
+    after the final closing agent-think tag.
+    """
+    return _AGENT_THINK_RE.sub("", value).strip()
 
 
 @dataclass
@@ -62,13 +82,17 @@ class NotConfiguredHandoff:
             plan = {
                 "session_id": session_id,
                 "video": str(video),
-                "requests": ["POST /files", "POST /summarize", "DELETE /files/{id}"],
+                "requests": [
+                    "POST /api/v1/videos",
+                    "POST {storage_url}",
+                    "POST /generate",
+                    "DELETE {vst}/sensor/{sensor_id}",
+                ],
             }
             self.recorded.append(plan)
             logger.warning(
                 "VSS_BASE_URL not configured: session %s would have sent %s "
-                "through POST /files and /summarize; leaving the session "
-                "in_progress",
+                "through the VSS agent API; leaving the session in_progress",
                 session_id,
                 video.name,
             )
@@ -76,17 +100,15 @@ class NotConfiguredHandoff:
 
 
 class VSSHandoff:
-    """Forwards MP4s to a VSS deployment and collects the summaries."""
+    """Forwards MP4s through the VSS agent API and collects the summaries."""
 
     def __init__(
         self,
         base_url: str,
-        model: str | None = None,
         http_client: httpx.Client | None = None,
         delete_retry_delay_s: float = DELETE_RETRY_DELAY_S,
     ) -> None:
         self.base_url = base_url.rstrip("/")
-        self.model = model
         self._client = http_client or httpx.Client(timeout=SUMMARIZE_TIMEOUT_S)
         self._delete_retry_delay_s = delete_retry_delay_s
 
@@ -96,7 +118,7 @@ class VSSHandoff:
         summaries: list[str] = []
         for video in videos:
             try:
-                summaries.append(self._summarize_video(video))
+                summaries.append(self._summarize_video(session_id, video))
             except httpx.HTTPError as error:
                 logger.error(
                     "VSS handoff failed for session %s video %s: %s",
@@ -107,47 +129,51 @@ class VSSHandoff:
                 return HandoffOutcome(status="failed", detail=str(error))
         return HandoffOutcome(status="complete", summary="\n\n".join(summaries))
 
-    def _summarize_video(self, video: Path) -> str:
-        file_id = self._upload(video)
+    def _summarize_video(self, session_id: str, video: Path) -> str:
+        # Session-qualified filename: VST names the sensor after the upload,
+        # and video_001.mp4 alone would collide across sessions.
+        sensor_id, sensor_url = self._upload(f"{session_id}_{video.name}", video)
         try:
-            return self._summarize(file_id)
+            return self._generate(sensor_id)
         finally:
-            self._delete_with_retry(file_id)
+            self._delete_with_retry(sensor_url)
 
-    def _upload(self, video: Path) -> str:
+    def _upload(self, filename: str, video: Path) -> tuple[str, str]:
+        """Upload one video into VST; return its sensor id and sensor URL."""
+        response = self._client.post(
+            f"{self.base_url}/api/v1/videos", json={"filename": filename}
+        )
+        response.raise_for_status()
+        storage_url = response.json()["url"]
         with video.open("rb") as handle:
-            response = self._client.post(
-                f"{self.base_url}/files",
-                files={"file": (video.name, handle, "video/mp4")},
-                data={"purpose": "vision", "media_type": "video"},
+            upload = self._client.post(
+                storage_url, files={"file": (filename, handle, "video/mp4")}
             )
-        response.raise_for_status()
-        return response.json()["id"]
+        upload.raise_for_status()
+        sensor_id = upload.json()["sensorId"]
+        # The storage URL ends in /storage/file under the VST API root; the
+        # sensor-management route lives under the same root.
+        sensor_url = storage_url.removesuffix("/storage/file") + f"/sensor/{sensor_id}"
+        return sensor_id, sensor_url
 
-    def _summarize(self, file_id: str) -> str:
-        body: dict = {"id": file_id}
-        if self.model:
-            body["model"] = self.model
-        response = self._client.post(f"{self.base_url}/summarize", json=body)
+    def _generate(self, sensor_id: str) -> str:
+        response = self._client.post(
+            f"{self.base_url}/generate",
+            json={"input_message": SUMMARY_PROMPT.format(sensor_id=sensor_id)},
+        )
         response.raise_for_status()
-        payload = response.json()
-        # VSS answers in OpenAI completion shape; fall back to a bare
-        # summary field for older builds.
-        choices = payload.get("choices")
-        if choices:
-            return choices[0]["message"]["content"]
-        return payload["summary"]
+        return answer_from_generate_value(response.json()["value"])
 
-    def _delete_with_retry(self, file_id: str) -> None:
-        """PRD 3.5: remove files after use, retrying pending deletion."""
+    def _delete_with_retry(self, sensor_url: str) -> None:
+        """PRD 3.5: remove the sensor after use, retrying pending deletion."""
         for attempt in range(1, DELETE_ATTEMPTS + 1):
             try:
-                response = self._client.delete(f"{self.base_url}/files/{file_id}")
+                response = self._client.delete(sensor_url)
                 if response.status_code < 500:
                     return
                 logger.warning(
                     "VSS delete of %s returned %s (attempt %d/%d)",
-                    file_id,
+                    sensor_url,
                     response.status_code,
                     attempt,
                     DELETE_ATTEMPTS,
@@ -155,7 +181,7 @@ class VSSHandoff:
             except httpx.HTTPError as error:
                 logger.warning(
                     "VSS delete of %s failed (attempt %d/%d): %s",
-                    file_id,
+                    sensor_url,
                     attempt,
                     DELETE_ATTEMPTS,
                     error,
@@ -163,7 +189,9 @@ class VSSHandoff:
             if attempt < DELETE_ATTEMPTS:
                 time.sleep(self._delete_retry_delay_s)
         logger.error(
-            "VSS file %s not deleted after %d attempts", file_id, DELETE_ATTEMPTS
+            "VSS sensor at %s not deleted after %d attempts",
+            sensor_url,
+            DELETE_ATTEMPTS,
         )
 
 
@@ -171,5 +199,5 @@ def handoff_from_env() -> VideoHandoff:
     """Choose the handoff from VSS_BASE_URL; unset means not configured."""
     base_url = os.environ.get("VSS_BASE_URL")
     if base_url:
-        return VSSHandoff(base_url=base_url, model=os.environ.get("VSS_MODEL"))
+        return VSSHandoff(base_url=base_url)
     return NotConfiguredHandoff()

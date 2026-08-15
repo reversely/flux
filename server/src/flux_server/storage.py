@@ -6,6 +6,8 @@ the seed script build a session by writing files.
 
 import json
 import re
+import subprocess
+import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +16,48 @@ _SESSION_ID_RE = re.compile(r"sess_[a-z0-9_]+")
 _FRAME_ID_RE = re.compile(r"frame_\d{3}")
 _VIDEO_ID_RE = re.compile(r"video_\d{3}")
 _RESULT_FILENAME = "result.json"
+
+
+class UnplayableVideoError(ValueError):
+    """An uploaded video's container could not be read or rewrapped."""
+
+
+def _is_quicktime(data: bytes) -> bool:
+    """True when the bytes open a QuickTime container (ftyp major brand qt)."""
+    return len(data) >= 12 and data[4:8] == b"ftyp" and data[8:12] == b"qt  "
+
+
+def remux_to_mp4(data: bytes) -> bytes:
+    """Rewrap QuickTime video into an MP4 container without re-encoding.
+
+    Raises:
+        UnplayableVideoError: when ffmpeg cannot read the bytes.
+    """
+    with tempfile.TemporaryDirectory() as workdir:
+        source = Path(workdir) / "in.mov"
+        target = Path(workdir) / "out.mp4"
+        source.write_bytes(data)
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                "-i",
+                str(source),
+                "-c",
+                "copy",
+                "-movflags",
+                "+faststart",
+                str(target),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise UnplayableVideoError(result.stderr.strip())
+        return target.read_bytes()
 
 
 class SessionStore:
@@ -60,6 +104,10 @@ class SessionStore:
         )
 
     def add_video(self, session_id: str, data: bytes, captured_at: str) -> str:
+        # VST sniffs the container and refuses QuickTime even under an .mp4
+        # name; iOS records .mov, so rewrap at ingest and keep disk mp4-only.
+        if _is_quicktime(data):
+            data = remux_to_mp4(data)
         video_id = f"video_{len(self.video_ids(session_id)) + 1:03d}"
         directory = self.root / session_id
         (directory / f"{video_id}.mp4").write_bytes(data)
