@@ -62,7 +62,8 @@ export function TopBar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Back"
-          onPress={() => router.back()}
+          // A deep-linked screen sits alone in the stack; back falls through home.
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           hitSlop={8}
           style={styles.action}
         >
