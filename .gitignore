@@ -243,6 +243,8 @@ server/data/
 # OS noise
 .DS_Store
 app/src/theme/fonts.generated.ts
+app/assets/reference/
+app/src/data/reference.generated.ts
 
 # agent-local files: instructions, skills, settings, worklogs, PRDs
 CLAUDE.md
@@ -252,3 +254,4 @@ docs/prd*.md
 docs/plans/
 
 app/docs/progress/
+FM21-76_SurvivalManual.pdf

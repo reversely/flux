@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
-import type { FrameUploadResponse, SessionResults } from './types';
+import type { ChatAnswer, FrameUploadResponse, SessionResults } from './types';
 
 const HEALTH_TIMEOUT_MS = 4000;
 
@@ -23,6 +23,18 @@ export class ApiClient {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  async chat(question: string): Promise<ChatAnswer> {
+    const response = await fetch(`${this.baseUrl}/v1/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+    if (!response.ok) {
+      throw new Error(`chat failed: ${response.status}`);
+    }
+    return (await response.json()) as ChatAnswer;
   }
 
   async createSession(): Promise<string> {

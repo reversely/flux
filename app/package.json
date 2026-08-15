@@ -32,6 +32,7 @@
     "react-native-vision-camera": "5.2.2",
     "react-native-vision-camera-worklets": "5.2.2",
     "react-native-web": "~0.21.0",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "0.10.1",
     "zustand": "^5.0.15"
   },
@@ -47,7 +48,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "postinstall": "node scripts/sync-fonts.mjs",
+    "postinstall": "node scripts/sync-fonts.mjs && node scripts/sync-reference.mjs",
     "test": "jest --passWithNoTests"
   },
   "private": true,

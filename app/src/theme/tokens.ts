@@ -6,7 +6,7 @@
  */
 import type { TextStyle } from 'react-native';
 
-import { aeonikFace, monoFamily } from './fonts';
+import { aeonikFace } from './fonts';
 
 export const colors = {
   paper: '#F2F4F5',
@@ -67,5 +67,5 @@ export const typography: Record<string, TextStyle> = {
   tag: { ...aeonikFace('medium'), fontSize: 12, lineHeight: 16 },
   focalStat: { ...aeonikFace('light'), fontSize: 32, lineHeight: 38, color: colors.ink },
   button: { ...aeonikFace('medium'), fontSize: 14, color: colors.card },
-  annotation: { fontFamily: monoFamily, fontSize: 11, color: colors.ink3 },
+  annotation: { ...aeonikFace('regular'), fontSize: 12, color: colors.ink3 },
 };

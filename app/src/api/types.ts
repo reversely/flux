@@ -10,21 +10,26 @@ export interface RecordStub {
 
 /**
  * Chat shapes for the future POST /v1/chat endpoint (mocked in api/chat.ts
- * until the server grows it). A citation names the FM anchor a sentence came
- * from; the chip deep-links into the encyclopedia once the reader exists.
+ * until the server grows it). Chapter mentions in the text ("chapter 7")
+ * become hyperlinks into the full-text reference on the client, and tool
+ * names a widget the answer can launch preloaded (see data/guide.ts).
  */
-export interface Citation {
-  anchor: string;
-  chapter_number: number;
-  chapter_title: string;
-  section_title: string;
-  tile_id: number;
+export interface ChatTool {
+  kind: 'camera' | 'chat' | 'reference';
+  label: string;
+  prime?: string;
+  subject?: string;
+  question?: string;
+  chapter?: number;
 }
 
 export interface ChatAnswer {
   answer_id: string;
   text: string;
-  citations: Citation[];
+  tool?: ChatTool;
+  // The server still emits the pre-rework citations field; the client ignores
+  // it (chapter mentions in text carry the links) until the shapes realign.
+  citations?: unknown[];
 }
 
 export interface SessionResults {

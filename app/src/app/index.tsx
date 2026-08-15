@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,13 +14,17 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CitationChip } from '@/components/CitationChip';
+import { AnswerText } from '@/components/AnswerText';
 import { TopBar, TopBarButton } from '@/components/TopBar';
+import { launchTool } from '@/lib/launch';
+import { REFERENCE_TITLE } from '@/data/reference';
 import { type ChatMessage, useChat } from '@/store/chat';
 import { useSession } from '@/store/session';
+import { aeonikFace } from '@/theme/fonts';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
 function Message({ message }: { message: ChatMessage }) {
+  const router = useRouter();
   if (message.role === 'user') {
     return (
       <View style={[styles.bubble, styles.userBubble]}>
@@ -30,17 +34,16 @@ function Message({ message }: { message: ChatMessage }) {
   }
   return (
     <View style={[styles.bubble, styles.assistantBubble]}>
-      {message.pending ? (
-        <ActivityIndicator color={colors.ink3} />
-      ) : (
-        <Text style={typography.body}>{message.text}</Text>
-      )}
-      {message.citations.length > 0 && (
-        <View style={styles.citationRow}>
-          {message.citations.map((c) => (
-            <CitationChip key={c.anchor} citation={c} />
-          ))}
-        </View>
+      {message.pending ? <ActivityIndicator color={colors.ink3} /> : <AnswerText text={message.text} />}
+      {message.tool && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => launchTool(router, message.tool!)}
+          style={styles.tool}
+        >
+          <Feather name="video" size={14} color={colors.signature} />
+          <Text style={styles.toolLabel}>{message.tool.label}</Text>
+        </Pressable>
       )}
     </View>
   );
@@ -49,9 +52,11 @@ function Message({ message }: { message: ChatMessage }) {
 export default function ChatHome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { ask } = useLocalSearchParams<{ ask?: string }>();
   const { messages, send } = useChat();
   const [draft, setDraft] = useState('');
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const askedRef = useRef<string | undefined>(undefined);
 
   // Silent health check of the stored server URL, once per launch.
   useEffect(() => {
@@ -59,6 +64,14 @@ export default function ChatHome() {
       void useSession.getState().connect();
     }
   }, []);
+
+  // A tool launch of kind 'chat' lands here with the question to ask.
+  useEffect(() => {
+    if (ask && ask !== askedRef.current) {
+      askedRef.current = ask;
+      void send(ask);
+    }
+  }, [ask, send]);
 
   const submit = () => {
     const question = draft.trim();
@@ -89,7 +102,7 @@ export default function ChatHome() {
           <View style={styles.empty}>
             <Text style={[typography.body, styles.emptyText]}>
               Please ask a question about first aid, shelter, fire, water, food, animals, or
-              finding your way. Answers cite their chapter and section in the manual.
+              finding your way.
             </Text>
           </View>
         ) : (
@@ -102,24 +115,33 @@ export default function ChatHome() {
             onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           />
         )}
-        <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, spacing.m) }]}>
-          <TextInput
-            style={styles.input}
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="Ask a question"
-            placeholderTextColor={colors.ink3}
-            returnKeyType="send"
-            onSubmitEditing={submit}
-          />
+        <View style={[styles.inputArea, { paddingBottom: Math.max(insets.bottom, spacing.m) }]}>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.input}
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="Ask a question"
+              placeholderTextColor={colors.ink3}
+              returnKeyType="send"
+              onSubmitEditing={submit}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Send"
+              onPress={submit}
+              disabled={!draft.trim()}
+              style={[styles.send, !draft.trim() && styles.sendDisabled]}
+            >
+              <Feather name="arrow-up" size={20} color={colors.card} />
+            </Pressable>
+          </View>
           <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Send"
-            onPress={submit}
-            disabled={!draft.trim()}
-            style={[styles.send, !draft.trim() && styles.sendDisabled]}
+            accessibilityRole="link"
+            onPress={() => router.push('/reference')}
+            style={styles.sourceRow}
           >
-            <Feather name="arrow-up" size={20} color={colors.card} />
+            <Text style={styles.sourceText}>Answers adapt {REFERENCE_TITLE}. Read the full text.</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -169,20 +191,33 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   },
-  citationRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.s,
-  },
-  inputRow: {
+  tool: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.m,
+    alignSelf: 'flex-start',
+    gap: spacing.xs + 2,
+    height: sizes.chip,
+    borderRadius: radius.chip,
+    backgroundColor: colors.signatureSoft,
+    paddingHorizontal: spacing.m,
+  },
+  toolLabel: {
+    ...aeonikFace('medium'),
+    fontSize: 12,
+    color: colors.signature,
+  },
+  inputArea: {
+    gap: spacing.s,
     paddingHorizontal: spacing.l,
     paddingTop: spacing.m,
     backgroundColor: colors.card,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.line,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.m,
   },
   input: {
     flex: 1,
@@ -204,5 +239,12 @@ const styles = StyleSheet.create({
   },
   sendDisabled: {
     opacity: 0.5,
+  },
+  sourceRow: {
+    alignSelf: 'center',
+  },
+  sourceText: {
+    ...typography.annotation,
+    textAlign: 'center',
   },
 });

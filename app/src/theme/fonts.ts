@@ -33,5 +33,3 @@ export function aeonikFace(weight: AeonikWeight): TextStyle {
   }
   return { fontWeight: systemWeights[weight] };
 }
-
-export const monoFamily = 'Menlo';
