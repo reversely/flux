@@ -14,6 +14,7 @@ import {
 } from 'react-native-vision-camera';
 
 import { GuidanceBanner } from '@/components/GuidanceBanner';
+import { LiveOverlay } from '@/components/LiveOverlay';
 import { Tag } from '@/components/Tag';
 import { createCameraSource } from '@/capture/cameraSource';
 import { createSampleSource } from '@/capture/sampleSource';
@@ -59,6 +60,7 @@ export default function Scan() {
   const phase = useSession((state) => state.phase);
   const results = useSession((state) => state.results);
   const uploadStats = useSession((state) => state.uploadStats);
+  const lastFrameSize = useSession((state) => state.lastFrameSize);
   const startScan = useSession((state) => state.startScan);
   const submitFrame = useSession((state) => state.submitFrame);
   const finishScan = useSession((state) => state.finishScan);
@@ -147,6 +149,7 @@ export default function Scan() {
           }}
         />
       )}
+      {phase === 'scanning' && <LiveOverlay joints={results} frameSize={lastFrameSize} />}
       <View style={styles.guidance}>
         <GuidanceBanner
           status={quality.status}

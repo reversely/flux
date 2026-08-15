@@ -7,16 +7,15 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { G, Rect, Text as SvgText } from 'react-native-svg';
+import Svg from 'react-native-svg';
 
 import type { JointRecord } from '@/api/types';
+import { JointBoxes } from '@/components/JointBoxes';
 import { containTransform, mapBox, type Size } from '@/lib/coords';
-import { boxStroke, classLabels, isSuspicious } from '@/lib/labels';
 import { colors } from '@/theme/tokens';
 
 const MAX_ZOOM = 8;
 const SELECT_ZOOM = 2.4;
-const LABEL_HEIGHT = 14;
 
 interface Props {
   imageUri: string;
@@ -130,47 +129,12 @@ export function FrameCanvas({
               width={container.width}
               height={container.height}
             >
-              {joints.map((joint) => {
-                const box = mapBox(joint.bounding_box, transform);
-                const selected = joint.joint_id === selectedJointId;
-                const stroke = boxStroke(joint, selected);
-                const labeled = isSuspicious(joint) || selected;
-                const label = `${classLabels[joint.classification]} ${Math.round(joint.confidence * 100)}%`;
-                return (
-                  <G key={joint.joint_id}>
-                    <Rect
-                      x={box.x}
-                      y={box.y}
-                      width={box.width}
-                      height={box.height}
-                      fill="transparent"
-                      stroke={stroke}
-                      strokeWidth={selected ? 2.5 : 1.5}
-                      onPress={() => onSelectJoint(joint.joint_id)}
-                    />
-                    {labeled && (
-                      <G>
-                        <Rect
-                          x={box.x}
-                          y={box.y - LABEL_HEIGHT}
-                          width={label.length * 6 + 8}
-                          height={LABEL_HEIGHT}
-                          fill="rgba(0, 0, 0, 0.55)"
-                        />
-                        <SvgText
-                          x={box.x + 4}
-                          y={box.y - 4}
-                          fill={colors.card}
-                          fontFamily="Menlo"
-                          fontSize={10}
-                        >
-                          {label}
-                        </SvgText>
-                      </G>
-                    )}
-                  </G>
-                );
-              })}
+              <JointBoxes
+                joints={joints}
+                transform={transform}
+                selectedJointId={selectedJointId}
+                onSelectJoint={onSelectJoint}
+              />
             </Svg>
           )}
         </Animated.View>

@@ -5,6 +5,7 @@ import { ApiClient } from '@/api/client';
 import type { JointRecord } from '@/api/types';
 import { UploadQueue, type UploadStats } from '@/api/uploadQueue';
 import type { CapturedFrame } from '@/capture/types';
+import type { Size } from '@/lib/coords';
 
 // RN's Settings module persists to NSUserDefaults, so the server URL survives
 // restarts without adding a native storage dependency (which would force a
@@ -23,6 +24,7 @@ interface SessionState {
   phase: Phase;
   results: JointRecord[];
   uploadStats: UploadStats;
+  lastFrameSize: Size | null;
   setServerUrl: (url: string) => void;
   connect: () => Promise<void>;
   client: () => ApiClient;
@@ -43,6 +45,7 @@ export const useSession = create<SessionState>((set, get) => ({
   phase: 'idle',
   results: [],
   uploadStats: zeroStats,
+  lastFrameSize: null,
   setServerUrl: (url) => {
     Settings.set({ [SERVER_URL_KEY]: url });
     set({ serverUrl: url, connection: 'idle' });
@@ -71,6 +74,9 @@ export const useSession = create<SessionState>((set, get) => ({
     return sessionId;
   },
   submitFrame: (frame) => {
+    if (frame.width > 0 && frame.height > 0) {
+      set({ lastFrameSize: { width: frame.width, height: frame.height } });
+    }
     activeQueue?.enqueue(frame);
   },
   finishScan: () => {
