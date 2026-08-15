@@ -1,3 +1,4 @@
+import { useIsFocused } from 'expo-router';
 import { Canvas, Fill, Shader, Skia, useClock } from '@shopify/react-native-skia';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, StyleSheet, useWindowDimensions } from 'react-native';
@@ -96,17 +97,25 @@ export function HomeBackdrop({ scrollY }: { scrollY: SharedValue<number> }) {
   const { width, height } = useWindowDimensions();
   const clock = useClock();
   const [reduceMotion, setReduceMotion] = useState(false);
+  // The stack keeps home mounted under every pushed screen; an unfocused
+  // shader must stop redrawing or it repaints full-screen behind every page.
+  const focused = useIsFocused();
+  const frozen = reduceMotion || !focused;
 
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
   }, []);
 
-  const uniforms = useDerivedValue(() => ({
+  const animatedUniforms = useDerivedValue(() => ({
     res: [width, height],
-    time: reduceMotion ? 42 : clock.value / 1000,
+    time: clock.value / 1000,
     scroll: scrollY.value,
     ...PALETTE,
   }));
+  // A derived value re-notifies the canvas every clock tick even when its
+  // contents stop changing, so the frozen scene binds a plain object:
+  // same frame, zero redraws.
+  const frozenUniforms = { res: [width, height], time: 42, scroll: 0, ...PALETTE };
 
   if (!effect) {
     return null;
@@ -114,7 +123,7 @@ export function HomeBackdrop({ scrollY }: { scrollY: SharedValue<number> }) {
   return (
     <Canvas style={StyleSheet.absoluteFill}>
       <Fill>
-        <Shader source={effect} uniforms={uniforms} />
+        <Shader source={effect} uniforms={frozen ? frozenUniforms : animatedUniforms} />
       </Fill>
     </Canvas>
   );
