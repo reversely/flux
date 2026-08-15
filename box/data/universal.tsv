@@ -1,0 +1,3 @@
+# name	layer	source	ref	status
+universal/wmm2025	declination	url	ncei-survey-gated-pygeomag-wheel-fallback	pending
+universal/fm-manual-family	procedure-figures	url	unabridged-fm21-76-fm3-05.70-fm4-25.11-fm5-125-urls-unverified	pending

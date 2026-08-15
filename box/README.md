@@ -35,3 +35,17 @@ ssh -o ControlPath=~/.ssh/cm-gn100 gn100 'cd ~/flux && nohup bash fetch_models.s
 
 Rows marked `pending` need their distribution channel verified (Kaggle terms,
 checkpoint URLs) before they join a fetch wave.
+
+## Fetching data and corpora
+
+Pack data divides into universal content that ships in every pack
+(`data/universal.tsv`) and region-specific content the box fetches from the
+internet per configured region (`data/regions/<region>.tsv`); each row's name
+carries its path, so `~/flux/data` mirrors the split. Training corpora for the
+coach live in `corpora/manifest.tsv` and download to `~/flux/corpora`.
+`scripts/fetch_data.sh` serves all three, with the target directory set by
+`DATA_DIR`:
+
+```
+ssh -o ControlPath=~/.ssh/cm-gn100 -f gn100 'cd ~/flux && DATA_DIR=~/flux/corpora nohup bash fetch_data.sh corpora-manifest.tsv > fetch_corpora.out 2>&1 < /dev/null &'
+```
