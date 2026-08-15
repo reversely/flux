@@ -11,6 +11,7 @@ from flux_server.retrieval import NoPackRetriever, retriever_from_env
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.delenv("FLUX_CONTENT_DB", raising=False)
+    monkeypatch.delenv("FLUX_NEMOTRON_URL", raising=False)
     return TestClient(create_app(data_dir=tmp_path))
 
 
