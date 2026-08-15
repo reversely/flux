@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import type { ChapterDetail } from '@/api/types';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
+import { knotsForTile } from '@/data/coach';
 import { loadChapter, loadChapters, tileById } from '@/data/encyclopedia';
 import { useSession } from '@/store/session';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
@@ -82,6 +83,26 @@ export default function TileSections() {
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
           {content.sample && <Tag label="Sample content" tone="yellow" />}
+          {knotsForTile(tile.id).length > 0 && (
+            <View style={styles.chapter}>
+              <Text style={[typography.annotation, styles.chapterLabel]}>Knot coach</Text>
+              <View style={styles.sectionCard}>
+                {knotsForTile(tile.id).map((knot, index) => (
+                  <Pressable
+                    key={knot.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${knot.name} coach`}
+                    onPress={() => router.push(`/coach/${knot.id}`)}
+                    style={[styles.sectionRow, index > 0 && styles.sectionRowBorder]}
+                  >
+                    <Feather name="video" size={16} color={colors.signature} />
+                    <Text style={[typography.listBody, styles.sectionTitle]}>{knot.name}</Text>
+                    <Feather name="chevron-right" size={16} color={colors.ink3} />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
           {content.chapters.map((chapter) => (
             <View key={chapter.id} style={styles.chapter}>
               <Text style={[typography.annotation, styles.chapterLabel]}>
