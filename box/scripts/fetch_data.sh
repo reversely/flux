@@ -23,6 +23,13 @@ grep -v '^#' "$MANIFEST" | while IFS=$'\t' read -r name layer source ref status;
       mkdir -p "$dest"
       curl -fSL -C - -o "$dest/$(basename "$ref")" "$ref" >>"$log" 2>&1
       ;;
+    git)
+      if [ -d "$dest/.git" ]; then
+        git -C "$dest" pull >>"$log" 2>&1
+      else
+        git clone --depth 1 "$ref" "$dest" >>"$log" 2>&1
+      fi
+      ;;
     *)
       echo "unknown source '$source' for $name" | tee -a "$log"
       continue
