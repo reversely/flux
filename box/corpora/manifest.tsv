@@ -4,3 +4,4 @@ coin-annotations	step-labels	git	https://github.com/coin-dataset/annotations	fet
 prego	mistake-detection-code	git	https://github.com/aleflabo/PREGO	fetch
 assembly101	assembly-mistakes	hfd	cvml-nus/assembly101	fetch	recordings/*
 coin-videos	step-videos	yt-dlp	subset-decision-required	pending
+howto100m-captions	caption-mirror	hfd	Jazzcharles/HowTo100M_llama3_refined_caption	fetch
