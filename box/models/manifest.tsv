@@ -9,7 +9,7 @@ bioclip	species-classifier	hf	imageomics/bioclip	mit	fetch
 bioclip-2	species-classifier	hf	imageomics/bioclip-2	mit	fetch
 megadetector-v5a	wildlife-detector	url	https://github.com/agentmorris/MegaDetector/releases/download/v5.0/md_v5a.0.0.pt	mit	fetch
 birdnet-analyzer	bioacoustics	git	https://github.com/birdnet-team/BirdNET-Analyzer	cc-by-nc-sa-4.0	fetch
-speciesnet	wildlife-classifier	kaggle	google/speciesnet	apache-2.0	pending
+speciesnet	wildlife-classifier	pip	speciesnet-package-kagglehub-autofetch	apache-2.0	external
 rtmpose	pose-estimator	url	mmpose-checkpoint-url-unverified	apache-2.0	pending
-fungitastic-df20	fungi-classifier	url	fungitastic-onnx-url-unverified	verify	pending
+fungitastic-mini	fungi-classifier	hf	BVRA/tf_efficientnet_b3.in1k_ft_fungitastic-m_384	verify	fetch
 snakeclef	snake-classifier	url	snakeclef-recipe-unverified	verify	pending
