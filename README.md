@@ -1,7 +1,8 @@
 # flux
 
-Flux pairs a phone client with a LAN inference server. The previous concept was purged; the
-repo carries the bare skeleton while the next concept takes shape.
+Flux builds LifeKit, a digital edition of the US Army Survival Manual FM 21-76 for off-grid
+living: a phone app carries the offline content and light models, and an Acer GN100 on the
+local network runs VSS and the heavy models. `docs/prd.md` holds the design.
 
 ## Layout
 
@@ -9,6 +10,10 @@ repo carries the bare skeleton while the next concept takes shape.
   plumbing, with the design-system theme and a compiled dev client ready for camera work.
 - `server/` — FastAPI server with bare endpoints: create a session, upload a frame, fetch a
   frame back, fetch results (an empty record list until a model exists), and health.
+- `box/` — provisioning for the Acer GN100 that runs VSS and the heavy models: the model
+  manifest, the fetch script, and connection notes.
+- `contracts/` — the interface descriptions the three parties code against: the flux-server
+  OpenAPI export and the pointer to the VSS endpoint map in docs/prd.md section 2.2.
 
 ## Run
 
