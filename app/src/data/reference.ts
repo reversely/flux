@@ -31,7 +31,9 @@ const CHAPTER_PAGES: Record<number, number> = {
   23: 221,
 };
 
-export const REFERENCE_TITLE = 'FM 21-76, Survival';
+import corpus from './guide-corpus.json';
+
+export const REFERENCE_TITLE = corpus.reference.title;
 
 export { referencePdf };
 

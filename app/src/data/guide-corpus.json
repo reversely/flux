@@ -1,0 +1,347 @@
+{
+  "reference": {
+    "title": "FM 21-76, Survival"
+  },
+  "tiles": [
+    {
+      "id": 1,
+      "title": "Survival Medicine",
+      "chapter": 4
+    },
+    {
+      "id": 2,
+      "title": "Shelter",
+      "chapter": 5
+    },
+    {
+      "id": 3,
+      "title": "Fire",
+      "chapter": 7
+    },
+    {
+      "id": 4,
+      "title": "Water",
+      "chapter": 6
+    },
+    {
+      "id": 5,
+      "title": "Food",
+      "chapter": 8
+    },
+    {
+      "id": 6,
+      "title": "Poisonous Plants",
+      "chapter": 10
+    },
+    {
+      "id": 7,
+      "title": "Dangerous Animals",
+      "chapter": 11
+    },
+    {
+      "id": 8,
+      "title": "Tools & Cordage",
+      "chapter": 12
+    },
+    {
+      "id": 9,
+      "title": "Direction Finding",
+      "chapter": 18
+    },
+    {
+      "id": 10,
+      "title": "Signaling & Rescue",
+      "chapter": 19
+    },
+    {
+      "id": 11,
+      "title": "Environments",
+      "chapter": 13
+    },
+    {
+      "id": 12,
+      "title": "Man-Made Hazards",
+      "chapter": 23
+    }
+  ],
+  "guides": [
+    {
+      "tileId": 3,
+      "intro": "A fire needs all three material stages ready before you strike anything: tinder that catches a spark, kindling that catches tinder, and fuel that holds the burn. Gather triple what looks sufficient.",
+      "groups": [
+        {
+          "id": "fire-lays",
+          "title": "Fire lays",
+          "items": [
+            {
+              "id": "tepee",
+              "title": "Tepee",
+              "blurb": "Kindling leaned into a cone over the tinder. Lights easiest and burns hot and fast, so it is the starting lay: collapse it into coals, then feed a steadier lay from them.",
+              "tools": [
+                {
+                  "kind": "chat",
+                  "label": "Ask about this",
+                  "question": "My tepee fire keeps collapsing before it catches. What am I doing wrong?"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 7
+                }
+              ]
+            },
+            {
+              "id": "log-cabin",
+              "title": "Log cabin",
+              "blurb": "Fuel stacked in alternating pairs around the flame. Airflow through the walls gives a long, steady burn for cooking and warmth once the tepee has caught.",
+              "tools": [
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 7
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "ignition",
+          "title": "Ignition",
+          "items": [
+            {
+              "id": "spark-ignition",
+              "title": "Spark ignition",
+              "blurb": "A ferro rod or flint against steel throws sparks into prepared tinder: shaved bark, dry grass, or cotton teased into a loose nest. Shave the rod slowly first to load the nest with material.",
+              "tools": [
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 7
+                }
+              ]
+            },
+            {
+              "id": "site-preparation",
+              "title": "Site preparation",
+              "blurb": "Clear ground to mineral soil in a two-meter circle, and build a platform of green wood on wet ground. Wind decides placement: shelter the flame, and never lay a fire under snow-loaded branches.",
+              "tools": [
+                {
+                  "kind": "chat",
+                  "label": "Ask about this",
+                  "question": "Where should I place a fire relative to my shelter and the wind?"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 7
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tileId": 8,
+      "intro": "Rope work turns loose materials into shelters, tools, and anchors. Learn six knots well rather than twenty badly: each one below states its job, and the camera can check your result against it.",
+      "groups": [
+        {
+          "id": "knots",
+          "title": "Knots",
+          "items": [
+            {
+              "id": "bowline",
+              "title": "Bowline",
+              "blurb": "A fixed loop that will not slip under load and unties easily afterward. Use it to anchor a line around a tree or your waist. The loop stays the size you tie it.",
+              "tools": [
+                {
+                  "kind": "camera",
+                  "label": "Check my knot",
+                  "prime": "knot-verification",
+                  "subject": "bowline"
+                },
+                {
+                  "kind": "chat",
+                  "label": "Ask about this",
+                  "question": "When do I use a bowline instead of a figure-eight loop?"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 12
+                }
+              ]
+            },
+            {
+              "id": "taut-line-hitch",
+              "title": "Taut-line hitch",
+              "blurb": "An adjustable hitch that slides to tension a line and then holds. Use it on tent guy-lines and any line you will need to re-tighten as it stretches.",
+              "tools": [
+                {
+                  "kind": "camera",
+                  "label": "Check my knot",
+                  "prime": "knot-verification",
+                  "subject": "taut-line-hitch"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 12
+                }
+              ]
+            },
+            {
+              "id": "clove-hitch",
+              "title": "Clove hitch",
+              "blurb": "Two crossing turns around a pole. Fast to tie and to adjust, and the usual start and end of a lashing. It slips on a smooth pole under a shifting pull, so back it up when the load moves.",
+              "tools": [
+                {
+                  "kind": "camera",
+                  "label": "Check my knot",
+                  "prime": "knot-verification",
+                  "subject": "clove-hitch"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 12
+                }
+              ]
+            },
+            {
+              "id": "truckers-hitch",
+              "title": "Trucker's hitch",
+              "blurb": "A loop plus a pulley wrap that multiplies your pull for cinching a load tight. Use it to bind bundles or strain a ridgeline before locking it off with half hitches.",
+              "tools": [
+                {
+                  "kind": "camera",
+                  "label": "Check my knot",
+                  "prime": "knot-verification",
+                  "subject": "truckers-hitch"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 12
+                }
+              ]
+            },
+            {
+              "id": "figure-eight",
+              "title": "Figure-eight",
+              "blurb": "A stopper that keeps a rope end from pulling through a hole or another knot, and the base of the figure-eight loop. Bulkier and stronger than an overhand.",
+              "tools": [
+                {
+                  "kind": "camera",
+                  "label": "Check my knot",
+                  "prime": "knot-verification",
+                  "subject": "figure-eight"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 12
+                }
+              ]
+            },
+            {
+              "id": "square-knot",
+              "title": "Square knot",
+              "blurb": "Joins two ends of the same rope around an object, such as a bandage or a bundle. It is a binding knot: never trust it to join two ropes under load.",
+              "tools": [
+                {
+                  "kind": "camera",
+                  "label": "Check my knot",
+                  "prime": "knot-verification",
+                  "subject": "square-knot"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 12
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "lashings",
+          "title": "Lashings",
+          "items": [
+            {
+              "id": "square-lashing",
+              "title": "Square lashing",
+              "blurb": "Binds two poles at a right angle: start with a clove hitch, wrap three turns over and under, frap two turns between the poles, and finish with a clove hitch. The frame joint for shelters and racks.",
+              "tools": [
+                {
+                  "kind": "camera",
+                  "label": "Check my lashing",
+                  "prime": "lashing-verification",
+                  "subject": "square-lashing"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 12
+                }
+              ]
+            },
+            {
+              "id": "shear-lashing",
+              "title": "Shear lashing",
+              "blurb": "Binds two poles side by side so they scissor open into an A-frame. Wrap loosely enough that the legs still spread, then frap between the poles.",
+              "tools": [
+                {
+                  "kind": "camera",
+                  "label": "Check my lashing",
+                  "prime": "lashing-verification",
+                  "subject": "shear-lashing"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 12
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cordage",
+          "title": "Making cordage",
+          "items": [
+            {
+              "id": "plant-fibers",
+              "title": "Plant fibers",
+              "blurb": "Inner bark of dead standing trees, dried nettle or milkweed stalks, and yucca leaves all strip into usable fiber. Test a strand: it should bend around itself without snapping.",
+              "tools": [
+                {
+                  "kind": "camera",
+                  "label": "Identify a plant",
+                  "prime": "species-id"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 12
+                }
+              ]
+            },
+            {
+              "id": "reverse-wrap",
+              "title": "Reverse-wrap twist",
+              "blurb": "Twist a fiber bundle away from you until it kinks, fold it, then twist each half away while wrapping them toward each other. Splice in new fiber before a strand thins out.",
+              "tools": [
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 12
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
