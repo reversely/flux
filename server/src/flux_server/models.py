@@ -24,8 +24,21 @@ class FrameUploadResponse(BaseModel):
 
 class SessionResults(BaseModel):
     session_id: str
-    status: Literal["in_progress", "complete"]
+    status: Literal["in_progress", "complete", "failed"]
     records: list[RecordStub]
+    summary: str | None = None
+    detail: str | None = None
+
+
+class VideoUploadResponse(BaseModel):
+    video_id: str
+
+
+class SessionFinished(BaseModel):
+    """Acknowledgement of the finish trigger; poll the results route next."""
+
+    session_id: str
+    status: Literal["in_progress", "complete", "failed"]
 
 
 class ChatRequest(BaseModel):

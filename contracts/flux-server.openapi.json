@@ -132,6 +132,95 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/videos": {
+      "post": {
+        "summary": "Upload Video",
+        "operationId": "upload_video_v1_sessions__session_id__videos_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_video_v1_sessions__session_id__videos_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{session_id}/finish": {
+      "post": {
+        "summary": "Finish Session",
+        "description": "Close the upload phase and forward the session's MP4s to VSS.\n\nThe handoff awaits the VSS summary and stores it as the session\nresult; without a configured VSS the session stays in_progress.\nFinishing an already-finished session repeats the stored status\nwithout forwarding again.",
+        "operationId": "finish_session_v1_sessions__session_id__finish_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionFinished"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/results": {
       "get": {
         "summary": "Session Results",
@@ -238,6 +327,25 @@
           "captured_at"
         ],
         "title": "Body_upload_frame_v1_sessions__session_id__frames_post"
+      },
+      "Body_upload_video_v1_sessions__session_id__videos_post": {
+        "properties": {
+          "video": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Video"
+          },
+          "captured_at": {
+            "type": "string",
+            "title": "Captured At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video",
+          "captured_at"
+        ],
+        "title": "Body_upload_video_v1_sessions__session_id__videos_post"
       },
       "ChatAnswer": {
         "properties": {
@@ -372,6 +480,30 @@
         ],
         "title": "SessionCreated"
       },
+      "SessionFinished": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "complete",
+              "failed"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "status"
+        ],
+        "title": "SessionFinished",
+        "description": "Acknowledgement of the finish trigger; poll the results route next."
+      },
       "SessionResults": {
         "properties": {
           "session_id": {
@@ -382,7 +514,8 @@
             "type": "string",
             "enum": [
               "in_progress",
-              "complete"
+              "complete",
+              "failed"
             ],
             "title": "Status"
           },
@@ -392,6 +525,28 @@
             },
             "type": "array",
             "title": "Records"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
           }
         },
         "type": "object",
@@ -441,6 +596,19 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VideoUploadResponse": {
+        "properties": {
+          "video_id": {
+            "type": "string",
+            "title": "Video Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video_id"
+        ],
+        "title": "VideoUploadResponse"
       }
     }
   }
