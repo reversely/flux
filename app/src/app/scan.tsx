@@ -1,16 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   Camera,
   useCameraDevice,
   useCameraPermission,
   usePhotoOutput,
+  type CameraController,
+  type CameraRef,
   type TorchMode,
 } from 'react-native-vision-camera';
 
+import { GuidanceBanner } from '@/components/GuidanceBanner';
+import { useCaptureQuality } from '@/quality/useCaptureQuality';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
 const PHOTO_RESOLUTION = { width: 1920, height: 1440 };
@@ -41,6 +45,10 @@ export default function Scan() {
     targetResolution: PHOTO_RESOLUTION,
     qualityPrioritization: 'speed',
   });
+
+  const cameraRef = useRef<CameraRef>(null);
+  const controllerRef = useRef<CameraController | undefined>(undefined);
+  const quality = useCaptureQuality(controllerRef);
 
   const captureStill = async () => {
     const photo = await photoOutput.capturePhoto({ enableShutterSound: false }, {});
@@ -88,13 +96,20 @@ export default function Scan() {
   return (
     <View style={styles.screen}>
       <Camera
+        ref={cameraRef}
         style={StyleSheet.absoluteFill}
         isActive={focused}
         device={device}
-        outputs={[photoOutput]}
+        outputs={[photoOutput, quality.frameOutput]}
         torchMode={torchMode}
         resizeMode="cover"
+        onConfigured={() => {
+          controllerRef.current = cameraRef.current?.controller;
+        }}
       />
+      <View style={styles.guidance}>
+        <GuidanceBanner status={quality.status} showMetrics={__DEV__} />
+      </View>
       <View style={styles.topBar}>
         <Pressable style={styles.chromeButton} hitSlop={8} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={20} color={colors.card} />
@@ -158,6 +173,12 @@ const styles = StyleSheet.create({
     right: spacing.l,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  guidance: {
+    position: 'absolute',
+    top: 104,
+    left: spacing.l,
+    right: spacing.l,
   },
   bottomBar: {
     position: 'absolute',
