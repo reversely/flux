@@ -1,10 +1,10 @@
 """Retrieval seam behind POST /v1/chat.
 
 The chat route answers through the Retriever protocol. The only implementation
-today is NoPackRetriever, which states that no content pack is loaded and cites
-nothing. The reader over the anchored pack SQLite (contracts/pack-format.md,
-ticket #26) implements the same protocol and slots in through
-retriever_from_env once the pack format lands.
+today is NoPackRetriever, which states that no content pack is loaded and
+carries no tool launch. The reader over the anchored pack SQLite
+(contracts/pack-format.md, ticket #26) implements the same protocol and slots
+in through retriever_from_env once the pack format lands.
 """
 
 import os
@@ -26,13 +26,12 @@ class Retriever(Protocol):
 
 
 class NoPackRetriever:
-    """Answers every question with the no-pack notice and zero citations."""
+    """Answers every question with the no-pack notice and no tool launch."""
 
     def answer(self, question: str) -> ChatAnswer:
         return ChatAnswer(
             answer_id=f"ans_{uuid.uuid4().hex[:8]}",
             text=NO_PACK_TEXT,
-            citations=[],
         )
 
 

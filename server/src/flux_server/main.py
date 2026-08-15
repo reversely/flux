@@ -57,7 +57,9 @@ def create_app(
     def healthz() -> dict[str, bool]:
         return {"ok": True}
 
-    @app.post("/v1/chat", response_model=ChatAnswer)
+    # exclude_none keeps optional fields absent on the wire, matching the
+    # app mirror's `tool?`/`prime?` optionals rather than emitting nulls.
+    @app.post("/v1/chat", response_model=ChatAnswer, response_model_exclude_none=True)
     def chat(request: ChatRequest) -> ChatAnswer:
         return retriever.answer(request.question)
 

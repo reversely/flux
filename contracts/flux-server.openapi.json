@@ -357,21 +357,24 @@
             "type": "string",
             "title": "Text"
           },
-          "citations": {
-            "items": {
-              "$ref": "#/components/schemas/Citation"
-            },
-            "type": "array",
-            "title": "Citations"
+          "tool": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatTool"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "required": [
           "answer_id",
-          "text",
-          "citations"
+          "text"
         ],
-        "title": "ChatAnswer"
+        "title": "ChatAnswer",
+        "description": "Chapter mentions in text carry the reference links (no citations field)."
       },
       "ChatRequest": {
         "properties": {
@@ -386,39 +389,73 @@
         ],
         "title": "ChatRequest"
       },
-      "Citation": {
+      "ChatTool": {
         "properties": {
-          "anchor": {
+          "kind": {
             "type": "string",
-            "title": "Anchor"
+            "enum": [
+              "camera",
+              "chat",
+              "reference"
+            ],
+            "title": "Kind"
           },
-          "chapter_number": {
-            "type": "integer",
-            "title": "Chapter Number"
-          },
-          "chapter_title": {
+          "label": {
             "type": "string",
-            "title": "Chapter Title"
+            "title": "Label"
           },
-          "section_title": {
-            "type": "string",
-            "title": "Section Title"
+          "prime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prime"
           },
-          "tile_id": {
-            "type": "integer",
-            "title": "Tile Id"
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
           }
         },
         "type": "object",
         "required": [
-          "anchor",
-          "chapter_number",
-          "chapter_title",
-          "section_title",
-          "tile_id"
+          "kind",
+          "label"
         ],
-        "title": "Citation",
-        "description": "One FM anchor an answer sentence came from (PRD 4.1 anchor IDs)."
+        "title": "ChatTool",
+        "description": "Widget an answer can launch preloaded; prime names the model context."
       },
       "FrameUploadResponse": {
         "properties": {

@@ -45,17 +45,20 @@ class ChatRequest(BaseModel):
     question: str
 
 
-class Citation(BaseModel):
-    """One FM anchor an answer sentence came from (PRD 4.1 anchor IDs)."""
+class ChatTool(BaseModel):
+    """Widget an answer can launch preloaded; prime names the model context."""
 
-    anchor: str
-    chapter_number: int
-    chapter_title: str
-    section_title: str
-    tile_id: int
+    kind: Literal["camera", "chat", "reference"]
+    label: str
+    prime: str | None = None
+    subject: str | None = None
+    question: str | None = None
+    chapter: int | None = None
 
 
 class ChatAnswer(BaseModel):
+    """Chapter mentions in text carry the reference links (no citations field)."""
+
     answer_id: str
     text: str
-    citations: list[Citation]
+    tool: ChatTool | None = None

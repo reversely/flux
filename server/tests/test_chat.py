@@ -21,17 +21,18 @@ def ask(client: TestClient, question: str = "How do I purify water?") -> dict:
 
 
 def test_answer_carries_exactly_the_chat_answer_keys(client: TestClient) -> None:
+    # Optional fields stay absent on the wire, not null: the no-pack answer
+    # carries no tool, so only the required keys appear.
     body = ask(client)
-    assert set(body) == {"answer_id", "text", "citations"}
+    assert set(body) == {"answer_id", "text"}
     assert isinstance(body["answer_id"], str)
     assert isinstance(body["text"], str)
-    assert isinstance(body["citations"], list)
 
 
-def test_no_pack_answer_admits_it_and_cites_nothing(client: TestClient) -> None:
+def test_no_pack_answer_admits_it_and_offers_no_tool(client: TestClient) -> None:
     body = ask(client)
     assert "no content pack" in body["text"].lower()
-    assert body["citations"] == []
+    assert "tool" not in body
 
 
 def test_answer_ids_are_unique_per_answer(client: TestClient) -> None:
@@ -43,18 +44,28 @@ def test_missing_question_is_rejected(client: TestClient) -> None:
     assert client.post("/v1/chat", json={}).status_code == 422
 
 
-def test_citation_schema_matches_the_frontend_mirror(client: TestClient) -> None:
-    # The app codes against app/src/api/types.ts; these snake_case names are
-    # the wire contract and must not drift.
-    schema = client.get("/openapi.json").json()["components"]["schemas"]["Citation"]
-    assert set(schema["properties"]) == {
-        "anchor",
-        "chapter_number",
-        "chapter_title",
-        "section_title",
-        "tile_id",
+def test_chat_schema_matches_the_frontend_mirror(client: TestClient) -> None:
+    # The app codes against ChatTool/ChatAnswer in app/src/api/types.ts; these
+    # names are the wire contract and must not drift.
+    schemas = client.get("/openapi.json").json()["components"]["schemas"]
+    assert "Citation" not in schemas
+
+    answer = schemas["ChatAnswer"]
+    assert set(answer["properties"]) == {"answer_id", "text", "tool"}
+    assert set(answer["required"]) == {"answer_id", "text"}
+
+    tool = schemas["ChatTool"]
+    assert set(tool["properties"]) == {
+        "kind",
+        "label",
+        "prime",
+        "subject",
+        "question",
+        "chapter",
     }
-    assert set(schema["required"]) == set(schema["properties"])
+    assert set(tool["required"]) == {"kind", "label"}
+    kind = tool["properties"]["kind"]
+    assert kind["enum"] == ["camera", "chat", "reference"]
 
 
 def test_retriever_from_env_without_pack_is_the_no_pack_stub(
