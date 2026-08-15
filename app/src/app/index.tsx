@@ -1,4 +1,5 @@
 import * as Device from 'expo-device';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -70,6 +71,15 @@ export default function Connect() {
           </Text>
         )}
       </View>
+      {connection === 'connected' && (
+        <Pressable
+          onPress={() =>
+            router.push({ pathname: '/review', params: { sessionId: 'sess_sample' } })
+          }
+        >
+          <Text style={styles.link}>Review sample</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -125,5 +135,10 @@ const styles = StyleSheet.create({
     ...typography.body,
     fontSize: 14,
     lineHeight: 21,
+  },
+  link: {
+    ...typography.button,
+    color: colors.signature,
+    paddingHorizontal: spacing.xs,
   },
 });
