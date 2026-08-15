@@ -44,7 +44,30 @@ KNOWN_PRIMES = {"knot-verification", "species-id", "wildlife-id"}
 DEFAULT_LABELS = {
     "knot-verification": "Check my knot",
     "species-id": "Identify a plant",
-    "wildlife-id": "Identify wildlife",
+    "wildlife-id": "Identify an animal",
+}
+
+# Deterministic attachment floor (#50): the model does not call launch_tool
+# reliably, so when its response carries no valid tool the question itself
+# decides, with exactly the shipped frontend mock's keyword map
+# (app/src/api/chat.ts history). First matching group wins.
+KEYWORD_TOOLS = [
+    (("knot", "rope", "lash", "cord"), "knot-verification"),
+    (("eat", "food", "plant", "berry", "edib", "mushroom"), "species-id"),
+    (("snake", "bite", "animal", "bear", "sting"), "wildlife-id"),
+]
+
+# The six knots the guide teaches, as they appear in questions -> subject.
+KNOT_SUBJECTS = {
+    "bowline": "bowline",
+    "taut-line hitch": "taut-line-hitch",
+    "taut line hitch": "taut-line-hitch",
+    "clove hitch": "clove-hitch",
+    "trucker's hitch": "truckers-hitch",
+    "truckers hitch": "truckers-hitch",
+    "figure-eight": "figure-eight",
+    "figure eight": "figure-eight",
+    "square knot": "square-knot",
 }
 
 # /no_think switches Nemotron out of its reasoning-trace mode; the raw trace
@@ -188,6 +211,36 @@ def _parse_tool(message: dict) -> ChatTool | None:
     return None
 
 
+def _tool_from_question(question: str) -> ChatTool | None:
+    """The deterministic floor: derive a camera tool from question keywords.
+
+    A named knot triggers knot-verification on its own: the map's keywords
+    miss "How do I tie a bowline?", the exact question that motivated #50.
+    """
+    lowered = question.lower()
+    subject = next(
+        (kebab for name, kebab in KNOT_SUBJECTS.items() if name in lowered), None
+    )
+    prime = next(
+        (
+            prime
+            for keywords, prime in KEYWORD_TOOLS
+            if any(keyword in lowered for keyword in keywords)
+        ),
+        None,
+    )
+    if subject is not None:
+        prime = "knot-verification"
+    if prime is None:
+        return None
+    return ChatTool(
+        kind="camera",
+        label=DEFAULT_LABELS[prime],
+        prime=prime,
+        subject=subject if prime == "knot-verification" else None,
+    )
+
+
 def _default_label(arguments: dict) -> str | None:
     if arguments.get("prime") in DEFAULT_LABELS:
         return DEFAULT_LABELS[arguments["prime"]]
@@ -231,8 +284,16 @@ class NemotronRetriever:
             message = self._complete(question, with_tools=True)
         except (httpx.HTTPError, KeyError, IndexError, TypeError) as error:
             logger.error("Nemotron chat completion failed: %s", error)
-            return ChatAnswer(answer_id=answer_id, text=UNREACHABLE_TEXT)
-        tool = _parse_tool(message)
+            # The camera skills run without the LLM, so the keyword floor
+            # still applies when the model is down.
+            return ChatAnswer(
+                answer_id=answer_id,
+                text=UNREACHABLE_TEXT,
+                tool=_tool_from_question(question),
+            )
+        # A model-emitted tool wins when present and valid; the keyword map
+        # is the floor, not the ceiling (#50).
+        tool = _parse_tool(message) or _tool_from_question(question)
         text = _strip_think(message.get("content") or "")
         if _degenerate(text, tool):
             # The model answered with only a tool call, or echoed the call's

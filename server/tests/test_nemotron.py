@@ -196,6 +196,68 @@ def test_route_serializes_tool_and_omits_absent_fields(tmp_path) -> None:
     }
 
 
+def test_prose_only_knot_question_gets_the_fallback_tool() -> None:
+    # The deterministic floor (#50): the model attached nothing, the
+    # question's keywords decide, and the named knot becomes the subject.
+    reply = message_body("Form a small loop, pass the end up through it.")
+    answer = make_retriever([reply]).answer("How do I tie a bowline?")
+    assert answer.tool is not None
+    assert answer.tool.kind == "camera"
+    assert answer.tool.prime == "knot-verification"
+    assert answer.tool.label == "Check my knot"
+    assert answer.tool.subject == "bowline"
+
+
+def test_fallback_covers_all_three_keyword_groups() -> None:
+    cases = {
+        "Can I eat these red berries?": ("species-id", "Identify a plant"),
+        "A snake is near our camp, is it dangerous?": (
+            "wildlife-id",
+            "Identify an animal",
+        ),
+        "My cordage keeps fraying, what do I do?": (
+            "knot-verification",
+            "Check my knot",
+        ),
+    }
+    for question, (prime, label) in cases.items():
+        answer = make_retriever([message_body("Some prose.")]).answer(question)
+        assert answer.tool is not None, question
+        assert answer.tool.prime == prime
+        assert answer.tool.label == label
+
+
+def test_fallback_subject_handles_apostrophe_knot_names() -> None:
+    reply = message_body("Tie a loop mid-line and pull through.")
+    answer = make_retriever([reply]).answer("Help with my trucker's hitch on a rope?")
+    assert answer.tool is not None
+    assert answer.tool.subject == "truckers-hitch"
+
+
+def test_model_tool_wins_over_the_keyword_floor() -> None:
+    # The question's keywords say knot, but the model's valid call says
+    # reference; the model wins.
+    reply = message_body(
+        "Chapter 12 covers cordage.", {"kind": "reference", "chapter": 12}
+    )
+    answer = make_retriever([reply]).answer("Where do I read about rope?")
+    assert answer.tool is not None
+    assert answer.tool.kind == "reference"
+    assert answer.tool.chapter == 12
+
+
+def test_question_without_keywords_still_gets_no_tool() -> None:
+    reply = message_body("Head downhill and follow running water.")
+    assert make_retriever([reply]).answer("I am lost, which way do I go?").tool is None
+
+
+def test_unreachable_model_still_attaches_the_keyword_tool() -> None:
+    answer = make_retriever(status_code=500).answer("Is this mushroom safe?")
+    assert answer.text == UNREACHABLE_TEXT
+    assert answer.tool is not None
+    assert answer.tool.prime == "species-id"
+
+
 def test_env_selects_the_nemotron_retriever(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("FLUX_CONTENT_DB", raising=False)
     monkeypatch.setenv("FLUX_NEMOTRON_URL", "http://box:30081/v1")
