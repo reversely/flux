@@ -242,3 +242,4 @@ server/data/
 
 # OS noise
 .DS_Store
+app/src/theme/fonts.generated.ts

@@ -1,0 +1,24 @@
+import { useFonts } from 'expo-font';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+
+import { fontAssets } from '@/theme/fonts';
+import { colors } from '@/theme/tokens';
+
+export default function RootLayout() {
+  const [fontsReady] = useFonts(fontAssets);
+  if (!fontsReady && Object.keys(fontAssets).length > 0) {
+    return null;
+  }
+  return (
+    <>
+      <StatusBar style="dark" />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.paper },
+        }}
+      />
+    </>
+  );
+}
