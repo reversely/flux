@@ -1,3 +1,5 @@
+import * as FileSystem from 'expo-file-system/legacy';
+
 import type { FrameUploadResponse, SessionResults } from './types';
 
 const HEALTH_TIMEOUT_MS = 4000;
@@ -40,26 +42,28 @@ export class ApiClient {
     return (await response.json()) as SessionResults;
   }
 
+  // RN 0.86's fetch rejects the legacy {uri,name,type} FormData part, so the
+  // multipart upload goes through expo-file-system's native uploader instead.
   async uploadFrame(
     sessionId: string,
     fileUri: string,
     capturedAt: string,
   ): Promise<FrameUploadResponse> {
-    const form = new FormData();
-    form.append('frame', {
-      uri: fileUri,
-      name: 'frame.jpg',
-      type: 'image/jpeg',
-    } as unknown as Blob);
-    form.append('captured_at', capturedAt);
-    const response = await fetch(`${this.baseUrl}/v1/sessions/${sessionId}/frames`, {
-      method: 'POST',
-      body: form,
-    });
-    if (!response.ok) {
-      throw new Error(`upload failed: ${response.status}`);
+    const result = await FileSystem.uploadAsync(
+      `${this.baseUrl}/v1/sessions/${sessionId}/frames`,
+      fileUri,
+      {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'frame',
+        mimeType: 'image/jpeg',
+        parameters: { captured_at: capturedAt },
+      },
+    );
+    if (result.status !== 200) {
+      throw new Error(`upload failed: ${result.status}`);
     }
-    return (await response.json()) as FrameUploadResponse;
+    return JSON.parse(result.body) as FrameUploadResponse;
   }
 
   frameUrl(sessionId: string, frameId: string): string {

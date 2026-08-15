@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   Camera,
@@ -14,16 +14,15 @@ import {
 } from 'react-native-vision-camera';
 
 import { GuidanceBanner } from '@/components/GuidanceBanner';
+import { Tag } from '@/components/Tag';
+import { createCameraSource } from '@/capture/cameraSource';
+import { createSampleSource } from '@/capture/sampleSource';
+import type { CaptureSource } from '@/capture/types';
 import { useCaptureQuality } from '@/quality/useCaptureQuality';
+import { useSession } from '@/store/session';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
 const PHOTO_RESOLUTION = { width: 1920, height: 1440 };
-
-interface Capture {
-  uri: string;
-  width: number;
-  height: number;
-}
 
 export default function Scan() {
   const [focused, setFocused] = useState(true);
@@ -38,8 +37,10 @@ export default function Scan() {
   // The clip-on macro sits over the wide-angle lens; selecting it explicitly
   // keeps iPhone auto-macro from switching to the ultra-wide behind it.
   const device = useCameraDevice('back', { physicalDevices: ['wide-angle'] });
+  const sampleMode = device == null;
   const [torchMode, setTorchMode] = useState<TorchMode>('off');
-  const [lastCapture, setLastCapture] = useState<Capture | null>(null);
+  const [scanFailed, setScanFailed] = useState(false);
+  const [sampleFrameUri, setSampleFrameUri] = useState<string | null>(null);
 
   const photoOutput = usePhotoOutput({
     targetResolution: PHOTO_RESOLUTION,
@@ -50,21 +51,57 @@ export default function Scan() {
   const controllerRef = useRef<CameraController | undefined>(undefined);
   const quality = useCaptureQuality(controllerRef);
 
-  const captureStill = async () => {
-    const photo = await photoOutput.capturePhoto({ enableShutterSound: false }, {});
+  const passesRef = useRef(false);
+  useEffect(() => {
+    passesRef.current = quality.status.passes;
+  }, [quality.status.passes]);
+
+  const phase = useSession((state) => state.phase);
+  const results = useSession((state) => state.results);
+  const uploadStats = useSession((state) => state.uploadStats);
+  const startScan = useSession((state) => state.startScan);
+  const submitFrame = useSession((state) => state.submitFrame);
+  const finishScan = useSession((state) => state.finishScan);
+
+  const sourceRef = useRef<CaptureSource | null>(null);
+  useEffect(
+    () => () => {
+      // Leaving mid-scan stops uploading; the server session stays.
+      sourceRef.current?.stop();
+      sourceRef.current = null;
+    },
+    [],
+  );
+
+  const handleStart = async () => {
+    setScanFailed(false);
     try {
-      const path = await photo.saveToTemporaryFileAsync();
-      setLastCapture({
-        uri: path.startsWith('file://') ? path : `file://${path}`,
-        width: photo.width,
-        height: photo.height,
-      });
-    } finally {
-      photo.dispose();
+      await startScan();
+    } catch {
+      setScanFailed(true);
+      return;
     }
+    const source = sampleMode
+      ? createSampleSource()
+      : createCameraSource(photoOutput, () => passesRef.current);
+    sourceRef.current = source;
+    source.start((frame) => {
+      if (sampleMode) {
+        setSampleFrameUri(frame.uri);
+      }
+      submitFrame(frame);
+    });
   };
 
-  if (!hasPermission) {
+  const handleFinish = () => {
+    sourceRef.current?.stop();
+    sourceRef.current = null;
+    finishScan();
+    const sessionId = useSession.getState().sessionId ?? '';
+    router.replace({ pathname: '/review', params: { sessionId } });
+  };
+
+  if (!sampleMode && !hasPermission) {
     return (
       <View style={styles.notice}>
         <Text style={typography.body}>
@@ -84,62 +121,85 @@ export default function Scan() {
     );
   }
 
-  if (device == null) {
-    return (
-      <View style={styles.notice}>
-        <Text style={typography.body}>No camera is available on this device.</Text>
-        <BackLink />
-      </View>
-    );
-  }
+  const scanning = phase === 'scanning';
 
   return (
     <View style={styles.screen}>
-      <Camera
-        ref={cameraRef}
-        style={StyleSheet.absoluteFill}
-        isActive={focused}
-        device={device}
-        outputs={[photoOutput, quality.frameOutput]}
-        torchMode={torchMode}
-        resizeMode="cover"
-        onConfigured={() => {
-          controllerRef.current = cameraRef.current?.controller;
-        }}
-      />
+      {sampleMode ? (
+        sampleFrameUri !== null && (
+          <Image
+            style={StyleSheet.absoluteFill}
+            source={{ uri: sampleFrameUri }}
+            contentFit="contain"
+          />
+        )
+      ) : (
+        <Camera
+          ref={cameraRef}
+          style={StyleSheet.absoluteFill}
+          isActive={focused}
+          device={device}
+          outputs={[photoOutput, quality.frameOutput]}
+          torchMode={torchMode}
+          resizeMode="cover"
+          onConfigured={() => {
+            controllerRef.current = cameraRef.current?.controller;
+          }}
+        />
+      )}
       <View style={styles.guidance}>
-        <GuidanceBanner status={quality.status} showMetrics={__DEV__} />
+        <GuidanceBanner
+          status={quality.status}
+          sampleMode={sampleMode}
+          showMetrics={__DEV__ && !sampleMode}
+        />
       </View>
       <View style={styles.topBar}>
         <Pressable style={styles.chromeButton} hitSlop={8} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={20} color={colors.card} />
         </Pressable>
         <View style={styles.spacer} />
-        <Pressable
-          style={styles.chromeButton}
-          hitSlop={8}
-          onPress={() => setTorchMode(torchMode === 'on' ? 'off' : 'on')}
-        >
-          <Ionicons
-            name={torchMode === 'on' ? 'flash' : 'flash-off'}
-            size={18}
-            color={colors.card}
-          />
-        </Pressable>
+        {!sampleMode && (
+          <Pressable
+            style={styles.chromeButton}
+            hitSlop={8}
+            onPress={() => setTorchMode(torchMode === 'on' ? 'off' : 'on')}
+          >
+            <Ionicons
+              name={torchMode === 'on' ? 'flash' : 'flash-off'}
+              size={18}
+              color={colors.card}
+            />
+          </Pressable>
+        )}
       </View>
+      {scanFailed && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorCopy}>
+            Please reconnect to the server before starting a scan.
+          </Text>
+        </View>
+      )}
       <View style={styles.bottomBar}>
-        {lastCapture && (
-          <View style={styles.captureInfo}>
-            <Image style={styles.thumb} source={{ uri: lastCapture.uri }} contentFit="cover" />
-            <Text style={styles.captureMeta}>
-              {lastCapture.width}x{lastCapture.height}
-            </Text>
+        {scanning && (
+          <View style={styles.statusTags}>
+            <Tag label={`frames ${uploadStats.sent}`} tone="gray" />
+            <Tag label={`joints ${results.length}`} tone="gray" />
+            {uploadStats.failed > 0 && (
+              <Tag label={`failed ${uploadStats.failed}`} tone="red" />
+            )}
           </View>
         )}
         <View style={styles.spacer} />
-        <Pressable style={styles.captureButton} onPress={() => void captureStill()}>
-          <Text style={typography.button}>Capture</Text>
-        </Pressable>
+        {scanning ? (
+          <Pressable style={styles.focalButton} onPress={handleFinish}>
+            <Text style={typography.button}>Finish scan</Text>
+          </Pressable>
+        ) : (
+          <Pressable style={styles.focalButton} onPress={() => void handleStart()}>
+            <Text style={typography.button}>Start scan</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -186,7 +246,11 @@ const styles = StyleSheet.create({
     left: spacing.l,
     right: spacing.l,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+  },
+  statusTags: {
+    flexDirection: 'row',
+    gap: spacing.s,
   },
   spacer: {
     flex: 1,
@@ -207,7 +271,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.l,
   },
-  captureButton: {
+  focalButton: {
     height: sizes.focalAction,
     borderRadius: radius.control,
     backgroundColor: colors.signature,
@@ -215,19 +279,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
   },
-  captureInfo: {
-    gap: spacing.xs,
+  errorBanner: {
+    position: 'absolute',
+    top: 160,
+    left: spacing.l,
+    right: spacing.l,
+    backgroundColor: colors.card,
+    borderRadius: radius.control,
+    padding: spacing.m,
   },
-  thumb: {
-    width: 72,
-    height: 54,
-    borderRadius: radius.chip,
-    borderWidth: 1,
-    borderColor: colors.card,
-  },
-  captureMeta: {
-    ...typography.annotation,
-    color: colors.card,
+  errorCopy: {
+    ...typography.body,
+    fontSize: 14,
+    lineHeight: 20,
   },
   backLink: {
     ...typography.button,
