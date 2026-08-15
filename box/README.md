@@ -36,6 +36,15 @@ ssh -o ControlPath=~/.ssh/cm-gn100 gn100 'cd ~/flux && nohup bash fetch_models.s
 Rows marked `pending` need their distribution channel verified (Kaggle terms,
 checkpoint URLs) before they join a fetch wave.
 
+## Perception service
+
+`services/perception/main.py` runs on the box (port 8100, `~/flux/venvs/perception`,
+deployed at `~/flux/services/perception`): POST /identify accepts an image plus an
+optional domain and returns SpeciesNet (geofenced, with MegaDetector detections),
+BioCLIP zero-shot over taxonomic label strings, and FungiTastic-Mini class scores.
+`BIOCLIP_LABELS` names the label file the GBIF checklist build produces; without it a
+starter list of Pacific Northwest species applies.
+
 ## Fetching data and corpora
 
 Pack data divides into universal content that ships in every pack
