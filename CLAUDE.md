@@ -33,10 +33,11 @@ already editing, file it rather than folding an unrelated fix into the diff.
 
 ## Tests
 
-<!-- Placeholder until the repo has tests. Fill with the exact fast-suite command, e.g.: -->
 ```
-uv run pytest -m "not slow"
+uv run pytest server/tests -q
 ```
+
+App-side jest tests arrive with the quality module (#7); add their command here when they exist.
 
 ## Environment: uv by default
 
@@ -55,8 +56,10 @@ This repo uses `uv` for Python dependency and environment management.
 - `uv sync` reproduces the locked environment from a fresh clone. It's the first command a new
   contributor, or a new agent session, runs.
 
-Monorepo split: the root `pyproject.toml` carries repo-wide dev tooling (pre-commit,
-detect-secrets); `server/` is its own uv package; `app/` is npm-managed and uv never touches it.
+Monorepo split: a uv workspace rooted at the top-level `pyproject.toml`, which carries repo-wide
+dev tooling (pre-commit, detect-secrets); `server/` holds the `flux-server` workspace member;
+`app/` is npm-managed and uv never touches it. `uv sync --all-packages` reproduces the whole
+environment from a fresh clone.
 
 ## Style
 
