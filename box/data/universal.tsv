@@ -4,3 +4,9 @@ universal/fm-manual-family	procedure-figures	url	unabridged-fm21-76-fm3-05.70-fm
 universal/fm-5-125	procedure-figures	url	https://www.globalsecurity.org/military/library/policy/army/fm/5-125/fm5-125.pdf	fetch
 universal/who-snakebite	protocols	url	who-iris-consent-redirect-unverified	pending
 universal/who-basic-emergency-care	protocols	url	who-iris-consent-redirect-unverified	pending
+universal/fungi-usda-bulletin-175	fungi-guide	url	https://archive.org/download/mushroomsotherco175patt/mushroomsotherco175patt.pdf	fetch
+universal/fungi-atkinson-1900	fungi-guide	url	https://www.gutenberg.org/cache/epub/26492/pg26492-h.zip	fetch
+universal/fungi-hard-1908	fungi-guide	url	https://www.gutenberg.org/cache/epub/29086/pg29086-h.zip	fetch
+universal/fungi-mcilvaine-1902	fungi-guide	url	https://archive.org/download/toadstoolsmushro00mcil/toadstoolsmushro00mcil.pdf	fetch
+universal/fungi-usfs-gtr-nrs79	fungi-guide	url	https://www.fs.usda.gov/nrs/pubs/gtr/gtr_nrs79.pdf	fetch
+universal/fungi-mycomorphbox	fungi-traits	script	enwiki-mycomorphbox-extraction-script-pending	pending

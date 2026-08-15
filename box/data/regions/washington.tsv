@@ -39,3 +39,5 @@ regions/washington/elevation/n49w124	elevation	url	https://prd-tnm.s3.amazonaws.
 regions/washington/elevation/n49w125	elevation	url	https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/13/TIFF/current/n49w125/USGS_13_n49w125.tif	fetch
 regions/washington/gbif-checklist	species-checklist	api	gbif-occurrence-download-needs-account	pending
 regions/washington/inat-photos	species-photos	s3	s3://inaturalist-open-data-needs-species-list	pending
+regions/washington/mycomatch	fungi-synoptic-reference	url	https://www.mycomatch.com/MycoMatch242.exe	fetch
+regions/washington/pnkc-keys	fungi-keys	script	svims.ca-council-html-mirror-and-permission-pending	pending
