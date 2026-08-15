@@ -22,7 +22,7 @@ import { REFERENCE_TITLE } from '@/data/reference';
 import { launchTool } from '@/lib/launch';
 import { type ChatMessage, useChat } from '@/store/chat';
 import { useSession } from '@/store/session';
-import { darkHome, HOME_BIOME } from '@/theme/biome';
+import { darkHome } from '@/theme/biome';
 import { aeonikFace } from '@/theme/fonts';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
@@ -38,9 +38,9 @@ function Message({ message }: { message: ChatMessage }) {
   return (
     <View style={[styles.bubble, styles.assistantBubble]}>
       {message.pending ? (
-        <ActivityIndicator color={darkHome.ink3} />
+        <ActivityIndicator color={colors.ink3} />
       ) : (
-        <AnswerText text={message.text} color={darkHome.ink} linkColor={darkHome.link} />
+        <AnswerText text={message.text} />
       )}
       {message.tool && (
         <Pressable
@@ -48,7 +48,7 @@ function Message({ message }: { message: ChatMessage }) {
           onPress={() => launchTool(router, message.tool!)}
           style={styles.tool}
         >
-          <Feather name="video" size={14} color={HOME_BIOME.glow} />
+          <Feather name="video" size={14} color={colors.signature} />
           <Text style={styles.toolLabel}>{message.tool.label}</Text>
         </Pressable>
       )}
@@ -217,9 +217,7 @@ const styles = StyleSheet.create({
   },
   assistantBubble: {
     alignSelf: 'flex-start',
-    backgroundColor: darkHome.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: darkHome.line,
+    backgroundColor: colors.card,
   },
   tool: {
     flexDirection: 'row',
@@ -228,13 +226,13 @@ const styles = StyleSheet.create({
     gap: spacing.xs + 2,
     height: sizes.chip,
     borderRadius: radius.chip,
-    backgroundColor: 'rgba(143, 198, 191, 0.14)',
+    backgroundColor: colors.signatureSoft,
     paddingHorizontal: spacing.m,
   },
   toolLabel: {
     ...aeonikFace('medium'),
     fontSize: 12,
-    color: HOME_BIOME.glow,
+    color: colors.signature,
   },
   inputArea: {
     gap: spacing.s,
