@@ -2,10 +2,10 @@
 
 Guidance for Claude Code working in this repository.
 
-Flux inspects solder joints live through a phone camera: a React Native app under `app/` scans
-the solder side of a circuit board, and a Python inference server under `server/` labels each
-visible joint. The PRD lives at `docs/prd.md`; the active plan is
-`docs/plans/mvp-roadmap-milestone-1.md`.
+Flux pairs a phone client with a LAN inference server: the React Native app under `app/`
+connects to the Python server under `server/`, which stores uploaded frames per session and
+returns per-item results once the next concept defines them. The previous concept was purged
+in #11; the tree carries the bare skeleton, and a new PRD arrives with the next concept.
 
 ## The session log
 
@@ -37,7 +37,7 @@ already editing, file it rather than folding an unrelated fix into the diff.
 uv run pytest server/tests -q
 ```
 
-App-side jest tests arrive with the quality module (#7); add their command here when they exist.
+The app has no test suite at the moment; `npm test` in `app/` passes with no tests by design.
 
 ## Environment: uv by default
 

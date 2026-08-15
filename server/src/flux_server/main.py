@@ -54,7 +54,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     @app.get("/v1/sessions/{session_id}/results", response_model=SessionResults)
     def session_results(session_id: str) -> SessionResults:
         require_session(session_id)
-        return SessionResults(session_id=session_id, status="in_progress", joints=[])
+        return SessionResults(session_id=session_id, status="in_progress", records=[])
 
     @app.get("/v1/sessions/{session_id}/frames/{frame_id}")
     def get_frame(session_id: str, frame_id: str) -> FileResponse:

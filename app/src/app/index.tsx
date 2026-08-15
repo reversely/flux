@@ -1,5 +1,4 @@
 import * as Device from 'expo-device';
-import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -71,13 +70,6 @@ export default function Connect() {
           </Text>
         )}
       </View>
-      {connection === 'connected' && (
-        <View style={styles.actions}>
-          <Pressable style={styles.startButton} onPress={() => router.push('/scan')}>
-            <Text style={typography.button}>Start scan</Text>
-          </Pressable>
-        </View>
-      )}
     </View>
   );
 }
@@ -133,18 +125,5 @@ const styles = StyleSheet.create({
     ...typography.body,
     fontSize: 14,
     lineHeight: 21,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xl,
-  },
-  startButton: {
-    height: sizes.focalAction,
-    borderRadius: radius.control,
-    backgroundColor: colors.signature,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
   },
 });

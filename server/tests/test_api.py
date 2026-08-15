@@ -58,7 +58,7 @@ def test_results_stay_empty_and_in_progress(client: TestClient) -> None:
     session_id = create_session(client)
     upload_frame(client, session_id)
     results = client.get(f"/v1/sessions/{session_id}/results").json()
-    assert results == {"session_id": session_id, "status": "in_progress", "joints": []}
+    assert results == {"session_id": session_id, "status": "in_progress", "records": []}
 
 
 def test_uploaded_frame_is_served_back(client: TestClient) -> None:

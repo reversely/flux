@@ -11,7 +11,7 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.andromeda.flux",
       "infoPlist": {
-        "NSCameraUsageDescription": "Flux needs the camera to scan solder joints on your circuit board.",
+        "NSCameraUsageDescription": "Flux uses the camera to capture images for analysis.",
         "NSLocalNetworkUsageDescription": "Flux talks to your inspection server on this network.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true

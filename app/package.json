@@ -48,7 +48,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "postinstall": "node scripts/sync-fonts.mjs",
-    "test": "jest"
+    "test": "jest --passWithNoTests"
   },
   "private": true,
   "jest": {
