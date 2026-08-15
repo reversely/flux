@@ -104,3 +104,64 @@ assembly attaches the image.
 | image_path | TEXT, nullable | Pack-relative path to the image file. NULL until pack assembly attaches one. |
 | source_manual | TEXT | The manual the image comes from; `FM 21-76` until a clearer printing substitutes a figure (PRD 4.1). |
 | license | TEXT | License of the image, `public-domain` for US Army manuals. |
+
+## Walkthrough tables
+
+`uv run flux-pipeline walkthrough <mycomorphbox.tsv> <content.db>` writes four `walk_` tables
+into the pack database from the mycomorphbox trait extraction. The fungi edibility walkthrough
+reads them: the server asks the questions in `ask_order`, the user answers with a state, and the
+candidate set narrows by the filter rule below. Rebuilding drops and recreates the four tables
+and leaves every other table alone.
+
+### The filter rule
+
+A species survives an answered question when it either records a matching state for that
+character in `walk_trait` or records no state for that character at all. A species with no row
+for a character stays in every branch of that question, so missing data can never eliminate a
+species; only a confirmed answer that contradicts a recorded state can. The server computes the
+danger subset of the surviving candidates (`edibility = 'danger'`) at every step and shows it
+before any verdict.
+
+### Table: walk_question
+
+One row per observable character, in the order a guide examines a specimen.
+
+| column | type | notes |
+| --- | --- | --- |
+| character | TEXT, primary key | The mycomorphbox parameter name, such as `sporePrintColor`. |
+| ask_order | INTEGER, unique | Position in the walk, 1 upward. |
+| question | TEXT | The question the app shows, field-guide minimal. |
+| citation | TEXT | Source of the character definition. |
+
+### Table: walk_state
+
+One row per answer state observed in the data for a character. The app offers these states as
+the answer choices.
+
+| column | type | notes |
+| --- | --- | --- |
+| character | TEXT, references walk_question(character) | Owning question. |
+| state | TEXT | Canonical lowercase state, such as `ring and volva`. |
+
+### Table: walk_species
+
+One row per species page in the trait extraction.
+
+| column | type | notes |
+| --- | --- | --- |
+| species | TEXT, primary key | The Wikipedia page title; genus and group pages appear as themselves. |
+| edibility | TEXT | One of `edible`, `inedible`, `caution`, `danger`, `unknown`; the worst raw value wins when the source records two. |
+| edibility_raw | TEXT | The raw template values joined with `\|`, such as `choice\|poisonous`. |
+| source_title | TEXT | Wikipedia page title for CC BY-SA attribution. |
+| source_revid | TEXT | Wikipedia revision id the traits were read from. |
+
+### Table: walk_trait
+
+One row per state a species records for a character. A species missing a character has no row
+for it, which the filter rule treats as compatible with every answer.
+
+| column | type | notes |
+| --- | --- | --- |
+| species | TEXT, references walk_species(species) | The species. |
+| character | TEXT, references walk_question(character) | The character. |
+| state | TEXT | A canonical state; the template's primary and secondary values each produce a row. |

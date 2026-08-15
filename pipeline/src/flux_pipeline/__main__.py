@@ -12,7 +12,18 @@ def main() -> None:
     parse_cmd = sub.add_parser("parse", help="parse the FM 21-76 PDF into content.db")
     parse_cmd.add_argument("pdf", type=Path)
     parse_cmd.add_argument("out_db", type=Path)
+    walk_cmd = sub.add_parser(
+        "walkthrough", help="compile the mycomorphbox trait TSV into walk_ tables"
+    )
+    walk_cmd.add_argument("trait_tsv", type=Path)
+    walk_cmd.add_argument("db", type=Path)
     args = top.parse_args()
+
+    if args.command == "walkthrough":
+        from flux_pipeline.walkthrough import write_walkthrough
+
+        print(write_walkthrough(args.trait_tsv, args.db))
+        return
 
     from flux_pipeline.db import summarize, write_db
     from flux_pipeline.lines import normalize
