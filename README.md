@@ -1,18 +1,37 @@
 # flux
 
 Flux builds LifeKit, an offline survival assistant built on the US Army Survival Manual
-FM 21-76. A chat-first Expo app on the phone answers survival questions and launches camera
-skills, the flux FastAPI server on the local network carries sessions and chat, and an Acer
-GN100 box runs NVIDIA VSS with Nemotron Nano 9B for the chat answers plus the perception
-stack (SpeciesNet, BioCLIP, FungiTastic) for identification.
+FM 21-76. A chat-first Expo app on the phone answers survival questions, reads the manual
+as a twelve-tile encyclopedia, renders an offline terrain map, and records camera sessions;
+the flux FastAPI server on the local network carries sessions, chat, pack content, and map
+tiles; an Acer GN100 box runs NVIDIA VSS with Nemotron Nano 9B for the chat answers plus
+the perception stack (SpeciesNet, BioCLIP, FungiTastic) for identification.
+
+## Features
+
+- **Chat home**: asks the server, cites FM chapters, and launches primed tools (camera,
+  reference pages) from answers.
+- **Encyclopedia**: the PRD's twelve tiles over the parsed manual; a tile opens its
+  chapters' sections, and a section renders typed blocks with warnings on an
+  uncollapsible red card. Serves from `/v1/content`, with a labeled built-in sample when
+  no server answers.
+- **Map**: MapLibre GL in a WebView, styled light and minimal from the app's own tokens,
+  with subtle hillshade relief. Vector tiles stream as byte ranges from the server's
+  PMTiles archive; labels render from bundled glyphs, so the map needs no third-party
+  host.
+- **Reference**: the bundled FM 21-76 PDF with per-chapter deep links.
+- **Capture**: records low-rate video clips into an upload queue tied to a server
+  session; the coach that consumes them (step tracking, demo overlay, narration, voice
+  control) is in progress across #64-#66, #72-#74, #77, and #80.
 
 ## Layout
 
-- `app/`: the Expo (React Native) iPhone app, with the chat home screen, the encyclopedia
-  and reference (FM 21-76 PDF) screens, the capture flow, and the session/upload plumbing.
+- `app/`: the Expo (React Native) iPhone app carrying the screens above and the
+  session/upload plumbing.
 - `server/`: the FastAPI server, with sessions, frame and video upload, `POST /v1/chat`
-  answered through the Nemotron retriever or a no-pack notice, and the VSS video handoff
-  on session finish.
+  answered through the Nemotron retriever or a no-pack notice, the `/v1/content` pack
+  API with full-text search, the `/v1/tiles/archive` byte-range route, and the VSS video
+  handoff on session finish.
 - `box/`: provisioning for the GN100, with model and data manifests, fetch scripts, the
   VSS bring-up notes, and the perception service behind `POST /identify`.
 - `pipeline/`: `flux-pipeline parse <pdf> <out.db>` parses the FM 21-76 PDF into the
@@ -36,8 +55,10 @@ uv run flux-server
 ```
 
 `FLUX_NEMOTRON_URL` points chat at the box's OpenAI-compatible endpoint; without it the
-chat route reports that no content pack is loaded. `FLUX_CONTENT_DB` names the anchored
-content pack for the retrieval seam once the pack reader exists.
+chat route answers that it waits on the model endpoint. `FLUX_CONTENT_DB` names the
+content pack (built by `flux-pipeline parse`) that `/v1/content` serves. `FLUX_TILE_ARCHIVE`
+names the PMTiles archive behind `/v1/tiles/archive`; each unset variable turns its routes
+into an explanatory 503 rather than a crash.
 
 App, daily development:
 
