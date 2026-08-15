@@ -43,7 +43,8 @@ deployed at `~/flux/services/perception`): POST /identify accepts an image plus 
 optional domain and returns SpeciesNet (geofenced, with MegaDetector detections),
 BioCLIP zero-shot over taxonomic label strings, and FungiTastic-Mini class scores.
 `BIOCLIP_LABELS` names the label file the GBIF checklist build produces; without it a
-starter list of Pacific Northwest species applies.
+starter list of Pacific Northwest species applies. `scripts/build_gbif_checklist.py`
+turns a GBIF SPECIES_LIST extract into `checklist.tsv` plus that label file.
 
 ## Fetching data and corpora
 
