@@ -49,6 +49,7 @@ def create_app(
     retriever: Retriever | None = None,
     handoff: VideoHandoff | None = None,
     content: ContentStore | None | object = _FROM_ENV,
+    tile_archive: Path | None | object = _FROM_ENV,
 ) -> FastAPI:
     """Build the app around one on-disk session store and one retriever."""
     if data_dir is None:
@@ -60,6 +61,9 @@ def create_app(
         handoff = handoff_from_env()
     if content is _FROM_ENV:
         content = content_store_from_env()
+    if tile_archive is _FROM_ENV:
+        configured = os.environ.get("FLUX_TILE_ARCHIVE")
+        tile_archive = Path(configured) if configured else None
     app = FastAPI(title="flux stub inference server")
     app.add_middleware(
         CORSMiddleware,
@@ -126,6 +130,21 @@ def create_app(
     ) -> SearchResults:
         hits = require_content().search(q, limit)
         return SearchResults(query=q, hits=hits)
+
+    # MapLibre's pmtiles protocol reads byte windows of the archive, so the
+    # route leans on FileResponse's native Range handling. HEAD is
+    # registered too: the protocol probes the archive size before ranging.
+    @app.get("/v1/tiles/archive")
+    @app.head("/v1/tiles/archive")
+    def tile_archive_file() -> FileResponse:
+        if tile_archive is None or tile_archive is _FROM_ENV:
+            raise HTTPException(status_code=503, detail="no tile archive installed")
+        if not tile_archive.is_file():
+            raise HTTPException(
+                status_code=503,
+                detail=f"tile archive missing at {tile_archive}",
+            )
+        return FileResponse(tile_archive, media_type="application/octet-stream")
 
     def require_media_mode(session_id: str, upload_kind: str) -> None:
         """Reject an upload whose kind contradicts the session's media mode."""

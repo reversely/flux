@@ -295,6 +295,36 @@
         }
       }
     },
+    "/v1/tiles/archive": {
+      "get": {
+        "summary": "Tile Archive File",
+        "operationId": "tile_archive_file_v1_tiles_archive_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Tile Archive File",
+        "operationId": "tile_archive_file_v1_tiles_archive_head",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/functionalities": {
       "get": {
         "summary": "Functionalities",
