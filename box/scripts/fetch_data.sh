@@ -9,7 +9,7 @@ MANIFEST="${1:?usage: fetch_data.sh <manifest.tsv>}"
 
 mkdir -p "$DATA_DIR/_logs"
 
-grep -v '^#' "$MANIFEST" | while IFS=$'\t' read -r name layer source ref status; do
+grep -v '^#' "$MANIFEST" | while IFS=$'\t' read -r name layer source ref status extra; do
   [ "${status:-}" = "fetch" ] || continue
   dest="$DATA_DIR/$name"
   log="$DATA_DIR/_logs/$(echo "$name" | tr / -).log"
@@ -29,6 +29,12 @@ grep -v '^#' "$MANIFEST" | while IFS=$'\t' read -r name layer source ref status;
       else
         git clone --depth 1 "$ref" "$dest" >>"$log" 2>&1
       fi
+      ;;
+    hfd)
+      # Hugging Face dataset; the optional sixth column is an exclude glob.
+      source "$HOME/venv/bin/activate"
+      hf download "$ref" --repo-type dataset --local-dir "$dest" \
+        ${extra:+--exclude "$extra"} >>"$log" 2>&1
       ;;
     *)
       echo "unknown source '$source' for $name" | tee -a "$log"

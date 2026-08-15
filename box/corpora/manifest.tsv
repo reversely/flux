@@ -1,6 +1,6 @@
 # name	layer	source	ref	status
-epic-tent	shelter-mistakes	url	https://data.bris.ac.uk/datasets/tar/2ite3tu1u53n42hjfh3886sa86.zip	fetch
+epic-tent	shelter-mistakes	url	https://data.bris.ac.uk/datasets/tar/2ite3tu1u53n42hjfh3886sa86.zip	external
 coin-annotations	step-labels	git	https://github.com/coin-dataset/annotations	fetch
 prego	mistake-detection-code	git	https://github.com/aleflabo/PREGO	fetch
-assembly101	assembly-mistakes	gdrive	data-agreement-form-required	pending
+assembly101	assembly-mistakes	hfd	cvml-nus/assembly101	fetch	recordings/*
 coin-videos	step-videos	yt-dlp	subset-decision-required	pending
