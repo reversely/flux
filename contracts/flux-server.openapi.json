@@ -27,6 +27,44 @@
         }
       }
     },
+    "/v1/chat": {
+      "post": {
+        "summary": "Chat",
+        "operationId": "chat_v1_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions": {
       "post": {
         "summary": "Create Session",
@@ -200,6 +238,79 @@
           "captured_at"
         ],
         "title": "Body_upload_frame_v1_sessions__session_id__frames_post"
+      },
+      "ChatAnswer": {
+        "properties": {
+          "answer_id": {
+            "type": "string",
+            "title": "Answer Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "type": "array",
+            "title": "Citations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer_id",
+          "text",
+          "citations"
+        ],
+        "title": "ChatAnswer"
+      },
+      "ChatRequest": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "ChatRequest"
+      },
+      "Citation": {
+        "properties": {
+          "anchor": {
+            "type": "string",
+            "title": "Anchor"
+          },
+          "chapter_number": {
+            "type": "integer",
+            "title": "Chapter Number"
+          },
+          "chapter_title": {
+            "type": "string",
+            "title": "Chapter Title"
+          },
+          "section_title": {
+            "type": "string",
+            "title": "Section Title"
+          },
+          "tile_id": {
+            "type": "integer",
+            "title": "Tile Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "anchor",
+          "chapter_number",
+          "chapter_title",
+          "section_title",
+          "tile_id"
+        ],
+        "title": "Citation",
+        "description": "One FM anchor an answer sentence came from (PRD 4.1 anchor IDs)."
       },
       "FrameUploadResponse": {
         "properties": {

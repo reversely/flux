@@ -26,3 +26,23 @@ class SessionResults(BaseModel):
     session_id: str
     status: Literal["in_progress", "complete"]
     records: list[RecordStub]
+
+
+class ChatRequest(BaseModel):
+    question: str
+
+
+class Citation(BaseModel):
+    """One FM anchor an answer sentence came from (PRD 4.1 anchor IDs)."""
+
+    anchor: str
+    chapter_number: int
+    chapter_title: str
+    section_title: str
+    tile_id: int
+
+
+class ChatAnswer(BaseModel):
+    answer_id: str
+    text: str
+    citations: list[Citation]

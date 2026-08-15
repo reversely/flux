@@ -11,17 +11,28 @@ from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from flux_server.models import FrameUploadResponse, SessionCreated, SessionResults
+from flux_server.models import (
+    ChatAnswer,
+    ChatRequest,
+    FrameUploadResponse,
+    SessionCreated,
+    SessionResults,
+)
+from flux_server.retrieval import Retriever, retriever_from_env
 from flux_server.storage import SessionStore
 
 DEFAULT_DATA_DIR = Path("data/sessions")
 
 
-def create_app(data_dir: Path | None = None) -> FastAPI:
-    """Build the app around one on-disk session store."""
+def create_app(
+    data_dir: Path | None = None, retriever: Retriever | None = None
+) -> FastAPI:
+    """Build the app around one on-disk session store and one retriever."""
     if data_dir is None:
         data_dir = Path(os.environ.get("FLUX_DATA_DIR", DEFAULT_DATA_DIR))
     store = SessionStore(data_dir)
+    if retriever is None:
+        retriever = retriever_from_env()
     app = FastAPI(title="flux stub inference server")
     app.add_middleware(
         CORSMiddleware,
@@ -37,6 +48,10 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     @app.get("/healthz")
     def healthz() -> dict[str, bool]:
         return {"ok": True}
+
+    @app.post("/v1/chat", response_model=ChatAnswer)
+    def chat(request: ChatRequest) -> ChatAnswer:
+        return retriever.answer(request.question)
 
     @app.post("/v1/sessions", response_model=SessionCreated)
     def create_session() -> SessionCreated:
