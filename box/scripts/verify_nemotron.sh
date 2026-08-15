@@ -5,8 +5,8 @@
 # Why reuse rather than serve: the GN100's 121 GB unified memory already
 # carries the VSS stack (Cosmos Reason 2 8B at ~41 GB, Nemotron Nano 9B at
 # ~50 GB with its KV cache) plus the perception service (~17 GB). The
-# mirrored Nemotron Super 49B FP8 needs ~50 GB for weights alone, so it
-# cannot be resident alongside VSS; its mirror stays on disk unserved. The
+# originally planned Nemotron Super 49B FP8 needs ~50 GB for weights alone,
+# so it cannot be resident alongside VSS; its mirror was retired (#47). The
 # VSS compose (mdx project, ~/video-search-and-summarization/deploy/docker)
 # publishes its LLM on 0.0.0.0:30081 with --enable-auto-tool-choice and the
 # nemotron_json tool parser, so the flux server reaches it directly:

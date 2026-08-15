@@ -53,9 +53,10 @@ FP8 container, OpenAI-compatible on box port 30081 with native tool calling
 enabled (model id `nvidia/NVIDIA-Nemotron-Nano-9B-v2-FP8`). The flux server
 reaches it as `FLUX_NEMOTRON_URL=http://<box-ip>:30081/v1`.
 
-The mirrored Nemotron Super 49B FP8 stays on disk unserved: its ~50 GB of
-weights cannot be resident next to the VSS stack and the perception service
-inside the GN100's 121 GB unified memory. `scripts/verify_nemotron.sh`
+The originally planned Nemotron Super 49B FP8 was retired (#47): its ~50 GB
+of weights cannot be resident next to the VSS stack and the perception
+service inside the GN100's 121 GB unified memory, so its mirror was deleted
+from the box and its manifest row removed. `scripts/verify_nemotron.sh`
 records the endpoint facts and round-trips a chat completion against it:
 
 ```
