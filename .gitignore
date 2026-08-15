@@ -243,3 +243,10 @@ server/data/
 # OS noise
 .DS_Store
 app/src/theme/fonts.generated.ts
+
+# agent-local files: instructions, skills, settings, worklogs, PRDs
+CLAUDE.md
+AGENTS.md
+.claude/
+docs/prd*.md
+docs/plans/
