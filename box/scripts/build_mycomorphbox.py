@@ -42,10 +42,23 @@ PARAMS = [
 
 
 def api_get(params: dict) -> dict:
-    query = urllib.parse.urlencode({**params, "format": "json", "formatversion": 2})
+    """GET with retry: the API answers 429/503 (with Retry-After) under rate
+    limiting and replication lag, and a ~1,800-page walk crosses both."""
+    query = urllib.parse.urlencode(
+        {**params, "format": "json", "formatversion": 2, "maxlag": 5}
+    )
     req = urllib.request.Request(f"{API}?{query}", headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.load(resp)
+    for attempt in range(6):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return json.load(resp)
+        except urllib.error.HTTPError as err:
+            if err.code not in (429, 503) or attempt == 5:
+                raise
+            retry_after = err.headers.get("Retry-After")
+            wait = int(retry_after) if retry_after else 2**attempt
+            time.sleep(max(wait, 2**attempt))
+    raise AssertionError("unreachable")
 
 
 def transcluding_titles() -> list[str]:
@@ -154,7 +167,7 @@ def main() -> None:
                 row += [fields.get(p, "") for p in PARAMS]
                 f.write("\t".join(row) + "\n")
                 n_rows += 1
-            time.sleep(0.5)
+            time.sleep(1.0)
 
     print(f"traits: {n_rows} species -> {out}")
 
