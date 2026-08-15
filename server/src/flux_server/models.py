@@ -157,3 +157,45 @@ class ChatAnswer(BaseModel):
     answer_id: str
     text: str
     tool: ChatTool | None = None
+
+
+class WalkSpeciesCard(BaseModel):
+    species: str
+    edibility: Literal["edible", "inedible", "caution", "danger", "unknown"]
+    edibility_raw: str
+    source_title: str
+    source_revid: str
+
+
+class WalkQuestion(BaseModel):
+    character: str
+    ask_order: int
+    question: str
+    citation: str
+    states: list[str]
+
+
+class WalkAnswer(BaseModel):
+    """A confirmed observation; a None state records a skipped question,
+    which filters nothing."""
+
+    character: str
+    state: str | None = None
+
+
+class WalkSessionState(BaseModel):
+    """The whole session, recomputed from the transcript on every response.
+
+    candidates and danger_species carry full cards when the survivor set is
+    small or the walk is complete, and stay absent while the set is large;
+    the counts are always present.
+    """
+
+    session_id: str
+    answers: list[WalkAnswer]
+    candidate_count: int
+    danger_count: int
+    danger_species: list[WalkSpeciesCard] | None = None
+    candidates: list[WalkSpeciesCard] | None = None
+    complete: bool
+    question: WalkQuestion | None = None

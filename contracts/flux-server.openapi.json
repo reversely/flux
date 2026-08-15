@@ -610,6 +610,151 @@
           }
         }
       }
+    },
+    "/v1/walkthrough/sessions": {
+      "post": {
+        "summary": "Create Walkthrough",
+        "operationId": "create_walkthrough_v1_walkthrough_sessions_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalkSessionState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/walkthrough/sessions/{session_id}": {
+      "get": {
+        "summary": "Get Walkthrough",
+        "operationId": "get_walkthrough_v1_walkthrough_sessions__session_id__get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalkSessionState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/walkthrough/sessions/{session_id}/answer": {
+      "post": {
+        "summary": "Answer Walkthrough",
+        "operationId": "answer_walkthrough_v1_walkthrough_sessions__session_id__answer_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalkAnswer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalkSessionState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/walkthrough/sessions/{session_id}/undo": {
+      "post": {
+        "summary": "Undo Walkthrough",
+        "operationId": "undo_walkthrough_v1_walkthrough_sessions__session_id__undo_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalkSessionState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1381,6 +1526,182 @@
           "video_id"
         ],
         "title": "VideoUploadResponse"
+      },
+      "WalkAnswer": {
+        "properties": {
+          "character": {
+            "type": "string",
+            "title": "Character"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character"
+        ],
+        "title": "WalkAnswer",
+        "description": "A confirmed observation; a None state records a skipped question,\nwhich filters nothing."
+      },
+      "WalkQuestion": {
+        "properties": {
+          "character": {
+            "type": "string",
+            "title": "Character"
+          },
+          "ask_order": {
+            "type": "integer",
+            "title": "Ask Order"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "citation": {
+            "type": "string",
+            "title": "Citation"
+          },
+          "states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "States"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character",
+          "ask_order",
+          "question",
+          "citation",
+          "states"
+        ],
+        "title": "WalkQuestion"
+      },
+      "WalkSessionState": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/WalkAnswer"
+            },
+            "type": "array",
+            "title": "Answers"
+          },
+          "candidate_count": {
+            "type": "integer",
+            "title": "Candidate Count"
+          },
+          "danger_count": {
+            "type": "integer",
+            "title": "Danger Count"
+          },
+          "danger_species": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/WalkSpeciesCard"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Danger Species"
+          },
+          "candidates": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/WalkSpeciesCard"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidates"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WalkQuestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "answers",
+          "candidate_count",
+          "danger_count",
+          "complete"
+        ],
+        "title": "WalkSessionState",
+        "description": "The whole session, recomputed from the transcript on every response.\n\ncandidates and danger_species carry full cards when the survivor set is\nsmall or the walk is complete, and stay absent while the set is large;\nthe counts are always present."
+      },
+      "WalkSpeciesCard": {
+        "properties": {
+          "species": {
+            "type": "string",
+            "title": "Species"
+          },
+          "edibility": {
+            "type": "string",
+            "enum": [
+              "edible",
+              "inedible",
+              "caution",
+              "danger",
+              "unknown"
+            ],
+            "title": "Edibility"
+          },
+          "edibility_raw": {
+            "type": "string",
+            "title": "Edibility Raw"
+          },
+          "source_title": {
+            "type": "string",
+            "title": "Source Title"
+          },
+          "source_revid": {
+            "type": "string",
+            "title": "Source Revid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "species",
+          "edibility",
+          "edibility_raw",
+          "source_title",
+          "source_revid"
+        ],
+        "title": "WalkSpeciesCard"
       }
     }
   }

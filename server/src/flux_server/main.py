@@ -32,10 +32,13 @@ from flux_server.models import (
     SessionFinished,
     SessionResults,
     VideoUploadResponse,
+    WalkAnswer,
+    WalkSessionState,
 )
 from flux_server.retrieval import Retriever, retriever_from_env
 from flux_server.storage import SessionStore, UnplayableVideoError
 from flux_server.vss import VideoHandoff, handoff_from_env
+from flux_server.walkthrough import WalkthroughStore, walkthrough_store_from_env
 
 DEFAULT_DATA_DIR = Path("data/sessions")
 
@@ -50,6 +53,7 @@ def create_app(
     handoff: VideoHandoff | None = None,
     content: ContentStore | None | object = _FROM_ENV,
     tile_archive: Path | None | object = _FROM_ENV,
+    walkthrough: WalkthroughStore | None | object = _FROM_ENV,
 ) -> FastAPI:
     """Build the app around one on-disk session store and one retriever."""
     if data_dir is None:
@@ -64,6 +68,8 @@ def create_app(
     if tile_archive is _FROM_ENV:
         configured = os.environ.get("FLUX_TILE_ARCHIVE")
         tile_archive = Path(configured) if configured else None
+    if walkthrough is _FROM_ENV:
+        walkthrough = walkthrough_store_from_env(data_dir)
     app = FastAPI(title="flux stub inference server")
     app.add_middleware(
         CORSMiddleware,
@@ -264,6 +270,69 @@ def create_app(
         if path is None:
             raise HTTPException(status_code=404, detail="unknown frame")
         return FileResponse(path, media_type="image/jpeg")
+
+    def require_walkthrough() -> WalkthroughStore:
+        if walkthrough is None or walkthrough is _FROM_ENV:
+            raise HTTPException(
+                status_code=503, detail="no walkthrough tables in the content pack"
+            )
+        return walkthrough
+
+    def walk_state(walk: WalkthroughStore, session_id: str) -> WalkSessionState:
+        transcript = walk.transcript(session_id)
+        if transcript is None:
+            raise HTTPException(status_code=404, detail="unknown walkthrough session")
+        return WalkSessionState(**walk.state(session_id, transcript))
+
+    @app.post(
+        "/v1/walkthrough/sessions",
+        response_model=WalkSessionState,
+        response_model_exclude_none=True,
+    )
+    def create_walkthrough() -> WalkSessionState:
+        walk = require_walkthrough()
+        return walk_state(walk, walk.create())
+
+    @app.get(
+        "/v1/walkthrough/sessions/{session_id}",
+        response_model=WalkSessionState,
+        response_model_exclude_none=True,
+    )
+    def get_walkthrough(session_id: str) -> WalkSessionState:
+        return walk_state(require_walkthrough(), session_id)
+
+    @app.post(
+        "/v1/walkthrough/sessions/{session_id}/answer",
+        response_model=WalkSessionState,
+        response_model_exclude_none=True,
+    )
+    def answer_walkthrough(session_id: str, answer: WalkAnswer) -> WalkSessionState:
+        walk = require_walkthrough()
+        transcript = walk.transcript(session_id)
+        if transcript is None:
+            raise HTTPException(status_code=404, detail="unknown walkthrough session")
+        answered = {entry["character"] for entry in transcript}
+        if answer.character in answered:
+            raise HTTPException(status_code=409, detail="character already answered")
+        states = walk.states.get(answer.character)
+        if states is None:
+            raise HTTPException(status_code=422, detail="unknown character")
+        if answer.state is not None and answer.state not in states:
+            raise HTTPException(status_code=422, detail="unknown state")
+        walk.record(session_id, {"character": answer.character, "state": answer.state})
+        return walk_state(walk, session_id)
+
+    @app.post(
+        "/v1/walkthrough/sessions/{session_id}/undo",
+        response_model=WalkSessionState,
+        response_model_exclude_none=True,
+    )
+    def undo_walkthrough(session_id: str) -> WalkSessionState:
+        walk = require_walkthrough()
+        if walk.transcript(session_id) is None:
+            raise HTTPException(status_code=404, detail="unknown walkthrough session")
+        walk.undo(session_id)
+        return walk_state(walk, session_id)
 
     return app
 
