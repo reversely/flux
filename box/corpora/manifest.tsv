@@ -5,3 +5,4 @@ prego	mistake-detection-code	git	https://github.com/aleflabo/PREGO	fetch
 assembly101	assembly-mistakes	hfd	cvml-nus/assembly101	fetch	recordings/*
 coin-videos	step-videos	yt-dlp	subset-decision-required	pending
 howto100m-captions	caption-mirror	hfd	Jazzcharles/HowTo100M_llama3_refined_caption	fetch
+inat-metadata	species-photos-metadata	url	https://inaturalist-open-data.s3.amazonaws.com/metadata/inaturalist-open-data-latest.tar.gz	fetch
