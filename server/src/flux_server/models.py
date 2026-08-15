@@ -8,13 +8,46 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+MediaMode = Literal["photo", "video"]
+
+# PRD 2.1 interaction map: which capture kind each functionality sends.
+# Photo functionalities route stills to the box perception service; video
+# functionalities buffer low-fps MP4 for the VSS handoff. The coaching row
+# carries both the narration captions and the MVP 2 coach loop.
+FUNCTIONALITY_MEDIA_MODE: dict[str, MediaMode] = {
+    "plant_fungus_id": "photo",
+    "animal_id": "photo",
+    "tracks_scat": "photo",
+    "injury_progression": "photo",
+    "trail_memory": "video",
+    "hazard_watch": "video",
+    "coaching": "video",
+}
+
 
 class RecordStub(BaseModel):
     record_id: str
 
 
+class SessionCreateRequest(BaseModel):
+    """Optional creation body; a session without one accepts either kind."""
+
+    functionality: str
+
+
 class SessionCreated(BaseModel):
     session_id: str
+    functionality: str | None = None
+    media_mode: MediaMode | None = None
+
+
+class FunctionalityMode(BaseModel):
+    functionality: str
+    media_mode: MediaMode
+
+
+class FunctionalityList(BaseModel):
+    functionalities: list[FunctionalityMode]
 
 
 class FrameUploadResponse(BaseModel):

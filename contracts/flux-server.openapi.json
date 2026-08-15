@@ -65,10 +65,45 @@
         }
       }
     },
+    "/v1/functionalities": {
+      "get": {
+        "summary": "Functionalities",
+        "operationId": "functionalities_v1_functionalities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FunctionalityList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions": {
       "post": {
         "summary": "Create Session",
         "operationId": "create_session_v1_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SessionCreateRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -76,6 +111,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SessionCreated"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -478,6 +523,44 @@
         ],
         "title": "FrameUploadResponse"
       },
+      "FunctionalityList": {
+        "properties": {
+          "functionalities": {
+            "items": {
+              "$ref": "#/components/schemas/FunctionalityMode"
+            },
+            "type": "array",
+            "title": "Functionalities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "functionalities"
+        ],
+        "title": "FunctionalityList"
+      },
+      "FunctionalityMode": {
+        "properties": {
+          "functionality": {
+            "type": "string",
+            "title": "Functionality"
+          },
+          "media_mode": {
+            "type": "string",
+            "enum": [
+              "photo",
+              "video"
+            ],
+            "title": "Media Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "functionality",
+          "media_mode"
+        ],
+        "title": "FunctionalityMode"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -504,11 +587,51 @@
         ],
         "title": "RecordStub"
       },
+      "SessionCreateRequest": {
+        "properties": {
+          "functionality": {
+            "type": "string",
+            "title": "Functionality"
+          }
+        },
+        "type": "object",
+        "required": [
+          "functionality"
+        ],
+        "title": "SessionCreateRequest",
+        "description": "Optional creation body; a session without one accepts either kind."
+      },
       "SessionCreated": {
         "properties": {
           "session_id": {
             "type": "string",
             "title": "Session Id"
+          },
+          "functionality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Functionality"
+          },
+          "media_mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "photo",
+                  "video"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Mode"
           }
         },
         "type": "object",

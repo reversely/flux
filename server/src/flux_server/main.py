@@ -13,10 +13,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from flux_server.models import (
+    FUNCTIONALITY_MEDIA_MODE,
     ChatAnswer,
     ChatRequest,
     FrameUploadResponse,
+    FunctionalityList,
+    FunctionalityMode,
     SessionCreated,
+    SessionCreateRequest,
     SessionFinished,
     SessionResults,
     VideoUploadResponse,
@@ -63,15 +67,53 @@ def create_app(
     def chat(request: ChatRequest) -> ChatAnswer:
         return retriever.answer(request.question)
 
-    @app.post("/v1/sessions", response_model=SessionCreated)
-    def create_session() -> SessionCreated:
-        return SessionCreated(session_id=store.create_session())
+    def require_media_mode(session_id: str, upload_kind: str) -> None:
+        """Reject an upload whose kind contradicts the session's media mode."""
+        declared = store.session_metadata(session_id).get("media_mode")
+        if declared is not None and declared != upload_kind:
+            raise HTTPException(
+                status_code=415,
+                detail=f"session is {declared} mode; {upload_kind} upload rejected",
+            )
+
+    @app.get("/v1/functionalities", response_model=FunctionalityList)
+    def functionalities() -> FunctionalityList:
+        return FunctionalityList(
+            functionalities=[
+                FunctionalityMode(functionality=name, media_mode=mode)
+                for name, mode in FUNCTIONALITY_MEDIA_MODE.items()
+            ]
+        )
+
+    @app.post(
+        "/v1/sessions",
+        response_model=SessionCreated,
+        response_model_exclude_none=True,
+    )
+    def create_session(request: SessionCreateRequest | None = None) -> SessionCreated:
+        if request is None:
+            return SessionCreated(session_id=store.create_session())
+        media_mode = FUNCTIONALITY_MEDIA_MODE.get(request.functionality)
+        if media_mode is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"unknown functionality: {request.functionality}",
+            )
+        session_id = store.create_session(
+            {"functionality": request.functionality, "media_mode": media_mode}
+        )
+        return SessionCreated(
+            session_id=session_id,
+            functionality=request.functionality,
+            media_mode=media_mode,
+        )
 
     @app.post("/v1/sessions/{session_id}/frames", response_model=FrameUploadResponse)
     async def upload_frame(
         session_id: str, frame: UploadFile, captured_at: str = Form()
     ) -> FrameUploadResponse:
         require_session(session_id)
+        require_media_mode(session_id, "photo")
         data = await frame.read()
         frame_id = store.add_frame(session_id, data, captured_at)
         return FrameUploadResponse(frame_id=frame_id, results=[])
@@ -81,6 +123,7 @@ def create_app(
         session_id: str, video: UploadFile, captured_at: str = Form()
     ) -> VideoUploadResponse:
         require_session(session_id)
+        require_media_mode(session_id, "video")
         data = await video.read()
         try:
             video_id = store.add_video(session_id, data, captured_at)

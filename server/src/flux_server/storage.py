@@ -16,6 +16,7 @@ _SESSION_ID_RE = re.compile(r"sess_[a-z0-9_]+")
 _FRAME_ID_RE = re.compile(r"frame_\d{3}")
 _VIDEO_ID_RE = re.compile(r"video_\d{3}")
 _RESULT_FILENAME = "result.json"
+_SESSION_FILENAME = "session.json"
 
 
 class UnplayableVideoError(ValueError):
@@ -65,10 +66,20 @@ class SessionStore:
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
 
-    def create_session(self) -> str:
+    def create_session(self, metadata: dict | None = None) -> str:
         session_id = f"sess_{uuid.uuid4().hex[:8]}"
         (self.root / session_id).mkdir()
+        if metadata:
+            (self.root / session_id / _SESSION_FILENAME).write_text(
+                json.dumps(metadata)
+            )
         return session_id
+
+    def session_metadata(self, session_id: str) -> dict:
+        path = self.root / session_id / _SESSION_FILENAME
+        if not path.is_file():
+            return {}
+        return json.loads(path.read_text())
 
     def session_exists(self, session_id: str) -> bool:
         if not _SESSION_ID_RE.fullmatch(session_id):
