@@ -7,7 +7,8 @@ set -u
 MODELS_DIR="${MODELS_DIR:-$HOME/flux/models}"
 MANIFEST="${1:?usage: fetch_models.sh <manifest.tsv>}"
 
-source "$HOME/venv/bin/activate"
+. "$HOME/flux/env.sh"
+PATH="$HOME/flux/venvs/tools/bin:$PATH"
 mkdir -p "$MODELS_DIR/_logs"
 
 grep -v '^#' "$MANIFEST" | while IFS=$'\t' read -r name role source ref license status; do

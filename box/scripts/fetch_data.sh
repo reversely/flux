@@ -7,6 +7,8 @@ set -u
 DATA_DIR="${DATA_DIR:-$HOME/flux/data}"
 MANIFEST="${1:?usage: fetch_data.sh <manifest.tsv>}"
 
+. "$HOME/flux/env.sh"
+PATH="$HOME/flux/venvs/tools/bin:$PATH"
 mkdir -p "$DATA_DIR/_logs"
 
 grep -v '^#' "$MANIFEST" | while IFS=$'\t' read -r name layer source ref status extra; do
@@ -32,7 +34,6 @@ grep -v '^#' "$MANIFEST" | while IFS=$'\t' read -r name layer source ref status 
       ;;
     hfd)
       # Hugging Face dataset; the optional sixth column is an exclude glob.
-      source "$HOME/venv/bin/activate"
       hf download "$ref" --repo-type dataset --local-dir "$dest" \
         ${extra:+--exclude "$extra"} >>"$log" 2>&1
       ;;
