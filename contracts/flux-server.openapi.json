@@ -65,6 +65,236 @@
         }
       }
     },
+    "/v1/content/chapters": {
+      "get": {
+        "summary": "List Chapters",
+        "operationId": "list_chapters_v1_content_chapters_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChapterSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Chapters V1 Content Chapters Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/content/chapters/{chapter_id}": {
+      "get": {
+        "summary": "Get Chapter",
+        "operationId": "get_chapter_v1_content_chapters__chapter_id__get",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Chapter Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChapterDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/content/sections/{section_id}": {
+      "get": {
+        "summary": "Get Section",
+        "operationId": "get_section_v1_content_sections__section_id__get",
+        "parameters": [
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/content/blocks/{block_id}": {
+      "get": {
+        "summary": "Get Block",
+        "operationId": "get_block_v1_content_blocks__block_id__get",
+        "parameters": [
+          {
+            "name": "block_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Block Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/content/figures/{figure_id}": {
+      "get": {
+        "summary": "Get Figure",
+        "operationId": "get_figure_v1_content_figures__figure_id__get",
+        "parameters": [
+          {
+            "name": "figure_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Figure Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Figure"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/content/search": {
+      "get": {
+        "summary": "Search Content",
+        "operationId": "search_content_v1_content_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResults"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/functionalities": {
       "get": {
         "summary": "Functionalities",
@@ -354,6 +584,109 @@
   },
   "components": {
     "schemas": {
+      "Block": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "figure_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Figure Ref"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "review_status": {
+            "type": "string",
+            "title": "Review Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "order",
+          "type",
+          "text",
+          "source",
+          "review_status"
+        ],
+        "title": "Block"
+      },
+      "BlockDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "figure_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Figure Ref"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "review_status": {
+            "type": "string",
+            "title": "Review Status"
+          },
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "order",
+          "type",
+          "text",
+          "source",
+          "review_status",
+          "section_id"
+        ],
+        "title": "BlockDetail"
+      },
       "Body_upload_frame_v1_sessions__session_id__frames_post": {
         "properties": {
           "frame": {
@@ -391,6 +724,92 @@
           "captured_at"
         ],
         "title": "Body_upload_video_v1_sessions__session_id__videos_post"
+      },
+      "ChapterDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "tile_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tile Id"
+          },
+          "fm_number": {
+            "type": "integer",
+            "title": "Fm Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "priority_order": {
+            "type": "integer",
+            "title": "Priority Order"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/SectionSummary"
+            },
+            "type": "array",
+            "title": "Sections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "fm_number",
+          "title",
+          "priority_order",
+          "sections"
+        ],
+        "title": "ChapterDetail"
+      },
+      "ChapterSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "tile_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tile Id"
+          },
+          "fm_number": {
+            "type": "integer",
+            "title": "Fm Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "priority_order": {
+            "type": "integer",
+            "title": "Priority Order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "fm_number",
+          "title",
+          "priority_order"
+        ],
+        "title": "ChapterSummary"
       },
       "ChatAnswer": {
         "properties": {
@@ -502,6 +921,50 @@
         "title": "ChatTool",
         "description": "Widget an answer can launch preloaded; prime names the model context."
       },
+      "Figure": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "block_id": {
+            "type": "string",
+            "title": "Block Id"
+          },
+          "fm_figure_ref": {
+            "type": "string",
+            "title": "Fm Figure Ref"
+          },
+          "image_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Path"
+          },
+          "source_manual": {
+            "type": "string",
+            "title": "Source Manual"
+          },
+          "license": {
+            "type": "string",
+            "title": "License"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "block_id",
+          "fm_figure_ref",
+          "source_manual",
+          "license"
+        ],
+        "title": "Figure"
+      },
       "FrameUploadResponse": {
         "properties": {
           "frame_id": {
@@ -586,6 +1049,125 @@
           "record_id"
         ],
         "title": "RecordStub"
+      },
+      "SearchHit": {
+        "properties": {
+          "block_id": {
+            "type": "string",
+            "title": "Block Id"
+          },
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "chapter_id": {
+            "type": "string",
+            "title": "Chapter Id"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "block_id",
+          "section_id",
+          "chapter_id",
+          "snippet"
+        ],
+        "title": "SearchHit"
+      },
+      "SearchResults": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "type": "array",
+            "title": "Hits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "hits"
+        ],
+        "title": "SearchResults"
+      },
+      "SectionDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "chapter_id": {
+            "type": "string",
+            "title": "Chapter Id"
+          },
+          "fm_heading": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fm Heading"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/Block"
+            },
+            "type": "array",
+            "title": "Blocks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "chapter_id",
+          "title",
+          "order",
+          "blocks"
+        ],
+        "title": "SectionDetail"
+      },
+      "SectionSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "order"
+        ],
+        "title": "SectionSummary"
       },
       "SessionCreateRequest": {
         "properties": {

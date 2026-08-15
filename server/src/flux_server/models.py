@@ -74,6 +74,68 @@ class SessionFinished(BaseModel):
     status: Literal["in_progress", "complete", "failed"]
 
 
+class ChapterSummary(BaseModel):
+    id: str
+    tile_id: int | None = None
+    fm_number: int
+    title: str
+    priority_order: int
+
+
+class SectionSummary(BaseModel):
+    id: str
+    title: str
+    order: int
+
+
+class ChapterDetail(ChapterSummary):
+    sections: list[SectionSummary]
+
+
+class Block(BaseModel):
+    id: str
+    order: int
+    type: str
+    text: str
+    figure_ref: str | None = None
+    source: str
+    review_status: str
+
+
+class BlockDetail(Block):
+    section_id: str
+
+
+class SectionDetail(BaseModel):
+    id: str
+    chapter_id: str
+    fm_heading: str | None = None
+    title: str
+    order: int
+    blocks: list[Block]
+
+
+class Figure(BaseModel):
+    id: str
+    block_id: str
+    fm_figure_ref: str
+    image_path: str | None = None
+    source_manual: str
+    license: str
+
+
+class SearchHit(BaseModel):
+    block_id: str
+    section_id: str
+    chapter_id: str
+    snippet: str
+
+
+class SearchResults(BaseModel):
+    query: str
+    hits: list[SearchHit]
+
+
 class ChatRequest(BaseModel):
     question: str
 

@@ -78,11 +78,12 @@ def test_retriever_from_env_without_pack_is_the_no_pack_stub(
     assert isinstance(retriever_from_env(), NoPackRetriever)
 
 
-def test_retriever_from_env_refuses_an_unreadable_configured_pack(
+def test_retriever_from_env_answers_chat_needs_the_model_with_a_pack(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     pack = tmp_path / "pack.sqlite"
     pack.write_bytes(b"")
     monkeypatch.setenv("FLUX_CONTENT_DB", str(pack))
-    with pytest.raises(NotImplementedError):
-        retriever_from_env()
+    monkeypatch.delenv("FLUX_NEMOTRON_URL", raising=False)
+    answer = retriever_from_env().answer("how do I purify water?")
+    assert "FLUX_NEMOTRON_URL" in answer.text

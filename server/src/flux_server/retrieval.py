@@ -23,6 +23,12 @@ NO_PACK_TEXT = (
     "server."
 )
 
+NO_MODEL_TEXT = (
+    "A content pack is installed, and the content API serves it, but chat "
+    "needs the Nemotron endpoint. Set FLUX_NEMOTRON_URL and restart the "
+    "server."
+)
+
 
 class Retriever(Protocol):
     def answer(self, question: str) -> ChatAnswer: ...
@@ -38,16 +44,30 @@ class NoPackRetriever:
         )
 
 
+class NoModelRetriever:
+    """Answers that chat is off until the Nemotron endpoint is configured.
+
+    Selected when a pack is installed without FLUX_NEMOTRON_URL: the content
+    API serves the pack, and chat states its own missing dependency instead
+    of failing server startup.
+    """
+
+    def answer(self, question: str) -> ChatAnswer:
+        return ChatAnswer(
+            answer_id=f"ans_{uuid.uuid4().hex[:8]}",
+            text=NO_MODEL_TEXT,
+        )
+
+
 def retriever_from_env() -> Retriever:
     """Choose the retriever from FLUX_NEMOTRON_URL, then FLUX_CONTENT_DB.
 
     FLUX_NEMOTRON_URL points at the box's OpenAI-compatible endpoint (#43)
     and selects the Nemotron answerer; FLUX_NEMOTRON_MODEL and
     FLUX_GUIDE_CORPUS override the served model name and the corpus path.
-    Otherwise, unset or missing FLUX_CONTENT_DB means no pack; the server
-    answers honestly that nothing is loaded. A present database raises until
-    the pack reader (#26) exists, because silently ignoring a configured pack
-    would hide a misdeployment.
+    Otherwise, unset or missing FLUX_CONTENT_DB means no pack and the server
+    answers that nothing is loaded, while a present database without the
+    Nemotron endpoint answers that chat waits on FLUX_NEMOTRON_URL.
     """
     nemotron_url = os.environ.get("FLUX_NEMOTRON_URL")
     if nemotron_url:
@@ -62,7 +82,5 @@ def retriever_from_env() -> Retriever:
         )
     db = os.environ.get("FLUX_CONTENT_DB")
     if db and Path(db).is_file():
-        raise NotImplementedError(
-            "pack retrieval over contracts/pack-format.md is not implemented yet (#26)"
-        )
+        return NoModelRetriever()
     return NoPackRetriever()

@@ -8,17 +8,25 @@ the results route. The routes and models.py are the contract with the app.
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Form, HTTPException, UploadFile
+from fastapi import FastAPI, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from flux_server.content import ContentStore, content_store_from_env
 from flux_server.models import (
     FUNCTIONALITY_MEDIA_MODE,
+    Block,
+    BlockDetail,
+    ChapterDetail,
+    ChapterSummary,
     ChatAnswer,
     ChatRequest,
+    Figure,
     FrameUploadResponse,
     FunctionalityList,
     FunctionalityMode,
+    SearchResults,
+    SectionDetail,
     SessionCreated,
     SessionCreateRequest,
     SessionFinished,
@@ -31,11 +39,16 @@ from flux_server.vss import VideoHandoff, handoff_from_env
 
 DEFAULT_DATA_DIR = Path("data/sessions")
 
+# Distinguishes "argument not passed" from an explicit None, which means
+# the server runs without an installed content pack.
+_FROM_ENV = object()
+
 
 def create_app(
     data_dir: Path | None = None,
     retriever: Retriever | None = None,
     handoff: VideoHandoff | None = None,
+    content: ContentStore | None | object = _FROM_ENV,
 ) -> FastAPI:
     """Build the app around one on-disk session store and one retriever."""
     if data_dir is None:
@@ -45,6 +58,8 @@ def create_app(
         retriever = retriever_from_env()
     if handoff is None:
         handoff = handoff_from_env()
+    if content is _FROM_ENV:
+        content = content_store_from_env()
     app = FastAPI(title="flux stub inference server")
     app.add_middleware(
         CORSMiddleware,
@@ -66,6 +81,51 @@ def create_app(
     @app.post("/v1/chat", response_model=ChatAnswer, response_model_exclude_none=True)
     def chat(request: ChatRequest) -> ChatAnswer:
         return retriever.answer(request.question)
+
+    def require_content() -> ContentStore:
+        if content is None or content is _FROM_ENV:
+            raise HTTPException(status_code=503, detail="no content pack installed")
+        return content
+
+    @app.get("/v1/content/chapters", response_model=list[ChapterSummary])
+    def list_chapters() -> list[ChapterSummary]:
+        return [ChapterSummary(**row) for row in require_content().chapters()]
+
+    @app.get("/v1/content/chapters/{chapter_id}", response_model=ChapterDetail)
+    def get_chapter(chapter_id: str) -> ChapterDetail:
+        row = require_content().chapter(chapter_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="unknown chapter")
+        return ChapterDetail(**row)
+
+    @app.get("/v1/content/sections/{section_id}", response_model=SectionDetail)
+    def get_section(section_id: str) -> SectionDetail:
+        row = require_content().section(section_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="unknown section")
+        row["blocks"] = [Block(**block) for block in row["blocks"]]
+        return SectionDetail(**row)
+
+    @app.get("/v1/content/blocks/{block_id}", response_model=BlockDetail)
+    def get_block(block_id: str) -> BlockDetail:
+        row = require_content().block(block_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="unknown block")
+        return BlockDetail(**row)
+
+    @app.get("/v1/content/figures/{figure_id}", response_model=Figure)
+    def get_figure(figure_id: str) -> Figure:
+        row = require_content().figure(figure_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="unknown figure")
+        return Figure(**row)
+
+    @app.get("/v1/content/search", response_model=SearchResults)
+    def search_content(
+        q: str = Query(min_length=1), limit: int = Query(default=20, ge=1, le=100)
+    ) -> SearchResults:
+        hits = require_content().search(q, limit)
+        return SearchResults(query=q, hits=hits)
 
     def require_media_mode(session_id: str, upload_kind: str) -> None:
         """Reject an upload whose kind contradicts the session's media mode."""
