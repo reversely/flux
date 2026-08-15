@@ -250,3 +250,5 @@ AGENTS.md
 .claude/
 docs/prd*.md
 docs/plans/
+
+app/docs/progress/

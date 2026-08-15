@@ -1,3 +1,4 @@
+import * as Device from 'expo-device';
 import { Settings } from 'react-native';
 import { create } from 'zustand';
 
@@ -18,7 +19,11 @@ interface SessionState {
   client: () => ApiClient;
 }
 
-const storedUrl = (): string => (Settings.get(SERVER_URL_KEY) as string | undefined) ?? '';
+// The simulator shares the Mac's network stack, so the stub is on localhost.
+const SIMULATOR_DEFAULT_URL = Device.isDevice ? '' : 'http://localhost:8000';
+
+const storedUrl = (): string =>
+  (Settings.get(SERVER_URL_KEY) as string | undefined) ?? SIMULATOR_DEFAULT_URL;
 
 export const useSession = create<SessionState>((set, get) => ({
   serverUrl: storedUrl(),
