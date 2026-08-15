@@ -35,8 +35,11 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@protomaps/basemaps": "^5.7.2",
     "@types/jest": "29.5.14",
     "@types/react": "~19.2.2",
+    "maplibre-gl": "^5.24.0",
+    "pmtiles": "^4.5.0",
     "typescript": "~6.0.3"
   },
   "scripts": {
