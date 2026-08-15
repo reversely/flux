@@ -8,7 +8,6 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.141.1",
-    "pillow>=12.3.0",
 ]
 
 [project.scripts]
@@ -21,5 +20,6 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "pillow>=12.3.0",
     "pytest>=9.1.1",
 ]

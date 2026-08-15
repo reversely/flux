@@ -76,13 +76,6 @@ export default function Connect() {
           <Pressable style={styles.startButton} onPress={() => router.push('/scan')}>
             <Text style={typography.button}>Start scan</Text>
           </Pressable>
-          <Pressable
-            onPress={() =>
-              router.push({ pathname: '/review', params: { sessionId: 'sess_sample' } })
-            }
-          >
-            <Text style={styles.link}>Review sample</Text>
-          </Pressable>
         </View>
       )}
     </View>
@@ -140,11 +133,6 @@ const styles = StyleSheet.create({
     ...typography.body,
     fontSize: 14,
     lineHeight: 21,
-  },
-  link: {
-    ...typography.button,
-    color: colors.signature,
-    paddingHorizontal: spacing.xs,
   },
   actions: {
     flexDirection: 'row',

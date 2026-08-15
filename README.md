@@ -17,11 +17,11 @@ Server, on the Mac:
 
 ```
 cd server
-uv run flux-server --seed
+uv run flux-server
 ```
 
-`--seed` writes a synthetic sample session (`sess_sample`) so the review viewer works with
-zero capture.
+The stub stores uploaded frames and serves them back; results stay empty until the trained
+model replaces the stub behind the same API.
 
 App, one-time native build (Xcode, iPhone in Developer Mode):
 

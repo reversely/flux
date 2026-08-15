@@ -1,7 +1,7 @@
-"""FastAPI stub returning canned inspection results.
+"""FastAPI stub with bare endpoints: sessions, frame storage, frame serving.
 
-The GN100 pipeline replaces the canned layer later; the routes and models are
-the contract it must keep.
+Results stay empty until the trained model supplies them; the routes and the
+PRD section 8 models in models.py are the contract that pipeline must keep.
 """
 
 import os
@@ -10,15 +10,8 @@ from pathlib import Path
 from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from PIL import Image
 
-from flux_server.canned import MIN_FRAMES_FOR_RESULTS, canned_joints
-from flux_server.models import (
-    FrameUploadResponse,
-    JointRecord,
-    SessionCreated,
-    SessionResults,
-)
+from flux_server.models import FrameUploadResponse, SessionCreated, SessionResults
 from flux_server.storage import SessionStore
 
 DEFAULT_DATA_DIR = Path("data/sessions")
@@ -41,15 +34,6 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         if not store.session_exists(session_id):
             raise HTTPException(status_code=404, detail="unknown session")
 
-    def results_for(session_id: str) -> list[JointRecord]:
-        frame_ids = store.frame_ids(session_id)
-        if len(frame_ids) < MIN_FRAMES_FOR_RESULTS:
-            return []
-        latest = store.frame_path(session_id, frame_ids[-1])
-        with Image.open(latest) as image:
-            width, height = image.size
-        return canned_joints(width, height, frame_ids)
-
     @app.get("/healthz")
     def healthz() -> dict[str, bool]:
         return {"ok": True}
@@ -65,17 +49,12 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         require_session(session_id)
         data = await frame.read()
         frame_id = store.add_frame(session_id, data, captured_at)
-        return FrameUploadResponse(frame_id=frame_id, results=results_for(session_id))
+        return FrameUploadResponse(frame_id=frame_id, results=[])
 
     @app.get("/v1/sessions/{session_id}/results", response_model=SessionResults)
     def session_results(session_id: str) -> SessionResults:
         require_session(session_id)
-        joints = results_for(session_id)
-        return SessionResults(
-            session_id=session_id,
-            status="complete" if joints else "in_progress",
-            joints=joints,
-        )
+        return SessionResults(session_id=session_id, status="in_progress", joints=[])
 
     @app.get("/v1/sessions/{session_id}/frames/{frame_id}")
     def get_frame(session_id: str, frame_id: str) -> FileResponse:
