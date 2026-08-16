@@ -1,6 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { useLocalSearchParams } from 'expo-router';
+import * as Speech from 'expo-speech';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -110,6 +111,22 @@ export default function Walkthrough() {
   const anySelected = [...selected.values()].some((states) => states.length > 0);
   const wantCamera = camera === '1';
   const useCamera = wantCamera && Device.isDevice && permission?.granted === true;
+
+  // Camera mode narrates the next unanswered question so hands and eyes can
+  // stay on the specimen; the text-only flow stays silent.
+  const spokenCharacter = walk?.question?.character;
+  useEffect(() => {
+    if (!wantCamera || walk === null) {
+      return;
+    }
+    const question = walk.questions.find((q) => q.character === spokenCharacter);
+    if (question) {
+      Speech.stop();
+      Speech.speak(`${question.question} Options: ${question.states.join(', ')}.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spokenCharacter, wantCamera]);
+  useEffect(() => () => void Speech.stop(), []);
 
   return (
     <View style={styles.screen}>
