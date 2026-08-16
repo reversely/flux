@@ -59,7 +59,7 @@ class NoModelRetriever:
         )
 
 
-def retriever_from_env() -> Retriever:
+def retriever_from_env(research_queue=None) -> Retriever:
     """Choose the retriever from FLUX_NEMOTRON_URL, then FLUX_CONTENT_DB.
 
     FLUX_NEMOTRON_URL points at the box's OpenAI-compatible endpoint (#43)
@@ -83,6 +83,7 @@ def retriever_from_env() -> Retriever:
             # The retriever's own pack view for two-tier answers (#185);
             # the content routes hold a separate read-only handle.
             content=content_store_from_env(),
+            research_queue=research_queue,
         )
     db = os.environ.get("FLUX_CONTENT_DB")
     if db and Path(db).is_file():

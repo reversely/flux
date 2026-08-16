@@ -65,6 +65,28 @@
         }
       }
     },
+    "/v1/library/queue": {
+      "get": {
+        "summary": "Library Queue",
+        "operationId": "library_queue_v1_library_queue_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ResearchTopic"
+                  },
+                  "type": "array",
+                  "title": "Response Library Queue V1 Library Queue Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/content/chapters": {
       "get": {
         "summary": "List Chapters",
@@ -1839,6 +1861,16 @@
             ],
             "title": "Sources"
           },
+          "queued": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatQueueNote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "trace": {
             "anyOf": [
               {
@@ -1857,6 +1889,29 @@
         ],
         "title": "ChatAnswer",
         "description": "Chapter mentions in text carry the reference links.\n\nsources present means the answer quotes pack passages; absent means the\nmodel answered without pack coverage (or a config notice answered)."
+      },
+      "ChatQueueNote": {
+        "properties": {
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "added",
+              "queued"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "topic",
+          "state"
+        ],
+        "title": "ChatQueueNote",
+        "description": "The research queue's note on an unsourced answer (#193): the topic\nthis question added, or found already queued for the library."
       },
       "ChatRequest": {
         "properties": {
@@ -2361,6 +2416,46 @@
           "record_id"
         ],
         "title": "RecordStub"
+      },
+      "ResearchTopic": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "topic",
+          "status",
+          "created_at"
+        ],
+        "title": "ResearchTopic",
+        "description": "One research-queue entry (#193); question absent on seeded topics."
       },
       "SearchHit": {
         "properties": {

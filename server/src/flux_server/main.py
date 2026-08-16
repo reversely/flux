@@ -34,6 +34,7 @@ from flux_server.coach import (
     extract_frames,
 )
 from flux_server.content import ContentStore, content_store_from_env
+from flux_server.library import ResearchQueue
 from flux_server.models import (
     FUNCTIONALITY_MEDIA_MODE,
     Block,
@@ -55,6 +56,7 @@ from flux_server.models import (
     IngestEntry,
     NarrationCreated,
     NarrationRequest,
+    ResearchTopic,
     SearchResults,
     SectionDetail,
     SessionCreated,
@@ -118,8 +120,9 @@ def create_app(
     if data_dir is None:
         data_dir = Path(os.environ.get("FLUX_DATA_DIR", DEFAULT_DATA_DIR))
     store = SessionStore(data_dir)
+    research_queue = ResearchQueue(data_dir / "research-queue.json")
     if retriever is None:
-        retriever = retriever_from_env()
+        retriever = retriever_from_env(research_queue)
     if handoff is None:
         handoff = handoff_from_env()
     if content is _FROM_ENV:
@@ -176,6 +179,17 @@ def create_app(
     @app.post("/v1/chat", response_model=ChatAnswer, response_model_exclude_none=True)
     def chat(request: ChatRequest) -> ChatAnswer:
         return retriever.answer(request.question)
+
+    # The research queue (#193): topics unsourced chat answers recorded,
+    # seeded with starter topics. The box's online gather pass and any
+    # review surface read this list.
+    @app.get(
+        "/v1/library/queue",
+        response_model=list[ResearchTopic],
+        response_model_exclude_none=True,
+    )
+    def library_queue() -> list[ResearchTopic]:
+        return [ResearchTopic(**entry) for entry in research_queue.entries()]
 
     def require_content() -> ContentStore:
         if content is None or content is _FROM_ENV:

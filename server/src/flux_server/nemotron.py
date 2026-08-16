@@ -29,7 +29,14 @@ from pathlib import Path
 import httpx
 
 from flux_server.content import ContentStore
-from flux_server.models import ChatAnswer, ChatSource, ChatTool, InferenceTrace
+from flux_server.library import ResearchQueue
+from flux_server.models import (
+    ChatAnswer,
+    ChatQueueNote,
+    ChatSource,
+    ChatTool,
+    InferenceTrace,
+)
 from flux_server.prompts import chat_system_prompt
 
 logger = logging.getLogger(__name__)
@@ -44,6 +51,19 @@ PASSAGE_CHARS = 800
 PASSAGES_HEADER = (
     "\n\nPack passages matching the question (quote these for the technical "
     "parts and cite their chapters):\n"
+)
+
+# Topic naming for the research queue (#193): the same tiny-completion
+# pattern as CLASSIFY_PROMPT. max_tokens also routes the test mock, so the
+# three call sizes (answer, classify 16, topic 24) stay distinct.
+TOPIC_MAX_TOKENS = 24
+TOPIC_PROMPT = (
+    "/no_think\n"
+    "The user asked a question the field guide's library does not cover. "
+    "Name the library topic that would cover it, in two to four plain "
+    'words, for example "seed storage" or "growing food". Reply with only '
+    "the topic. Reply none when the message is a greeting, small talk, or "
+    "not a request for information."
 )
 DEFAULT_CORPUS_PATH = (
     Path(__file__).resolve().parents[3] / "app" / "src" / "data" / "guide-corpus.json"
@@ -197,6 +217,7 @@ class NemotronRetriever:
         corpus_path: Path = DEFAULT_CORPUS_PATH,
         http_client: httpx.Client | None = None,
         content: ContentStore | None = None,
+        research_queue: ResearchQueue | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -207,6 +228,7 @@ class NemotronRetriever:
         ]
         self._client = http_client or httpx.Client(timeout=CHAT_TIMEOUT_S)
         self._content = content
+        self._research_queue = research_queue
 
     def answer(self, question: str) -> ChatAnswer:
         answer_id = f"ans_{uuid.uuid4().hex[:8]}"
@@ -223,18 +245,46 @@ class NemotronRetriever:
             )
         text = _strip_think(content) or UNREACHABLE_TEXT
         tool = self._decide_tool(question, text)
-        # One trace covers both model calls: the answer completion and the
-        # tool classification that follows it.
+        queued = None if sources else self._queue_topic(question)
+        # One trace covers the model calls: the answer completion, the tool
+        # classification, and the topic naming on unsourced answers.
         return ChatAnswer(
             answer_id=answer_id,
             text=text,
             tool=tool,
             sources=sources or None,
+            queued=queued,
             trace=InferenceTrace(
                 model=self.model,
                 latency_ms=int((time.monotonic() - started) * 1000),
             ),
         )
+
+    def _queue_topic(self, question: str) -> ChatQueueNote | None:
+        """Record an unsourced question's topic in the research queue (#193).
+
+        A tiny completion names the topic; "none" (greetings, small talk)
+        and any model or queue failure skip queueing rather than guessing.
+        """
+        if self._research_queue is None:
+            return None
+        try:
+            message = self._complete(
+                system=TOPIC_PROMPT,
+                question=question,
+                temperature=0.0,
+                max_tokens=TOPIC_MAX_TOKENS,
+            )
+            raw = _strip_think(message.get("content") or "")
+            first_line = raw.splitlines()[0] if raw else ""
+            topic = " ".join(first_line.split()).strip('."“”').lower()
+            if not topic or topic == "none" or len(topic) > 60:
+                return None
+            _, added = self._research_queue.add(topic, question)
+            return ChatQueueNote(topic=topic, state="added" if added else "queued")
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, OSError) as error:
+            logger.error("research-queue topic naming failed: %s", error)
+            return None
 
     def _retrieve(self, question: str) -> tuple[list[ChatSource], str]:
         """Pack passages for the question: the sources for the wire and the

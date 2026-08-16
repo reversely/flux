@@ -198,6 +198,14 @@ class ChatSource(BaseModel):
     snippet: str
 
 
+class ChatQueueNote(BaseModel):
+    """The research queue's note on an unsourced answer (#193): the topic
+    this question added, or found already queued for the library."""
+
+    topic: str
+    state: Literal["added", "queued"]
+
+
 class ChatAnswer(BaseModel):
     """Chapter mentions in text carry the reference links.
 
@@ -209,8 +217,19 @@ class ChatAnswer(BaseModel):
     text: str
     tool: ChatTool | None = None
     sources: list[ChatSource] | None = None
+    queued: ChatQueueNote | None = None
     # Absent when the model is unreachable and the keyword floor answered.
     trace: InferenceTrace | None = None
+
+
+class ResearchTopic(BaseModel):
+    """One research-queue entry (#193); question absent on seeded topics."""
+
+    id: str
+    topic: str
+    question: str | None = None
+    status: str
+    created_at: str
 
 
 class WalkSpeciesCard(BaseModel):
