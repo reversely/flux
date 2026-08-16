@@ -4,6 +4,8 @@ import type {
   ChapterDetail,
   ChapterSummary,
   ChatAnswer,
+  CoachClipResult,
+  CoachSessionState,
   FrameUploadResponse,
   SectionDetail,
   SessionResults,
@@ -128,6 +130,31 @@ export class ApiClient {
 
   async undoWalkthrough(sessionId: string): Promise<WalkSessionState> {
     return this.postJson<WalkSessionState>(`/v1/walkthrough/sessions/${sessionId}/undo`);
+  }
+
+  async createCoachSession(knot: string): Promise<CoachSessionState> {
+    return this.postJson<CoachSessionState>('/v1/coach/sessions', { knot });
+  }
+
+  async coachClip(
+    sessionId: string,
+    fileUri: string,
+    mimeType: string = 'video/quicktime',
+  ): Promise<CoachClipResult> {
+    const result = await FileSystem.uploadAsync(
+      `${this.baseUrl}/v1/coach/sessions/${sessionId}/clip`,
+      fileUri,
+      {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'video',
+        mimeType,
+      },
+    );
+    if (result.status !== 200) {
+      throw new Error(`coach clip failed: ${result.status}`);
+    }
+    return JSON.parse(result.body) as CoachClipResult;
   }
 
   private async postJson<T>(path: string, body?: unknown): Promise<T> {

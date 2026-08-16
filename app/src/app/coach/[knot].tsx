@@ -4,29 +4,41 @@ import * as Device from 'expo-device';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { knotById } from '@/data/coach';
+import { useSession } from '@/store/session';
 import { darkHome, HOME_BIOME } from '@/theme/biome';
 import { radius, spacing, typography } from '@/theme/tokens';
+
+// Short clips keep the watch loop close to the bench's 8 s chunks; the low
+// bitrate matches capture.tsx's reasoning (the server samples ~8 frames).
+const COACH_CLIP_SECONDS = 8;
+const COACH_VIDEO_BITRATE = 1_000_000;
+
+type WatchState = 'off' | 'starting' | 'watching' | 'failed';
 
 /**
  * Follow-along knot coach over the live camera. The camera center stays
  * clear (it is the user's workspace); the reference graphic sits small at
- * the top. Steps advance by tapping the dots for now; the coach event
- * stream (#66/#80) will drive the same pointer when the server side lands.
- * Narration is on-device speech until box TTS relays through the server.
+ * the top. WATCH streams short clips to /v1/coach/sessions/{id}/clip and the
+ * server's pointer (#66) advances the step; the dots stay as manual
+ * override. Narration is on-device speech until box TTS relays (#77/#80).
  */
 export default function KnotCoach() {
   const { knot: knotId } = useLocalSearchParams<{ knot: string }>();
   const knot = knotById(knotId ?? '');
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const client = useSession((s) => s.client);
   const [permission, requestPermission] = useCameraPermissions();
   const [step, setStep] = useState(0);
   const [voiceOn, setVoiceOn] = useState(true);
+  const [watch, setWatch] = useState<WatchState>('off');
+  const cameraRef = useRef<CameraView>(null);
+  const watchingRef = useRef(false);
 
   const speak = useCallback(
     (index: number) => {
@@ -44,9 +56,57 @@ export default function KnotCoach() {
     speak(index);
   };
 
-  // Leaving the screen stops any narration mid-sentence.
+  const stopWatch = useCallback(() => {
+    watchingRef.current = false;
+    cameraRef.current?.stopRecording();
+    setWatch('off');
+  }, []);
+
+  // The watch loop: record a short clip, post it, apply the server pointer,
+  // repeat. Each advance narrates the step it landed on.
+  const startWatch = async () => {
+    if (knot === undefined) {
+      return;
+    }
+    setWatch('starting');
+    let sessionId: string;
+    try {
+      sessionId = (await client().createCoachSession(knot.id)).session_id;
+    } catch {
+      setWatch('failed');
+      return;
+    }
+    watchingRef.current = true;
+    setWatch('watching');
+    let pointer = 0;
+    while (watchingRef.current) {
+      try {
+        const video = await cameraRef.current?.recordAsync({
+          codec: 'avc1',
+          maxDuration: COACH_CLIP_SECONDS,
+        });
+        if (video === undefined) {
+          break;
+        }
+        const result = await client().coachClip(sessionId, video.uri);
+        if (watchingRef.current && result.step > pointer) {
+          pointer = result.step;
+          goTo(result.step);
+        }
+      } catch {
+        setWatch('failed');
+        watchingRef.current = false;
+        return;
+      }
+    }
+    setWatch('off');
+  };
+
+  // Leaving the screen stops the recorder and any narration mid-sentence.
   useEffect(
     () => () => {
+      watchingRef.current = false;
+      cameraRef.current?.stopRecording();
       void Speech.stop();
     },
     [],
@@ -70,7 +130,17 @@ export default function KnotCoach() {
 
   return (
     <View style={styles.screen}>
-      {showCamera && <CameraView style={StyleSheet.absoluteFill} facing="back" />}
+      {showCamera && (
+        <CameraView
+          ref={cameraRef}
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          mode="video"
+          mute
+          videoQuality="4:3"
+          videoBitrate={COACH_VIDEO_BITRATE}
+        />
+      )}
       <View style={[styles.top, { top: insets.top + spacing.s }]}>
         <Pressable
           accessibilityRole="button"
@@ -85,6 +155,30 @@ export default function KnotCoach() {
             {knot.name} · {step + 1}/{knot.steps.length}
           </Text>
         </View>
+        {showCamera && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={watch === 'off' || watch === 'failed' ? 'Watch my tying' : 'Stop watching'}
+            onPress={() => {
+              if (watch === 'watching' || watch === 'starting') {
+                stopWatch();
+              } else {
+                void startWatch();
+              }
+            }}
+            style={[styles.chip, watch === 'watching' && styles.chipActive]}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                watch === 'watching' && { color: HOME_BIOME.glow },
+                watch === 'failed' && { color: darkHome.ink3 },
+              ]}
+            >
+              {watch === 'watching' ? 'Watching' : watch === 'starting' ? 'Starting' : watch === 'failed' ? 'Watch (no server)' : 'Watch'}
+            </Text>
+          </Pressable>
+        )}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={voiceOn ? 'Turn voice off' : 'Turn voice on'}

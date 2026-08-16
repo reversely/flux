@@ -130,3 +130,22 @@ export interface WalkSessionState {
   complete: boolean;
   question?: WalkQuestion;
 }
+
+export interface CoachStep {
+  screen: string;
+  voice: string;
+}
+
+export interface CoachSessionState {
+  session_id: string;
+  knot: string;
+  name: string;
+  step: number;
+  steps: CoachStep[];
+}
+
+export interface CoachClipResult {
+  prediction?: number;
+  step: number;
+  advanced: boolean;
+}
