@@ -67,30 +67,24 @@ KNOTS: dict[str, CoachKnot] = {
             "Bowline",
             [
                 (
-                    "Rope laid out.",
-                    "Rope laid out. Ready.",
-                    "rope laid out straight, knot not yet started",
-                ),
-                (
                     "Small overhand loop in the standing part.",
-                    "Form a small overhand loop in the standing part.",
-                    "form a small overhand loop in the standing part",
+                    "Form a small overhand loop in the standing part. Leave a long working end.",
+                    "a small overhand loop formed in the standing part of the rope",
                 ),
                 (
-                    "Working end: up through the loop, behind the standing part, back down.",
-                    (
-                        "Thread the working end up through the loop, behind the "
-                        "standing part, and back down through the loop."
-                    ),
-                    (
-                        "thread the working end: up through the loop, behind the "
-                        "standing part, and back down through the loop"
-                    ),
+                    "Working end up through the loop.",
+                    "Bring the working end up through the loop, from underneath.",
+                    "the working end comes up through the loop from underneath",
                 ),
                 (
-                    "Pull tight. Loop stays open.",
-                    "Pull tight. The loop stays open.",
-                    "tighten and dress the knot; finished bowline with a fixed loop",
+                    "Behind the standing part.",
+                    "Wrap the working end behind the standing part.",
+                    "the working end wraps behind the standing part",
+                ),
+                (
+                    "Back down through the loop. Pull tight.",
+                    "Pass the working end back down through the loop and pull tight. The loop stays open.",
+                    "the working end passes back down through the loop; finished bowline pulled tight",
                 ),
             ],
         ),
@@ -99,24 +93,19 @@ KNOTS: dict[str, CoachKnot] = {
             "Square knot",
             [
                 (
-                    "Two rope ends laid out.",
-                    "Two rope ends laid out.",
-                    "two rope ends laid out, knot not started",
-                ),
-                (
-                    "Left over right. Tuck under.",
+                    "Left end over right. Tuck under.",
                     "Cross the left end over the right and tuck it under.",
-                    "cross the left end over the right and tuck it under",
+                    "the left end crosses over the right and tucks under",
                 ),
                 (
-                    "Right over left. Tuck under.",
+                    "Right end over left. Tuck under.",
                     "Cross the right end over the left and tuck it under.",
-                    "cross the right end over the left and tuck it under",
+                    "the right end crosses over the left and tucks under",
                 ),
                 (
-                    "Pull all four ends. Knot lies flat.",
-                    "Pull all four ends tight. The knot lies flat.",
-                    "pull all four ends tight; flat square knot",
+                    "Pull all four ends tight. Knot lies flat.",
+                    "Pull all four ends tight with even tension. The knot lies flat.",
+                    "all four ends pulled tight; flat finished square knot",
                 ),
             ],
         ),
@@ -125,24 +114,29 @@ KNOTS: dict[str, CoachKnot] = {
             "Clove hitch",
             [
                 (
-                    "Rope and pole ready.",
-                    "Rope and pole ready.",
-                    "rope and pole ready, knot not started",
+                    "Wrap the end over the pole.",
+                    "Wrap the end halfway over the pole, front to back.",
+                    "the end wraps halfway over the pole",
                 ),
                 (
-                    "Wrap over the pole. Cross the standing part.",
-                    "Wrap the end over the pole and cross it over the standing part.",
-                    "wrap the end over the pole and cross it over the standing part",
+                    "Cross over the standing part.",
+                    "Cross the running end over the standing part and bring it under the pole.",
+                    "the running end crosses over the standing part in front of the pole",
                 ),
                 (
-                    "Wrap again. Tuck under the last wrap.",
-                    "Wrap over the pole again and tuck the end under the last wrap.",
-                    "wrap over the pole again and tuck the end under the last wrap",
+                    "Wrap over the pole again.",
+                    "Wrap the end over the pole a second time, next to the first wrap.",
+                    "the end wraps over the pole a second time",
+                ),
+                (
+                    "Slip the end under the last wrap.",
+                    "Slip the end under the wrap you just made.",
+                    "the end slips under the last wrap",
                 ),
                 (
                     "Pull both ends tight.",
                     "Pull both ends tight against the pole.",
-                    "pull both ends tight against the pole",
+                    "both ends pulled tight; finished clove hitch on the pole",
                 ),
             ],
         ),
@@ -151,29 +145,14 @@ KNOTS: dict[str, CoachKnot] = {
             "Figure-eight knot",
             [
                 (
-                    "Rope laid out straight.",
-                    "Rope laid out straight.",
-                    "rope laid out straight, knot not started",
+                    "Fold the end back over itself.",
+                    "Fold the end of the rope back over itself.",
+                    "the end of the rope folded back over itself",
                 ),
                 (
-                    "Form a loop. End crosses over.",
-                    "Form a loop, crossing the end over the standing part.",
-                    "form a loop, crossing the end over the standing part",
-                ),
-                (
-                    "Wrap the end behind the standing part.",
-                    "Wrap the end behind the standing part.",
-                    "wrap the end behind the standing part",
-                ),
-                (
-                    "End down through the loop.",
-                    "Pass the end down through the loop. You get a figure-eight shape.",
-                    "pass the end down through the loop; figure-eight shape",
-                ),
-                (
-                    "Pull both ends tight.",
-                    "Pull both ends tight.",
-                    "pull both ends tight",
+                    "Twist a loop. End through. Tighten.",
+                    "Twist the end over the rope to form a loop, pass the end through the loop, and tighten.",
+                    "the end twisted into a loop, passed through, and tightened into a figure-eight",
                 ),
             ],
         ),
@@ -182,34 +161,34 @@ KNOTS: dict[str, CoachKnot] = {
             "Trucker's hitch",
             [
                 (
-                    "Rope runs to the tie-off point.",
-                    "Run the rope to the tie-off point.",
-                    "rope runs to the tie-off point, knot not started",
+                    "Tie off the rope at one end.",
+                    "Tie off the rope at one end. The working end stays free.",
+                    "the rope tied off at one anchor, working end free",
                 ),
                 (
-                    "Small loop in the line.",
-                    "Form a small loop in the line.",
-                    "form a small loop in the line",
+                    "Form a loop in the line.",
+                    "Form a loop in the line and hold it.",
+                    "a loop formed in the line",
                 ),
                 (
-                    "Pull a fold through. Slipped loop.",
-                    "Pull a fold of rope through to make a slipped loop.",
-                    "pull a fold of rope through to make a slipped loop",
+                    "Cinch the slipped loop.",
+                    "Pull a fold of rope through the loop and cinch it, so a loop hangs in the line.",
+                    "a slipped loop cinched so a loop hangs in the line",
                 ),
                 (
-                    "End around the tie-off, up through the loop.",
-                    "Pass the working end around the tie-off point and up through the loop.",
-                    "pass the working end around the tie-off point and up through the loop",
+                    "Working end around the anchor.",
+                    "Pass the working end around the tie-off point.",
+                    "the working end passes around the anchor point",
                 ),
                 (
-                    "Haul tight.",
-                    "Haul the working end tight.",
-                    "haul the working end tight",
+                    "Up through the loop. Haul tight.",
+                    "Pass the working end up through the hanging loop and haul it tight. The loop works like a pulley.",
+                    "the working end comes up through the hanging loop and is hauled tight",
                 ),
                 (
                     "Lock off: two half hitches.",
                     "Lock it off with two half hitches.",
-                    "lock it off with two half hitches",
+                    "the hitch locked off with two half hitches",
                 ),
             ],
         ),
@@ -218,42 +197,34 @@ KNOTS: dict[str, CoachKnot] = {
             "Palomar knot",
             [
                 (
-                    "Line and hook ready.",
-                    "Line and hook ready.",
-                    "line and hook ready, knot not started",
+                    "Thread the line through the hook eye.",
+                    "Thread the line through the hook eye.",
+                    "the line threads through the hook eye",
                 ),
                 (
-                    "Double the line into a loop.",
-                    "Double the line into a loop.",
-                    "double the line into a loop",
-                ),
-                (
-                    "Thread the loop through the hook eye.",
-                    "Thread the doubled loop through the hook eye.",
-                    "thread the loop through the hook eye",
+                    "Thread it back. Doubled line.",
+                    "Thread the line back through the hook eye, so the line is doubled.",
+                    "the line threads back through the eye, leaving a doubled line",
                 ),
                 (
                     "Loose overhand knot. Hook hangs in the middle.",
-                    "Tie a loose overhand knot. The hook hangs from the middle.",
-                    "tie a loose overhand knot; the hook hangs from the middle",
+                    "Tie a loose overhand knot in the doubled line. The hook hangs from the middle.",
+                    "a loose overhand knot in the doubled line with the hook hanging from the middle",
                 ),
                 (
-                    "Pass the loop over the whole hook.",
-                    "Pass the loop over the whole hook.",
-                    "pass the loop over the whole hook",
+                    "Pass the hook through the loop.",
+                    "Pass the hook through the loop of the doubled line.",
+                    "the hook passes through the loop of the doubled line",
                 ),
                 (
-                    "Wet the knot (spit works). Pull both lines tight.",
-                    (
-                        "Wet the knot with spit or water so the line does not weaken "
-                        "from friction. Then pull both lines tight."
-                    ),
-                    "wet the knot and pull both lines to seat it against the eye",
+                    "Wet the knot (spit works). Pull tight to the eye.",
+                    "Wet the knot with spit or water so the line does not weaken from friction. Then pull it tight against the eye.",
+                    "the knot pulled tight against the hook eye",
                 ),
                 (
                     "Trim the tag end (the short leftover).",
                     "Trim the tag end, the short leftover line.",
-                    "trim the tag end; finished",
+                    "the tag end trimmed; finished palomar knot on the hook",
                 ),
             ],
         ),

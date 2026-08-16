@@ -38,6 +38,14 @@ export default function KnotCoach() {
   const client = useSession((s) => s.client);
   const [permission, requestPermission] = useCameraPermissions();
   const [step, setStep] = useState(() => Number(stepParam) || 0);
+
+  // A later link to the same screen updates the param without remounting.
+  useEffect(() => {
+    const wanted = Number(stepParam);
+    if (!Number.isNaN(wanted)) {
+      setStep(wanted);
+    }
+  }, [stepParam]);
   const [voiceOn, setVoiceOn] = useState(true);
   const [watch, setWatch] = useState<WatchState>('off');
   const cameraRef = useRef<CameraView>(null);
