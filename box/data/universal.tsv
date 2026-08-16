@@ -9,4 +9,5 @@ universal/fungi-atkinson-1900	fungi-guide	url	https://www.gutenberg.org/cache/ep
 universal/fungi-hard-1908	fungi-guide	url	https://www.gutenberg.org/cache/epub/29086/pg29086-h.zip	fetch
 universal/fungi-mcilvaine-1902	fungi-guide	url	https://archive.org/download/toadstoolsmushro00mcil/toadstoolsmushro00mcil.pdf	fetch
 universal/fungi-usfs-gtr-nrs79	fungi-guide	url	https://www.fs.usda.gov/nrs/pubs/gtr/gtr_nrs79.pdf	fetch
-universal/fungi-mycomorphbox	fungi-traits	script	enwiki-mycomorphbox-extraction-script-pending	pending
+universal/fungi-mycomorphbox	fungi-traits	script	build_mycomorphbox.py	fetch
+universal/fungi-species-images	fungi-images	script	fetch_species_images.py	fetch
