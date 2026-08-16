@@ -4,6 +4,8 @@ import type { Feather } from '@expo/vector-icons';
 import type { ApiClient } from '@/api/client';
 import type { ChapterDetail, ChapterSummary, SectionDetail } from '@/api/types';
 
+import corpus from './guide-corpus.json';
+
 type FeatherName = ComponentProps<typeof Feather>['name'];
 
 /** The PRD 1.3 tile table: twelve tiles in Chapter 1 priority order. */
@@ -15,92 +17,31 @@ export interface EncyclopediaTile {
   icon: FeatherName;
 }
 
-export const TILES: EncyclopediaTile[] = [
-  {
-    id: 1,
-    title: 'Survival Medicine',
-    scope: 'Lifesaving steps, injuries, bites and stings, wounds',
-    chapters: [4],
-    icon: 'heart',
-  },
-  {
-    id: 2,
-    title: 'Shelter',
-    scope: 'Site selection and shelter builds',
-    chapters: [5],
-    icon: 'home',
-  },
-  {
-    id: 3,
-    title: 'Fire',
-    scope: 'Site preparation, materials, fire lays, ignition',
-    chapters: [7],
-    icon: 'zap',
-  },
-  {
-    id: 4,
-    title: 'Water',
-    scope: 'Sources, stills, purification, filtration, crossings',
-    chapters: [6, 17],
-    icon: 'droplet',
-  },
-  {
-    id: 5,
-    title: 'Food',
-    scope: 'Traps, snares, fishing, game preparation, edible plants',
-    chapters: [8, 9],
-    icon: 'target',
-  },
-  {
-    id: 6,
-    title: 'Poisonous Plants',
-    scope: 'Poisoning routes, avoidance rules, deadly lookalikes',
-    chapters: [10],
-    icon: 'alert-octagon',
-  },
-  {
-    id: 7,
-    title: 'Dangerous Animals',
-    scope: 'Insects, arachnids, snakes, aquatic dangers',
-    chapters: [11],
-    icon: 'alert-triangle',
-  },
-  {
-    id: 8,
-    title: 'Tools & Cordage',
-    scope: 'Lashing, cordage, knots, improvised tools',
-    chapters: [12],
-    icon: 'tool',
-  },
-  {
-    id: 9,
-    title: 'Direction Finding',
-    scope: 'Celestial methods, improvised compass, offline map',
-    chapters: [18],
-    icon: 'compass',
-  },
-  {
-    id: 10,
-    title: 'Signaling & Rescue',
-    scope: 'Signals, codes, ground-air signals, aircraft vectoring',
-    chapters: [19],
-    icon: 'radio',
-  },
-  {
-    id: 11,
-    title: 'Environments',
-    scope: 'Desert, tropical, cold weather, and sea modules',
-    chapters: [13, 14, 15, 16],
-    icon: 'globe',
-  },
-  {
-    id: 12,
-    title: 'Man-Made Hazards',
-    scope: 'Shielding, decontamination, protected water, chemical release',
-    chapters: [23],
-    icon: 'shield',
-  },
-];
+/**
+ * guide-corpus.json owns tile ids and titles, since the server's chat agent
+ * reads the same file; this table adds what only the grid needs. A tile's
+ * chapters list every FM chapter it covers, so Water spans 6 and 17.
+ */
+const TILE_UI: Record<number, { scope: string; chapters: number[]; icon: FeatherName }> = {
+  1: { scope: 'Lifesaving steps, injuries, bites and stings, wounds', chapters: [4], icon: 'heart' },
+  2: { scope: 'Site selection and shelter builds', chapters: [5], icon: 'home' },
+  3: { scope: 'Site preparation, materials, fire lays, ignition', chapters: [7], icon: 'zap' },
+  4: { scope: 'Sources, stills, purification, filtration, crossings', chapters: [6, 17], icon: 'droplet' },
+  5: { scope: 'Traps, snares, fishing, game preparation, edible plants', chapters: [8, 9], icon: 'target' },
+  6: { scope: 'Poisoning routes, avoidance rules, deadly lookalikes', chapters: [10], icon: 'alert-octagon' },
+  7: { scope: 'Insects, arachnids, snakes, aquatic dangers', chapters: [11], icon: 'alert-triangle' },
+  8: { scope: 'Lashing, cordage, knots, improvised tools', chapters: [12], icon: 'tool' },
+  9: { scope: 'Celestial methods, improvised compass, offline map', chapters: [18], icon: 'compass' },
+  10: { scope: 'Signals, codes, ground-air signals, aircraft vectoring', chapters: [19], icon: 'radio' },
+  11: { scope: 'Desert, tropical, cold weather, and sea modules', chapters: [13, 14, 15, 16], icon: 'globe' },
+  12: { scope: 'Shielding, decontamination, protected water, chemical release', chapters: [23], icon: 'shield' },
+};
+
+export const TILES: EncyclopediaTile[] = corpus.tiles.map((tile) => ({
+  id: tile.id,
+  title: tile.title,
+  ...TILE_UI[tile.id],
+}));
 
 export function tileById(id: number): EncyclopediaTile | undefined {
   return TILES.find((t) => t.id === id);
