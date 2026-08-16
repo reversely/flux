@@ -4,7 +4,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PageBackdrop } from '@/components/PageBackdrop';
 import { Tag, type TagTone } from '@/components/Tag';
 import { TopBar, TopBarButton } from '@/components/TopBar';
-import { type TraceEntry, type TraceStatus, useTraces } from '@/store/traces';
+import { modelFor, type TraceEntry, type TraceStatus, useTraces } from '@/store/traces';
 import { darkHome } from '@/theme/biome';
 import { dark } from '@/theme/dark';
 import { colors, radius, spacing, typography } from '@/theme/tokens';
@@ -33,7 +33,16 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
       <Text style={dark.note}>
         {new Date(entry.startedAt).toLocaleTimeString()}
         {entry.latencyMs !== undefined ? `, ${(entry.latencyMs / 1000).toFixed(2)} s` : ''}
+        {entry.estTokens !== undefined ? `, ~${entry.estTokens} tokens` : ''}
       </Text>
+      {entry.model !== undefined && (
+        <Text style={[dark.note, styles.model]}>{entry.model}</Text>
+      )}
+      {entry.referenced !== undefined && entry.referenced.length > 0 && (
+        <Text style={dark.note} numberOfLines={open ? undefined : 2}>
+          {entry.referenced.join('\n')}
+        </Text>
+      )}
       {entry.request !== '' && (
         <Text style={dark.note} numberOfLines={open ? undefined : 1}>
           {entry.request}
@@ -57,20 +66,35 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
  * they ship (#109): model, verdict, pointer reason, referenced anchors.
  */
 export default function Traces() {
-  const entries = useTraces((s) => s.entries);
+  const allEntries = useTraces((s) => s.entries);
   const clear = useTraces((s) => s.clear);
+  // Model calls are the story; the data fetches drown them, so they hide
+  // behind a toggle.
+  const [showAll, setShowAll] = useState(false);
+  const entries = showAll
+    ? allEntries
+    : allEntries.filter((e) => modelFor(e.path) !== undefined);
 
   return (
     <View style={dark.screen}>
       <TopBar title="Agent traces" back dark traceButton={false}>
-        {entries.length > 0 && <TopBarButton icon="trash-2" label="Clear traces" onPress={clear} />}
+        <TopBarButton
+          icon={showAll ? 'cpu' : 'list'}
+          label={showAll ? 'Model calls only' : 'Every server call'}
+          onPress={() => setShowAll((v) => !v)}
+        />
+        {allEntries.length > 0 && (
+          <TopBarButton icon="trash-2" label="Clear traces" onPress={clear} />
+        )}
       </TopBar>
       <PageBackdrop />
       {entries.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={dark.body}>No calls yet</Text>
+          <Text style={dark.body}>{showAll ? 'No calls yet' : 'No model calls yet'}</Text>
           <Text style={[dark.note, styles.hint]}>
-            Every chat, coach, identify, and content call lands here
+            {showAll
+              ? 'Every server call lands here'
+              : 'Chat, coach, identify, sky, and trail model calls land here'}
           </Text>
         </View>
       ) : (
@@ -108,6 +132,9 @@ const styles = StyleSheet.create({
   },
   error: {
     color: '#8C3730',
+  },
+  model: {
+    color: colors.signature,
   },
   detailBox: {
     backgroundColor: 'rgba(230, 237, 242, 0.05)',

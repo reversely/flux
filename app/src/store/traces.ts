@@ -15,6 +15,57 @@ export interface TraceEntry {
   response?: string;
   /** Full response payload, pretty-printed and truncated, for the expanded row. */
   detail?: string;
+  /** The model(s) behind this call; absent on plain data fetches. */
+  model?: string;
+  /** Rough token estimate over request plus response text (chars over 4). */
+  estTokens?: number;
+  /** Sources the response cited: citations, anchors, attribution lines. */
+  referenced?: string[];
+}
+
+// Which box model answers each route. Everything else is a plain data
+// fetch, which the traces screen hides by default.
+const MODEL_ROUTES: [RegExp, string][] = [
+  [/\/v1\/chat$/, 'nemotron-nano-9b (answer + tool classify)'],
+  [/\/walkthrough\/sessions\/[^/]+\/observe$/, 'cosmos-reason2-8b'],
+  [/\/walkthrough\/sessions\/[^/]+\/interpret$/, 'nemotron-nano-9b'],
+  [/\/walkthrough\/sessions\/[^/]+\/utterance$/, 'parakeet-tdt-0.6b + exact gate'],
+  [/\/coach\/sessions\/[^/]+\/clip$/, 'cosmos-reason2-8b'],
+  [/\/weather\/read$/, 'cosmos-reason2-8b + nemotron-nano-9b'],
+  [/\/speech\/narrations$/, 'kokoro-82m'],
+  [/\/speech\/transcriptions$/, 'parakeet-tdt-0.6b'],
+  [/\/sessions\/[^/]+\/finish$/, 'VSS agent (nemotron + cosmos)'],
+  [/\/sessions\/[^/]+\/ask$/, 'VSS agent (nemotron + cosmos)'],
+  [/\/sessions\/[^/]+\/frames$/, 'speciesnet + bioclip + fungitastic'],
+];
+
+export function modelFor(path: string): string | undefined {
+  const hit = MODEL_ROUTES.find(([pattern]) => pattern.test(path));
+  return hit?.[1];
+}
+
+const REFERENCE_KEYS = new Set([
+  'citation',
+  'source',
+  'source_title',
+  'attribution',
+  'block_id',
+  'figure_id',
+  'anchor',
+]);
+
+function collectReferences(payload: unknown, out: Set<string>): void {
+  if (Array.isArray(payload)) {
+    payload.forEach((item) => collectReferences(item, out));
+  } else if (payload !== null && typeof payload === 'object') {
+    for (const [key, value] of Object.entries(payload)) {
+      if (REFERENCE_KEYS.has(key) && typeof value === 'string' && value !== '') {
+        out.add(`${key}: ${value}`);
+      } else {
+        collectReferences(value, out);
+      }
+    }
+  }
 }
 
 const MAX_ENTRIES = 200;
@@ -70,7 +121,17 @@ export async function traced<T>(
   const startedAt = Date.now();
   try {
     const result = await run();
-    end(id, { status: 'ok', latencyMs: Date.now() - startedAt, detail: detailOf(result) });
+    const detail = detailOf(result);
+    const referenced = new Set<string>();
+    collectReferences(result, referenced);
+    end(id, {
+      status: 'ok',
+      latencyMs: Date.now() - startedAt,
+      detail,
+      model: modelFor(path),
+      estTokens: Math.round((request.length + detail.length) / 4),
+      referenced: [...referenced].slice(0, 6),
+    });
     return result;
   } catch (error) {
     end(id, {
