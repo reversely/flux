@@ -19,7 +19,7 @@ carries current guidance and names the divergence (PRD 6.5.7).
 | --- | --- | --- | --- | --- |
 | 6 Poisonous Plants | Fungi edibility | 26 designed, 6 shipped | mycomorphbox backbone, McIlvaine 1902 extraction | partial, #135 |
 | 6 Poisonous Plants | Toxic plants | 28 designed | USDA PLANTS for 5 fields, Britton and Brown 1913 and Gray 1908 for keys | partial, #141 |
-| 5 Food | Edible plants | shares the 28-character plant set | edibility verdict source under research | open |
+| 5 Food | Edible plants | shares the 28-character plant set | FM 21-76 Appendix B: 111 species with edible part, preparation, habitat, and a caution on one record; season from USDA PLANTS | ready once the appendix is parsed |
 | 7 Dangerous Animals | Snakes | 14 asked, 3 key-only | prose extraction with review, no structured source exists | partial, #138 |
 | 7 Dangerous Animals | Medically significant arthropods | 17 across a router and four branches | prose extraction; the INHS tick key is a real matrix awaiting a licence answer | partial, #139 |
 | 7 Dangerous Animals | Tracks and sign | 13, four of them measurements | NPS carnivore reference and Taylor and Raphael 1988, both public domain | ready, #140 |
@@ -44,15 +44,15 @@ carries current guidance and names the divergence (PRD 6.5.7).
 | 11 Environments | Tropical, ch 14 | under research | | | open |
 | 12 Man-Made Hazards | Personal decontamination | STP 031-COM-1006 | sequenced measures with a time budget | Commons decontamination category, 154 public-domain files | ready, #142 |
 | 12 Man-Made Hazards | Expedient fallout shelter, safe water after a release | FM 21-76 ch 23 | steps only | Nuclear War Survival Skills (ORNL-5037) is built on expedient shelter construction drawings; two Internet Archive copies carry a public domain mark, which is uploader-asserted and needs confirming against the edition | partial, lead to verify |
-| 5 Food | Snares, deadfall, fishing, game preparation, preserving | under research | | | open |
+| 5 Food | Snares, deadfall, fishing, game preparation, preserving | FM 21-76 ch 8 plus Harding 1907 and USDA Farmers' Bulletin 2131 | steps only | Commons has the deadfall and bottle-trap plates; Bulletin 2131 figure 18 is a per-step skinning series | ready except the tidal weir |
 
 ## Not yet sourced
 
 | Item | Why it matters | Status |
 | --- | --- | --- |
 | Disaster scenarios: flood, storm, earthquake, pandemic, chemical release, infrastructure failure | PRD 2.1 lists them as an MVP 1 feature | sourced from Ready.gov, public domain; all six ship as reference cards, with two enforceable values and one rehearsable sequence. See hazard-and-weather-sources.md |
-| Weather and sky reading | the PRD's cloud galleries | open |
-| Universal edibility test | a timed checklist, not a camera walk | under research |
+| Weather and sky reading | the PRD's cloud galleries | identification walk over ten genera; NOAA JetStream and FM Appendix G are public domain, Commons has per-genus imagery, the WMO atlas is unusable |
+| Universal edibility test | a timed checklist, not a camera walk | sourced: 13 steps summing to about 24 hours 48 minutes, from figure 9-5; ship the 1999 edition's list |
 
 ## What blocks the most rows
 

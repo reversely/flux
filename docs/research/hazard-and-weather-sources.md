@@ -48,7 +48,33 @@ page, and one rehearsable sequence for earthquakes. This is the honest-absence r
 applied to a whole feature: the material is authoritative and worth shipping, and no model
 observes it.
 
-## Still open
+## Weather and sky reading
 
-The tropical chapter of the manual and the weather and sky reading material are not covered here.
-The agent researching them was interrupted, and both remain open rows in `coverage.md`.
+Cloud identification fits the identification form. A genus follows from characters a user can see:
+the height band the cloud occupies, whether it is layered or heaped, whether it is fibrous or
+sharp-edged, whether precipitation reaches the ground, and how much sky it covers. The useful
+output is not the name but what the sky implies, so the walk ends on the weather a genus signals.
+
+Sources, verified:
+
+- **NOAA JetStream** carries all ten genera on one page, with a separate cloud chart page. US
+  government work, public domain, and the natural spine for the character values.
+- **FM 21-76 Appendix G** covers clouds and sits inside the manual the product already uses, so
+  its text carries the same provenance as every other node. It is missing from the repo's copy of
+  the manual, for the reason recorded below.
+- **Wikimedia Commons** has `Category:Cloud types` with a subcategory per genus, so per-genus
+  reference imagery exists. Licences vary by file, which is what the per-file licence field in
+  #144 is for.
+- **The WMO International Cloud Atlas is unusable.** Its terms permit personal, non-commercial
+  use only, with no right to redistribute, compile, or create derivative works, and prior
+  permission is required for anything else. Do not extract characters or images from it.
+
+## The manual in this repo is truncated
+
+`FM21-76_SurvivalManual.pdf` is a 233-page reprint that ends part-way through chapter 23, on
+getting water in a chemical environment. Every appendix is missing. The Commons scan runs to 646
+pages and includes Appendix B, 111 edible species on a fixed schema, and Appendix G, clouds.
+
+This matters beyond the appendices: the pack, its 1,002 blocks, and its 129 figure citations were
+all parsed from the truncated copy, so the content model has never seen roughly two thirds of the
+document.
