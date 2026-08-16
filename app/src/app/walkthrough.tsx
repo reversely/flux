@@ -5,7 +5,15 @@ import * as Device from 'expo-device';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import type { ImageSourcePropType } from 'react-native';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { mapTranscript } from '@/api/speech';
@@ -21,12 +29,22 @@ const NODE_FIGURES: Record<string, ImageSourcePropType> = {
   stipeCharacter: require('../../assets/images/mushrooms/stem.png'),
   ecologicalType: require('../../assets/images/mushrooms/hyphae.png'),
 };
-import { Tag } from '@/components/Tag';
+import { Tag, type TagTone } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { useSession } from '@/store/session';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
 const SCOPE_BANNER_MS = 6000;
+
+// Result ordering and tones: the worst verdict sorts first.
+const SEVERITY = ['danger', 'caution', 'inedible', 'edible', 'unknown'] as const;
+const EDIBILITY_TONE: Record<(typeof SEVERITY)[number], TagTone> = {
+  danger: 'red',
+  caution: 'yellow',
+  inedible: 'gray',
+  edible: 'green',
+  unknown: 'gray',
+};
 
 /**
  * One session over an identification walk (PRD 1.4, 1.5): the camera opens
@@ -160,6 +178,10 @@ export default function Walkthrough() {
   // prefills; only a confirming tap writes the transcript.
   const cameraRef = useRef<CameraView>(null);
   const [observing, setObserving] = useState(false);
+  // The capture has two visibly different phases: the camera filming the
+  // three-second clip, then the box model reading it. Each gets its own
+  // banner state, so the user always knows what is happening to the video.
+  const [observePhase, setObservePhase] = useState<'idle' | 'filming' | 'checking'>('idle');
   const [suggestion, setSuggestion] = useState<WalkObservation | null>(null);
 
   const observe = async () => {
@@ -168,14 +190,17 @@ export default function Walkthrough() {
     }
     setSuggestion(null);
     setObserving(true);
+    setObservePhase('filming');
     narration.stop();
     try {
       const recording = cameraRef.current.recordAsync({ maxDuration: 3 });
       const video = await recording;
       if (video === undefined) {
         setObserving(false);
+        setObservePhase('idle');
         return;
       }
+      setObservePhase('checking');
       const observed = await client().observeWalkthrough(
         walk.session_id,
         current.character,
@@ -195,6 +220,7 @@ export default function Walkthrough() {
       setHeard('The camera check needs the server.');
     } finally {
       setObserving(false);
+      setObservePhase('idle');
     }
   };
 
@@ -327,6 +353,105 @@ export default function Walkthrough() {
         </View>
       )}
 
+      {/* The camera-check status banner: filming, then the model reading,
+          then the verdict with its actions. It sits over the feed just above
+          the dock, so what is happening to the video is never a mystery. */}
+      {useCamera && (observePhase !== 'idle' || suggestion !== null) && (
+        <View style={styles.observeStatus}>
+          {observePhase === 'filming' && (
+            <View style={styles.observeStatusRow}>
+              <View style={styles.recordDot} />
+              <Text style={styles.observeStatusTitle}>Filming · 3 s clip</Text>
+            </View>
+          )}
+          {observePhase === 'checking' && (
+            <View style={styles.observeStatusRow}>
+              <ActivityIndicator size="small" color="#B5E3DC" />
+              <Text style={styles.observeStatusTitle}>Clip → cosmos on the box</Text>
+            </View>
+          )}
+          {observePhase === 'idle' && suggestion !== null && (
+            <>
+              <Text
+                style={[
+                  styles.observeStatusTitle,
+                  suggestion.off_subject === true && styles.observeStatusWarn,
+                ]}
+              >
+                {suggestion.off_subject === true
+                  ? 'Not the specimen'
+                  : suggestion.state != null
+                    ? `Looks ${suggestion.state} · ${Math.round(suggestion.confidence * 100)}%`
+                    : 'Not clearly visible'}
+              </Text>
+              <Text style={styles.observeStatusBody} numberOfLines={3}>
+                {suggestion.off_subject === true
+                  ? `Camera sees: ${suggestion.observation}`
+                  : suggestion.state != null
+                    ? suggestion.observation
+                    : (current?.capture_condition ?? 'Adjust the framing and retake.')}
+              </Text>
+              <View style={styles.observeActions}>
+                {suggestion.state != null && suggestion.off_subject !== true && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Confirm ${suggestion.state}`}
+                    disabled={busy}
+                    onPress={() => {
+                      const confirmed = suggestion;
+                      setSuggestion(null);
+                      void toggle(confirmed.character, confirmed.state!);
+                    }}
+                    style={styles.observeAction}
+                  >
+                    <Feather name="check" size={14} color={colors.card} />
+                    <Text style={styles.observeActionText}>Confirm {suggestion.state}</Text>
+                  </Pressable>
+                )}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Retake the clip"
+                  disabled={observing}
+                  onPress={() => void observe()}
+                  style={[
+                    suggestion.state != null && suggestion.off_subject !== true
+                      ? styles.observeActionGhost
+                      : styles.observeAction,
+                  ]}
+                >
+                  <Feather
+                    name="refresh-ccw"
+                    size={14}
+                    color={
+                      suggestion.state != null && suggestion.off_subject !== true
+                        ? '#E6EDF2'
+                        : colors.card
+                    }
+                  />
+                  <Text
+                    style={
+                      suggestion.state != null && suggestion.off_subject !== true
+                        ? styles.observeActionGhostText
+                        : styles.observeActionText
+                    }
+                  >
+                    Retake
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss"
+                  onPress={() => setSuggestion(null)}
+                  style={styles.observeActionGhost}
+                >
+                  <Text style={styles.observeActionGhostText}>Dismiss</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+        </View>
+      )}
+
       <View style={[styles.dock, useCamera && styles.dockOverCamera]}>
         {message !== null && <Text style={styles.helper}>{message}</Text>}
 
@@ -352,40 +477,13 @@ export default function Walkthrough() {
                   </Pressable>
                   <Text style={[typography.annotation, styles.heard]} numberOfLines={2}>
                     {observing
-                      ? '3 s clip → box model'
+                      ? observePhase === 'filming'
+                        ? 'Filming'
+                        : 'Model reading the clip'
                       : (current.capture_condition ?? '')}
                   </Text>
                 </View>
               )}
-            {suggestion !== null && (
-              <View style={styles.suggestionRow}>
-                {suggestion.state != null ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Confirm ${suggestion.state}`}
-                    disabled={busy}
-                    onPress={() => {
-                      setSuggestion(null);
-                      void toggle(suggestion.character, suggestion.state!);
-                    }}
-                    style={styles.suggestionChip}
-                  >
-                    <Text style={styles.suggestionChipText}>
-                      {suggestion.state} · {Math.round(suggestion.confidence * 100)}% — confirm
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <Text style={typography.annotation}>
-                    {suggestion.off_subject === true
-                      ? 'Not the specimen — reframe and retry.'
-                      : 'Not clearly visible. Adjust and retry.'}
-                  </Text>
-                )}
-                <Text style={typography.annotation} numberOfLines={2}>
-                  {suggestion.observation}
-                </Text>
-              </View>
-            )}
             {wantCamera && (
               <View style={styles.voiceRow}>
                 <Pressable
@@ -415,6 +513,27 @@ export default function Walkthrough() {
             <Text style={typography.annotation}>
               {walk.candidate_count} match, {walk.danger_count} dangerous
             </Text>
+            {/* The verdict list in place (#136 spirit): danger rows first,
+                so the reason not to eat leads the result. */}
+            {walk.candidates && walk.candidates.length > 0 && (
+              <ScrollView style={styles.resultList}>
+                {[...walk.candidates]
+                  .sort(
+                    (a, b) =>
+                      SEVERITY.indexOf(a.edibility) - SEVERITY.indexOf(b.edibility),
+                  )
+                  .map((card) => (
+                    <View key={card.species} style={styles.resultRow}>
+                      <Text style={typography.listBody} numberOfLines={1}>
+                        {card.common_name
+                          ? `${card.common_name} (${card.species})`
+                          : card.species}
+                      </Text>
+                      <Tag label={card.edibility} tone={EDIBILITY_TONE[card.edibility]} />
+                    </View>
+                  ))}
+              </ScrollView>
+            )}
           </View>
         )}
 
@@ -549,6 +668,17 @@ const styles = StyleSheet.create({
     width: 150,
     height: 180,
   },
+  resultList: {
+    maxHeight: 260,
+    marginTop: spacing.s,
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.s,
+    paddingVertical: spacing.xs,
+  },
   review: {
     maxHeight: 280,
   },
@@ -601,22 +731,68 @@ const styles = StyleSheet.create({
     ...typography.listBody,
     color: colors.card,
   },
-  suggestionRow: {
+  observeStatus: {
+    marginHorizontal: spacing.l,
+    marginBottom: spacing.s,
+    padding: spacing.m,
+    borderRadius: radius.control,
+    backgroundColor: 'rgba(6, 10, 13, 0.88)',
     gap: spacing.xs,
   },
-  suggestionChip: {
-    alignSelf: 'flex-start',
+  observeStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+  },
+  recordDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#E4574A',
+  },
+  observeStatusTitle: {
+    ...typography.listBody,
+    color: '#F2F4F5',
+  },
+  observeStatusWarn: {
+    color: '#FFB3A8',
+  },
+  observeStatusBody: {
+    ...typography.annotation,
+    color: '#C7D0D6',
+  },
+  observeActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.s,
+    marginTop: spacing.xs,
+  },
+  observeAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    height: sizes.chip,
+    borderRadius: radius.chip,
+    backgroundColor: colors.signature,
+    paddingHorizontal: spacing.m,
+  },
+  observeActionText: {
+    ...typography.listBody,
+    color: colors.card,
+  },
+  observeActionGhost: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     height: sizes.chip,
     borderRadius: radius.chip,
     borderWidth: 1,
-    borderColor: colors.signature,
-    backgroundColor: colors.signatureSoft,
+    borderColor: 'rgba(230, 237, 242, 0.5)',
     paddingHorizontal: spacing.m,
-    justifyContent: 'center',
   },
-  suggestionChipText: {
+  observeActionGhostText: {
     ...typography.listBody,
-    color: colors.ink,
+    color: '#E6EDF2',
   },
   voiceRow: {
     flexDirection: 'row',
