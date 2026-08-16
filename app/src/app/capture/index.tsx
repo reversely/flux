@@ -81,7 +81,7 @@ export default function CameraHub() {
           if (group.widgets.length === 1 && first !== undefined) {
             return (
               <ModeCard
-                key={group.kind}
+                key={group.id}
                 icon={KIND_ICON[group.kind]}
                 title={first.title}
                 line={first.line}
@@ -103,7 +103,7 @@ export default function CameraHub() {
           }
           return (
             <ModeCard
-              key={group.kind}
+              key={group.id}
               icon={KIND_ICON[group.kind]}
               title={group.title}
               line={GROUP_LINES[group.kind]}

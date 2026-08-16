@@ -28,9 +28,14 @@ export interface VideoWidget {
 }
 
 export interface VideoWidgetGroup {
+  /** Stable group id; coach groups derive one per owning tile. */
+  id: string;
   kind: VideoWidgetKind;
   title: string;
   widgets: VideoWidget[];
+  /** One category panel for home; people pick a task, not a knot name.
+   * Absent means home shows the group's own leading widgets. */
+  summary?: VideoWidget;
 }
 
 // The walks every pack carries; the live guide list replaces this when the
@@ -69,13 +74,62 @@ const VSS_LINES: Record<string, string> = {
   celestial: 'A bearing from stars or a shadow.',
 };
 
-const COACH_WIDGETS: VideoWidget[] = PROCEDURES.map((p) => ({
-  id: `coach:${p.id}`,
-  kind: 'coach',
-  title: p.name,
-  line: 'Camera watches. Steps advance.',
-  route: { pathname: `/coach/${p.id}` },
-}));
+// Coach procedures group by the encyclopedia tile that owns them, the
+// taxonomy the data already carries: 8 Tools & Cordage, 3 Fire, 1 Medicine.
+const COACH_GROUPS: { tileId: number; title: string; summaryTitle?: string }[] = [
+  { tileId: 8, title: 'Knots', summaryTitle: 'Tie a knot' },
+  { tileId: 3, title: 'Fire' },
+  { tileId: 1, title: 'First aid' },
+];
+
+function coachWidget(p: (typeof PROCEDURES)[number]): VideoWidget {
+  return {
+    id: `coach:${p.id}`,
+    kind: 'coach',
+    title: p.name,
+    line: 'One step at a time, camera checking.',
+    route: { pathname: `/coach/${p.id}` },
+  };
+}
+
+function coachGroups(): VideoWidgetGroup[] {
+  const groups: VideoWidgetGroup[] = [];
+  const placed = new Set<string>();
+  for (const { tileId, title, summaryTitle } of COACH_GROUPS) {
+    const members = PROCEDURES.filter((p) => p.tileId === tileId);
+    if (members.length === 0) {
+      continue;
+    }
+    members.forEach((p) => placed.add(p.id));
+    groups.push({
+      id: `coach-${tileId}`,
+      kind: 'coach',
+      title,
+      widgets: members.map(coachWidget),
+      summary:
+        summaryTitle !== undefined && members.length > 1
+          ? {
+              id: `coach-group:${tileId}`,
+              kind: 'coach',
+              title: summaryTitle,
+              line: `${members.length} knots, one step at a time.`,
+              route: { pathname: '/capture' },
+            }
+          : undefined,
+    });
+  }
+  // A procedure on an unlisted tile still surfaces rather than hiding.
+  const rest = PROCEDURES.filter((p) => !placed.has(p.id));
+  if (rest.length > 0) {
+    groups.push({
+      id: 'coach-other',
+      kind: 'coach',
+      title: 'Coach',
+      widgets: rest.map(coachWidget),
+    });
+  }
+  return groups;
+}
 
 const VSS_WIDGETS: VideoWidget[] = VSS_SESSIONS.map((s) => ({
   id: `vss:${s.id}`,
@@ -100,18 +154,14 @@ const GROUP_TITLES: Record<VideoWidgetKind, string> = {
   trail: 'Trail',
 };
 
+
 export function widgetGroups(walks: VideoWidget[] = FALLBACK_WALKS): VideoWidgetGroup[] {
-  const byKind: [VideoWidgetKind, VideoWidget[]][] = [
-    ['walk', walks],
-    ['coach', COACH_WIDGETS],
-    ['vss', VSS_WIDGETS],
-    ['trail', [TRAIL_WIDGET]],
+  return [
+    { id: 'walk', kind: 'walk', title: GROUP_TITLES.walk, widgets: walks },
+    ...coachGroups(),
+    { id: 'vss', kind: 'vss', title: GROUP_TITLES.vss, widgets: VSS_WIDGETS },
+    { id: 'trail', kind: 'trail', title: GROUP_TITLES.trail, widgets: [TRAIL_WIDGET] },
   ];
-  return byKind.map(([kind, widgets]) => ({
-    kind,
-    title: GROUP_TITLES[kind],
-    widgets,
-  }));
 }
 
 export function widgetById(id: string, groups: VideoWidgetGroup[]): VideoWidget | undefined {

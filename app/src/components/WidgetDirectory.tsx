@@ -34,7 +34,7 @@ function Panel({ widget, wide }: { widget: VideoWidget; wide?: boolean }) {
       }
       style={({ pressed }) => [styles.panel, wide && styles.panelWide, pressed && styles.panelPressed]}
     >
-      <Text style={styles.panelTitle} numberOfLines={1}>
+      <Text style={styles.panelTitle} numberOfLines={2}>
         {widget.title}
       </Text>
       <Text style={styles.panelLine} numberOfLines={2}>
@@ -56,7 +56,7 @@ export function WidgetDirectory() {
   return (
     <View style={styles.wrap}>
       {groups.map((group) => (
-        <View key={group.kind} style={styles.group}>
+        <View key={group.id} style={styles.group}>
           <View style={styles.groupHeader}>
             <Feather name={KIND_ICON[group.kind]} size={14} color={darkHome.ink2} />
             <Text style={styles.groupTitle}>{group.title}</Text>
@@ -73,13 +73,15 @@ export function WidgetDirectory() {
             )}
           </View>
           <View style={styles.panelRow}>
-            {group.widgets.slice(0, SHOWCASE).map((widget) => (
-              <Panel
-                key={widget.id}
-                widget={widget}
-                wide={group.widgets.length === 1}
-              />
-            ))}
+            {(group.summary ? [group.summary] : group.widgets.slice(0, SHOWCASE)).map(
+              (widget) => (
+                <Panel
+                  key={widget.id}
+                  widget={widget}
+                  wide={group.summary !== undefined || group.widgets.length === 1}
+                />
+              ),
+            )}
           </View>
         </View>
       ))}

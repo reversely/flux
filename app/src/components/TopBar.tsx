@@ -43,6 +43,7 @@ export function TopBar({
   dark,
   traceButton = true,
   flat = false,
+  wordmark = true,
   children,
 }: {
   title: string;
@@ -52,6 +53,8 @@ export function TopBar({
   traceButton?: boolean;
   /** A screen whose own header already clears the status bar sets flat. */
   flat?: boolean;
+  /** The brand mark rides every banner; home opts out (its hero carries it). */
+  wordmark?: boolean;
   children?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
@@ -63,6 +66,7 @@ export function TopBar({
         styles.bar,
         dark ? styles.barDark : styles.barLight,
         { paddingTop: inset, height: sizes.topBar + inset },
+        title === '' && !back && styles.barCentered,
       ]}
     >
       {back && (
@@ -78,14 +82,18 @@ export function TopBar({
         </Pressable>
       )}
       {title === '' ? (
-        // An empty title keeps the flex slot so the actions stay right-aligned.
-        <View style={styles.title} />
+        // With a back control the flex slot keeps actions right-aligned;
+        // a bare icon bar centers its buttons as one group instead.
+        back ? <View style={styles.title} /> : null
       ) : (
         <Text style={[typography.surfaceTitle, styles.title, dark && { color: darkHome.ink }]}>
           {title}
         </Text>
       )}
       <View style={styles.actions}>
+        {wordmark && (
+          <Text style={[styles.wordmarkText, dark && { color: darkHome.ink }]}>LifeKit</Text>
+        )}
         {children}
         {traceButton && (
           <TopBarButton
@@ -116,6 +124,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderBottomColor: darkHome.line,
   },
+  barCentered: {
+    justifyContent: 'center',
+  },
   title: {
     flex: 1,
   },
@@ -123,6 +134,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.l,
+  },
+  wordmarkText: {
+    ...typography.displaySmall,
+    fontSize: 14,
+    lineHeight: 18,
+    marginRight: spacing.xs,
+    color: colors.ink,
   },
   action: {
     height: sizes.control,

@@ -27,7 +27,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HomeBackdrop } from '@/components/HomeBackdrop';
 import { TopBar, TopBarButton } from '@/components/TopBar';
-import { ConditionsStrip } from '@/components/ConditionsStrip';
 import { WidgetDirectory } from '@/components/WidgetDirectory';
 import { REFERENCE_TITLE } from '@/data/reference';
 import { useChat } from '@/store/chat';
@@ -97,24 +96,19 @@ function QuestionGallery({ onAsk }: { onAsk: (question: string) => void }) {
 }
 
 /**
- * The wordmark's header row, above even the icon bar. Full size at rest
- * with its own air; scrolling shrinks it into a compact line at the top,
- * the collapse the home had before the directory landed (#207, #179).
+ * The wordmark's own bar line (#207): identity stays on screen once the
+ * hero scrolls away. Hidden at rest so the hero is the only wordmark; a
+ * field-tinted backing rides with it.
  */
-function WordmarkHeader({ scrollY }: { scrollY: SharedValue<number> }) {
+function WordmarkBar({ scrollY }: { scrollY: SharedValue<number> }) {
   const insets = useSafeAreaInsets();
-  const box = useAnimatedStyle(() => ({
-    height: insets.top + interpolate(scrollY.value, [0, 96], [84, 40], Extrapolation.CLAMP),
-  }));
-  const text = useAnimatedStyle(() => ({
-    transform: [
-      { scale: interpolate(scrollY.value, [0, 96], [1, 0.55], Extrapolation.CLAMP) },
-    ],
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [140, 200], [0, 1], Extrapolation.CLAMP),
   }));
   return (
-    <Animated.View style={[styles.wordmarkHeader, { paddingTop: insets.top }, box]}>
-      <Animated.Text style={[styles.wordmarkHero, text]}>LifeKit</Animated.Text>
-    </Animated.View>
+    <View pointerEvents="none" style={[styles.wordmarkLine, { paddingTop: insets.top }]}>
+      <Animated.Text style={[styles.wordmarkBarText, style]}>LifeKit</Animated.Text>
+    </View>
   );
 }
 
@@ -170,10 +164,9 @@ export default function ChatHome() {
     <View style={styles.screen}>
       <StatusBar style="light" />
       <HomeBackdrop scrollY={scrollY} />
-      <WordmarkHeader scrollY={scrollY} />
       {/* The empty-state wordmark carries the name; a title here spills
           against six buttons on narrow screens (#179). */}
-      <TopBar title="" dark flat>
+      <TopBar title="" dark wordmark={false}>
         <TopBarButton
           icon="video"
           label="Video mode"
@@ -199,6 +192,12 @@ export default function ChatHome() {
           onPress={() => router.push('/chats')}
         />
         <TopBarButton
+          icon="sun"
+          label="Conditions"
+          color={darkHome.ink2}
+          onPress={() => router.push('/conditions')}
+        />
+        <TopBarButton
           icon="server"
           label="Server"
           color={darkHome.ink2}
@@ -215,9 +214,9 @@ export default function ChatHome() {
           contentContainerStyle={styles.homeScroll}
           showsVerticalScrollIndicator={false}
         >
-          <ConditionsStrip />
           <View style={styles.empty}>
-            <Animated.View entering={FadeInDown.duration(450)}>
+            <Animated.View entering={FadeInDown.duration(450)} style={styles.hero}>
+              <Text style={styles.wordmark}>LifeKit</Text>
               <Text style={[typography.body, styles.tagline]}>your offline AI field guide to the world. </Text>
             </Animated.View>
             <Animated.View entering={FadeInDown.duration(450).delay(120)}>
@@ -285,29 +284,41 @@ const styles = StyleSheet.create({
   },
   empty: {
     alignItems: 'center',
-    paddingTop: spacing.xxl,
+    paddingTop: spacing.xxxl,
     paddingHorizontal: spacing.xl,
     gap: spacing.m,
   },
-  wordmarkHeader: {
+  hero: {
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: spacing.s,
+    gap: spacing.xs,
+    marginBottom: spacing.xl,
   },
-  wordmarkHero: {
+  wordmark: {
     ...typography.display,
+    color: darkHome.ink,
+    textAlign: 'center',
+  },
+  wordmarkLine: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: spacing.xs,
+  },
+  wordmarkBarText: {
+    ...typography.displaySmall,
+    fontSize: 18,
+    lineHeight: 24,
     color: darkHome.ink,
   },
   tagline: {
     textAlign: 'center',
     color: darkHome.ink2,
-    marginBottom: spacing.l,
   },
   gallery: {
     alignSelf: 'stretch',
     gap: spacing.s,
   },
   galleryChip: {
+    alignSelf: 'stretch',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: darkHome.line,
     borderRadius: radius.control,
