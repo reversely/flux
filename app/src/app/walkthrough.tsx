@@ -200,6 +200,17 @@ export default function Walkthrough() {
   // banner state, so the user always knows what is happening to the video.
   const [observePhase, setObservePhase] = useState<'idle' | 'filming' | 'checking'>('idle');
   const [suggestion, setSuggestion] = useState<WalkObservation | null>(null);
+  // One clip reads every open camera feature (#169); the suggestions
+  // queue behind the confirm card and advance as each is settled.
+  const [surveyQueue, setSurveyQueue] = useState<WalkObservation[]>([]);
+
+  useEffect(() => {
+    if (suggestion === null && surveyQueue.length > 0) {
+      const [next, ...rest] = surveyQueue;
+      setSuggestion(next);
+      setSurveyQueue(rest);
+    }
+  }, [suggestion, surveyQueue]);
 
   // Continuous watch on the shared skeleton (#208, #213): the loop, the
   // standard gates, and the cycle readout live in useWatchLoop; this
@@ -349,20 +360,38 @@ export default function Walkthrough() {
         return;
       }
       setObservePhase('checking');
-      const observed = await client().observeWalkthrough(
-        walk.session_id,
-        current.character,
-        video.uri,
-      );
-      setSuggestion(observed);
-      if (observed.off_subject === true) {
-        void narration.speak(`That is not the specimen. Seeing ${observed.observation}`);
-      } else if (observed.state !== undefined && observed.state !== null) {
+      const result = await client().surveyWalkthrough(walk.session_id, video.uri);
+      const [first, ...rest] = result.observations;
+      setSuggestion(first ?? null);
+      setSurveyQueue(rest);
+      const unseenNames = result.unseen
+        .map((character) => {
+          const q = walk.questions.find((x) => x.character === character);
+          return q ? q.question.split(/[:?]/)[0].toLowerCase() : character;
+        })
+        .join(', ');
+      if (result.observations.length === 0) {
+        setHeard(
+          unseenNames
+            ? `Not visible: ${unseenNames}. Reframe and check again.`
+            : 'Nothing left for the camera to read.',
+        );
         void narration.speak(
-          `Looks ${observed.state}. ${observed.observation} Confirm?`,
+          unseenNames
+            ? `I could not see ${unseenNames}. Reframe and check again.`
+            : 'Nothing left for the camera to read.',
         );
       } else {
-        void narration.speak('Not clearly visible. ' + (current.capture_condition ?? ''));
+        if (unseenNames) {
+          setHeard(`Not visible yet: ${unseenNames}. Reframe for those after.`);
+        }
+        void narration.speak(
+          `Read ${result.observations.length} ${
+            result.observations.length === 1 ? 'feature' : 'features'
+          }.` +
+            (first?.state != null ? ` Looks ${first.state}. Confirm?` : '') +
+            (unseenNames ? ` Still unseen: ${unseenNames}.` : ''),
+        );
       }
     } catch {
       setHeard('The camera check needs the server.');

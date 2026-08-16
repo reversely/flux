@@ -477,3 +477,46 @@ def test_species_with_no_trait_rows_stays_a_candidate(tmp_path):
     ).json()
     survivors = {card["species"] for card in answered["candidates"]}
     assert survivors == {"Blank"}
+
+
+class PerQuestionObserver:
+    """Answers gill questions, reports everything else unseen."""
+
+    def observe(self, question, states, frames, subject):
+        from flux_server.observe import Observation
+
+        if "Gills" in question:
+            return Observation(state="free", confidence=0.9, observation="free gills")
+        return Observation(state=None, confidence=0.0, observation="not visible")
+
+
+def test_survey_reads_open_camera_features_and_names_the_unseen(observe_client):
+    client = observe_client(PerQuestionObserver())
+    session = client.post("/v1/walkthrough/sessions").json()
+    result = client.post(
+        f"/v1/walkthrough/sessions/{session['session_id']}/survey",
+        files={"video": ("clip.mp4", make_clip_bytes(), "video/mp4")},
+    )
+    assert result.status_code == 200
+    body = result.json()
+    # The user-only spore print node never reaches the model; the gill
+    # node comes back prefilled and nothing writes to the transcript.
+    assert [o["character"] for o in body["observations"]] == ["whichGills"]
+    assert body["observations"][0]["state"] == "free"
+    assert body["unseen"] == []
+    state = client.get(f"/v1/walkthrough/sessions/{session['session_id']}").json()
+    assert state["answers"] == []
+
+
+def test_survey_skips_settled_features_and_409s_when_none_remain(observe_client):
+    client = observe_client(PerQuestionObserver())
+    session = client.post("/v1/walkthrough/sessions").json()
+    client.post(
+        f"/v1/walkthrough/sessions/{session['session_id']}/answer",
+        json={"character": "whichGills", "states": ["free"]},
+    )
+    result = client.post(
+        f"/v1/walkthrough/sessions/{session['session_id']}/survey",
+        files={"video": ("clip.mp4", make_clip_bytes(), "video/mp4")},
+    )
+    assert result.status_code == 409

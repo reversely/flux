@@ -424,6 +424,17 @@ class WalkObservation(BaseModel):
     off_subject: bool = False
 
 
+class WalkSurveyResult(BaseModel):
+    """One clip read against every open camera feature (#169)."""
+
+    session_id: str
+    # Suggestions the screen prefills, one per feature the clip settled;
+    # nothing writes to the transcript until the user confirms each.
+    observations: list[WalkObservation]
+    # Features the clip did not show; the screen directs the reframe.
+    unseen: list[str]
+
+
 class SkyOutlook(BaseModel):
     """A sky reading joined with climate memory (pitch scene three)."""
 

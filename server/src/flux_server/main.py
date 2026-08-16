@@ -75,6 +75,7 @@ from flux_server.models import (
     WalkSessionCreate,
     WalkSessionState,
     WalkSpeciesDetail,
+    WalkSurveyResult,
     WalkUtteranceResult,
 )
 from flux_server.observe import ObserveClassifier, observer_from_env
@@ -91,6 +92,7 @@ from flux_server.vss import VideoHandoff, handoff_from_env
 from flux_server.walkthrough import (
     DEFAULT_GUIDE_ID,
     WalkthroughStore,
+    entry_states,
     walkthrough_store_from_env,
 )
 from flux_server.weather import SkyReader, sky_reader_from_env
@@ -736,6 +738,73 @@ def create_app(
             observation=observation.observation,
             citation=node["citation"],
             off_subject=observation.off_subject,
+        )
+
+    @app.post(
+        "/v1/walkthrough/sessions/{session_id}/survey",
+        response_model=WalkSurveyResult,
+        response_model_exclude_none=True,
+    )
+    async def survey_walkthrough(
+        session_id: str, video: UploadFile
+    ) -> WalkSurveyResult:
+        """One clip reads every camera-answerable feature still open (#169).
+
+        Each unanswered camera node gets its own bounded question against
+        the same frames. A feature the clip does not show comes back with
+        no state, which the screen reports as not visible so the user
+        reframes for exactly those; confirmed answers from an earlier clip
+        stay settled because answered characters are skipped.
+        """
+        walk = require_walkthrough()
+        view = walk.view_for(session_id)
+        if view is None:
+            raise HTTPException(status_code=404, detail="unknown walkthrough session")
+        if walk_observer is None or walk_observer is _FROM_ENV:
+            raise HTTPException(status_code=503, detail="observe model not configured")
+        transcript = walk.transcript(session_id) or []
+        answered = {e["character"] for e in transcript if len(entry_states(e)) > 0}
+        open_nodes = [
+            q
+            for q in view.questions
+            if q.get("answer_source", "user") != "user"
+            and q["character"] not in answered
+        ]
+        if not open_nodes:
+            raise HTTPException(
+                status_code=409, detail="every camera feature is answered"
+            )
+        data = await video.read()
+        try:
+            frames = extract_frames(data)
+        except ClipUnreadableError as error:
+            raise HTTPException(
+                status_code=422, detail=f"unreadable clip: {error}"
+            ) from error
+        observations: list[WalkObservation] = []
+        unseen: list[str] = []
+        for node in open_nodes:
+            states = view.states.get(node["character"], [])
+            observed = walk_observer.observe(
+                node["question"], states, frames, subject=view.title.lower()
+            )
+            if observed is None or observed.state is None or observed.off_subject:
+                unseen.append(node["character"])
+                continue
+            observations.append(
+                WalkObservation(
+                    character=node["character"],
+                    cause="checking " + node["question"].rstrip("?").lower(),
+                    state=observed.state,
+                    confidence=observed.confidence,
+                    observation=observed.observation,
+                    citation=node["citation"],
+                )
+            )
+        return WalkSurveyResult(
+            session_id=session_id,
+            observations=observations,
+            unseen=unseen,
         )
 
     @app.post(

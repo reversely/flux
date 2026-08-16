@@ -194,6 +194,12 @@ export interface WalkQuestion {
   evidence_kind?: 'frame' | 'clip';
 }
 
+export interface WalkSurveyResult {
+  session_id: string;
+  observations: WalkObservation[];
+  unseen: string[];
+}
+
 export interface WalkAnswer {
   character: string;
   state?: string | null;

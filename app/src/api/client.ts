@@ -18,6 +18,7 @@ import type {
   WalkGuideCard,
   WalkObservation,
   WalkSessionState,
+  WalkSurveyResult,
   WalkSpeciesDetail,
 } from './types';
 
@@ -233,6 +234,23 @@ export class ApiClient {
       throw new Error(`observe failed: ${result.status}`);
     }
     return JSON.parse(result.body) as WalkObservation;
+  }
+
+  async surveyWalkthrough(sessionId: string, fileUri: string): Promise<WalkSurveyResult> {
+    const result = await FileSystem.uploadAsync(
+      `${this.baseUrl}/v1/walkthrough/sessions/${sessionId}/survey`,
+      fileUri,
+      {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'video',
+        mimeType: 'video/quicktime',
+      },
+    );
+    if (result.status !== 200) {
+      throw new Error(`survey failed: ${result.status}`);
+    }
+    return JSON.parse(result.body) as WalkSurveyResult;
   }
 
   async createCoachSession(knot: string): Promise<CoachSessionState> {
