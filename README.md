@@ -1,43 +1,71 @@
-# flux
+# LifeKit
 
-Flux builds LifeKit, an offline survival assistant built on the US Army Survival Manual
-FM 21-76. A chat-first Expo app on the phone answers survival questions, reads the manual
-as a twelve-tile encyclopedia, renders an offline terrain map, and records camera sessions;
-the flux FastAPI server on the local network carries sessions, chat, pack content, and map
-tiles; an Acer GN100 box runs NVIDIA VSS with Nemotron Nano 9B for the chat answers plus
-the perception stack (SpeciesNet, BioCLIP, FungiTastic) for identification.
+A field guide you can ask. LifeKit is an offline survival companion: a phone app backed by
+one local server and one inference box, with no internet dependence at answer time. Every
+answer draws on a content pack built ahead of time from public-domain sources, led by the
+US Army Survival Manual FM 21-76, and on models running on hardware in the room.
 
-## Features
+The intended reader uses it half an hour a day: as evening reading, as a reference when a
+question comes up, and as a camera-guided walk when something needs identifying or tying.
 
-- **Chat home**: asks the server, cites FM chapters, and launches primed tools (camera,
-  reference pages) from answers.
-- **Encyclopedia**: the PRD's twelve tiles over the parsed manual; a tile opens its
-  chapters' sections, and a section renders typed blocks with warnings on an
-  uncollapsible red card. Serves from `/v1/content`, with a labeled built-in sample when
-  no server answers.
-- **Map**: MapLibre GL in a WebView, styled light and minimal from the app's own tokens,
-  with subtle hillshade relief. Vector tiles stream as byte ranges from the server's
-  PMTiles archive; labels render from bundled glyphs, so the map needs no third-party
-  host.
-- **Reference**: the bundled FM 21-76 PDF with per-chapter deep links.
-- **Capture**: records low-rate video clips into an upload queue tied to a server
-  session; the coach that consumes them (step tracking, demo overlay, narration, voice
-  control) is in progress across #64-#66, #72-#74, #77, and #80.
+<p align="center">
+  <img src="docs/images/home.png" width="230" alt="Home screen: the LifeKit wordmark, the tagline 'A field guide you can ask', and tappable example questions" />
+  <img src="docs/images/direction-walk.png" width="230" alt="A direction-finding walk card: an FM 21-76 star chart, the instruction to face the North Star, and the cited source" />
+  <img src="docs/images/encyclopedia.png" width="230" alt="The encyclopedia contents: twelve numbered tiles from Survival Medicine to Environments" />
+</p>
+
+## What it does
+
+**Ask.** The chat answers every question. When full-text search finds pack passages for
+it, the answer quotes them and links the chapters; a book line under the answer opens the
+cited chapter. When the pack has no coverage, the model answers plainly, says so, and
+records the topic in a research queue that an online pass can work through later.
+
+**Read.** The manual serves as a twelve-tile encyclopedia with typed blocks, warnings on
+their own red cards, extracted figures, and full-text search. The bundled FM 21-76 PDF
+opens with per-chapter deep links.
+
+**Look.** Camera surfaces share one loop that takes a single deliberate look at a time:
+identification walks (fungi, berries) answer one question per clip and ask the user to
+confirm before anything writes; the coach follows a knot or a tourniquet step by step and
+advances only when two clips agree; the sky reader joins a cloud description with NOAA
+climate normals for the place and month. A voice interview covers each model wait, and
+every question keeps tappable options, so voice stays optional.
+
+**Navigate.** The map serves offline vector tiles with hillshade from the server's
+PMTiles archives. It streams the GPS position, answers "how far am I from water" from an
+OpenStreetMap-derived feature layer, and draws the route there: a trail route planned on
+the phone over a fetched graph corridor, bending around hazard markers, with a straight
+bearing line as the stated fallback. Markers work like saved places: long-press to add
+with a name and a category tag, browse and filter them in a list, tap to fly there and
+edit.
+
+**Listen and speak.** Parakeet transcribes on the box, batch or streaming; Kokoro narrates
+back. The traces tab shows which model produced each result and how long it took.
+
+## How it works
+
+Four codebases ship on their own schedules and meet at two seams: the HTTP contract
+(`contracts/flux-server.openapi.json`, mirrored in the app's TypeScript types) and the
+pack format (`contracts/pack-format.md`).
+
+The phone talks only to flux-server on the local network. The server reads the pack
+read-only and forwards inference to the box services through SSH tunnels: Nemotron Nano
+9B answers chat, Cosmos-Reason2-8B reads clips, NVIDIA VSS summarizes trail recordings,
+and a perception service ranks species labels (SpeciesNet, BioCLIP, FungiTastic). A dead
+tunnel or an unset variable degrades one route to an explanatory 503; the app states what
+is missing instead of inventing an answer.
 
 ## Layout
 
-- `app/`: the Expo (React Native) iPhone app carrying the screens above and the
-  session/upload plumbing.
-- `server/`: the FastAPI server, with sessions, frame and video upload, `POST /v1/chat`
-  answered through the Nemotron retriever or a no-pack notice, the `/v1/content` pack
-  API with full-text search, the `/v1/tiles/archive` byte-range route, and the VSS video
-  handoff on session finish.
-- `box/`: provisioning for the GN100, with model and data manifests, fetch scripts, the
-  VSS bring-up notes, and the perception service behind `POST /identify`.
-- `pipeline/`: `flux-pipeline parse <pdf> <out.db>` parses the FM 21-76 PDF into the
-  content database that becomes the app's content pack.
-- `contracts/`: the flux-server OpenAPI export, the pack-format description, and the
-  pointer to the VSS endpoint map the three parties code against.
+- `app/`: the Expo (React Native) app.
+- `server/`: the FastAPI server the app talks to.
+- `pipeline/`: `flux-pipeline` builds the pack: manual parsing, walk compilation, figure
+  extraction, and the OSM-derived map artifacts (water features, trail graph).
+- `box/`: provisioning for the GN100 inference box: model and data manifests, VSS
+  bring-up, the perception and speech services.
+- `contracts/`: the OpenAPI export and the pack-format description the parties code
+  against.
 
 ## Run
 
@@ -47,20 +75,20 @@ One-time setup from a fresh clone:
 uv sync --all-packages
 ```
 
-Server, on the Mac:
+Server:
 
 ```
 cd server
 uv run flux-server
 ```
 
-`FLUX_NEMOTRON_URL` points chat at the box's OpenAI-compatible endpoint; without it the
-chat route answers that it waits on the model endpoint. `FLUX_CONTENT_DB` names the
-content pack (built by `flux-pipeline parse`) that `/v1/content` serves. `FLUX_TILE_ARCHIVE`
-names the PMTiles archive behind `/v1/tiles/archive`; each unset variable turns its routes
-into an explanatory 503 rather than a crash.
+Each route names its own dependency and answers 503 while it is unset: `FLUX_CONTENT_DB`
+(the pack), `FLUX_NEMOTRON_URL` and `FLUX_COSMOS_URL` (box model endpoints),
+`FLUX_TILE_ARCHIVE` and `FLUX_TILE_ARCHIVE_TERRAIN` (map tiles), `FLUX_FEATURES_DB` (the
+water-feature layer), `FLUX_TRAILS_DB` (the trail graph), `FLUX_SPEECH_URL` and
+`FLUX_PERCEPTION_URL` (box services).
 
-App, daily development:
+App:
 
 ```
 cd app
@@ -68,12 +96,8 @@ npm install
 npx expo start
 ```
 
-Open the app on the phone (Expo Go, or the compiled dev client for camera work via
-`npx expo run:ios --device`) and point the connect screen at `http://<mac-ip>:8000`.
-`npm install` runs the sync scripts: they copy the Aeonik fonts from `~/Library/Fonts`
-when present, and copy `FM21-76_SurvivalManual.pdf` from the repo root into the app's
-assets so the reference screen can render it. Both degrade to an explanation in the app
-when the source file is missing.
+Open the dev client on the phone and point the connect screen at `http://<mac-ip>:8000`.
+Camera surfaces need the compiled dev client (`npx expo run:ios --device`).
 
 ## Tests
 
@@ -81,7 +105,16 @@ when the source file is missing.
 uv run pytest server/tests -q
 ```
 
+`npx tsc --noEmit` in `app/` is the frontend gate.
+
 ## Tickets
 
 Work runs through GitHub issues in `reversely/flux`, one issue per commit to `main` (see
 CLAUDE.md). Pinned issue #20 maps the four parallel workstreams to directory boundaries.
+
+## Sources and licenses
+
+Pack content comes from public-domain and openly licensed sources, each carrying its
+attribution in the pack: FM 21-76 (US government work), OpenStreetMap map artifacts
+(ODbL, © OpenStreetMap contributors), NOAA climate normals, and per-figure source lines
+in the encyclopedia.
