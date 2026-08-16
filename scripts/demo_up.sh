@@ -58,10 +58,19 @@ ssh -S "$SOCK" "$BOX" '
       ls ~/flux-model/lightning/*.safetensors >/dev/null 2>&1 && \
       ! docker ps --format "{{.Names}}" | grep -q "^nemotron-lightning$"; then
     docker rm nemotron-lightning >/dev/null 2>&1
+    # Thinking defaults off: the stock template reasons for ~1000 tokens
+    # per answer (15 s); the flipped default answers in ~3 s. vLLM'"'"'s
+    # nemotron_v3 reasoning parser is NOT the fix here: with thinking off
+    # it routes the whole answer into reasoning_content and chat goes blank.
+    if [ ! -f ~/flux-model/lightning/chat_template_nothink.jinja ]; then
+      sed "s/else True %}/else False %}/" ~/flux-model/lightning/chat_template.jinja \
+        > ~/flux-model/lightning/chat_template_nothink.jinja
+    fi
     docker run -d --name nemotron-lightning --gpus all -p 30084:8000 \
       -v ~/flux-model/lightning:/model vllm/vllm-openai:latest \
       --model /model --served-model-name nemotron-3.5-lightning \
-      --gpu-memory-utilization 0.19 --max-model-len 8192 --max-num-seqs 2 >/dev/null
+      --gpu-memory-utilization 0.19 --max-model-len 8192 --max-num-seqs 2 \
+      --chat-template /model/chat_template_nothink.jinja >/dev/null
     echo "  nemotron-lightning starting (first load takes a few minutes)"
   fi' 2>/dev/null || true
 LIGHTNING_ENV=()
