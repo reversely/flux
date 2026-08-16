@@ -15,12 +15,14 @@ export interface RecordStub {
  * names a widget the answer can launch preloaded (see data/guide.ts).
  */
 export interface ChatTool {
-  kind: 'camera' | 'chat' | 'reference';
+  kind: 'camera' | 'chat' | 'reference' | 'walkthrough';
   label: string;
   prime?: string;
   subject?: string;
   question?: string;
   chapter?: number;
+  /** walkthrough only: open with the camera preview (false asks by text). */
+  camera?: boolean;
 }
 
 export interface ChatAnswer {

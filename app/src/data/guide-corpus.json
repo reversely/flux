@@ -342,6 +342,40 @@
           ]
         }
       ]
+    },
+    {
+      "tileId": 6,
+      "intro": "Most mushroom poisonings follow a confident wrong identification. Chapter 10's rule: identify to species on structural features before anything touches your mouth. Folk tests fail here; color, taste, and tarnished spoons detect nothing.",
+      "groups": [
+        {
+          "id": "mushrooms",
+          "title": "Mushrooms",
+          "items": [
+            {
+              "id": "mushroom-id",
+              "title": "Mushroom identification",
+              "blurb": "Deadly Amanitas share gills and a stem ring with edible field mushrooms. The separators are structural: the sack at the stem base, the gill color, the spore print. Work the features one at a time; every dangerous match stays on screen until your answers rule it out.",
+              "tools": [
+                {
+                  "kind": "walkthrough",
+                  "label": "Ask about a mushroom",
+                  "camera": false
+                },
+                {
+                  "kind": "walkthrough",
+                  "label": "Check one with the camera",
+                  "camera": true
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 10
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

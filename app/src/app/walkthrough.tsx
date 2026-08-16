@@ -46,7 +46,11 @@ export default function Walkthrough() {
   const { client } = useSession();
   // A launch may carry a transcript to replay, `answers=char=state,...`:
   // sessions are deterministic, so a replayed link reopens the same walk.
-  const { answers: replay } = useLocalSearchParams<{ answers?: string }>();
+  // `camera=1` opens the preview; the default is the text-only ask.
+  const { answers: replay, camera } = useLocalSearchParams<{
+    answers?: string;
+    camera?: string;
+  }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [walk, setWalk] = useState<WalkSessionState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -90,16 +94,17 @@ export default function Walkthrough() {
     }
   };
 
-  const useCamera = Device.isDevice && permission?.granted === true;
+  const wantCamera = camera === '1';
+  const useCamera = wantCamera && Device.isDevice && permission?.granted === true;
   const question = walk?.question;
 
   return (
     <View style={styles.screen}>
-      <TopBar title="Mushroom check" back />
+      <TopBar title="Mushrooms" back />
       {useCamera && (
         <CameraView style={styles.preview} mode="picture" facing="back" mute />
       )}
-      {Device.isDevice && permission !== null && !permission.granted && (
+      {wantCamera && Device.isDevice && permission !== null && !permission.granted && (
         <Pressable style={styles.cameraAsk} onPress={() => void requestPermission()}>
           <Text style={typography.annotation}>
             Camera off. Tap to allow and keep the mushroom in view.

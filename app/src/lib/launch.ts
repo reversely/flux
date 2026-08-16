@@ -27,5 +27,11 @@ export function launchTool(nav: Router, tool: ChatTool): void {
         params: tool.chapter ? { chapter: String(tool.chapter) } : {},
       });
       return;
+    case 'walkthrough':
+      nav.push({
+        pathname: '/walkthrough',
+        params: { camera: tool.camera ? '1' : '0' },
+      });
+      return;
   }
 }

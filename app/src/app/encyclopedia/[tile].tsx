@@ -8,6 +8,8 @@ import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { knotsForTile } from '@/data/coach';
 import { loadChapter, loadChapters, tileById } from '@/data/encyclopedia';
+import { getGuide } from '@/data/guides';
+import { launchTool } from '@/lib/launch';
 import { useSession } from '@/store/session';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
@@ -24,6 +26,7 @@ interface TileContent {
 export default function TileSections() {
   const { tile: tileParam } = useLocalSearchParams<{ tile: string }>();
   const tile = tileById(Number(tileParam));
+  const guide = tile === undefined ? undefined : getGuide(tile.id);
   const client = useSession((s) => s.client);
   const router = useRouter();
   const [content, setContent] = useState<TileContent | null>(null);
@@ -83,6 +86,45 @@ export default function TileSections() {
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
           {content.sample && <Tag label="Sample content" tone="yellow" />}
+          {/* The tile's guide: an intro story plus items whose buttons launch
+              tools (data/guide.ts). Where the coach owns a tile its corpus
+              guide predates the coach redesign and stays unrendered. */}
+          {guide !== undefined && knotsForTile(tile.id).length === 0 && (
+            <View style={styles.chapter}>
+              <Text style={[typography.body, styles.guideIntro]}>{guide.intro}</Text>
+              {guide.groups.map((group) => (
+                <View key={group.id} style={styles.guideGroup}>
+                  <Text style={[typography.annotation, styles.chapterLabel]}>
+                    {group.title}
+                  </Text>
+                  <View style={styles.sectionCard}>
+                    {group.items.map((item, index) => (
+                      <View
+                        key={item.id}
+                        style={[styles.guideItem, index > 0 && styles.sectionRowBorder]}
+                      >
+                        <Text style={typography.surfaceTitle}>{item.title}</Text>
+                        <Text style={typography.body}>{item.blurb}</Text>
+                        <View style={styles.toolRow}>
+                          {item.tools.map((tool) => (
+                            <Pressable
+                              key={tool.label}
+                              accessibilityRole="button"
+                              accessibilityLabel={tool.label}
+                              style={styles.toolButton}
+                              onPress={() => launchTool(router, tool)}
+                            >
+                              <Text style={styles.toolButtonText}>{tool.label}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
           {knotsForTile(tile.id).length > 0 && (
             <View style={styles.chapter}>
               <Text style={[typography.annotation, styles.chapterLabel]}>Knot coach</Text>
@@ -142,6 +184,32 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.paper,
+  },
+  guideIntro: {
+    marginBottom: spacing.m,
+  },
+  guideGroup: {
+    gap: spacing.s,
+  },
+  guideItem: {
+    padding: spacing.l,
+    gap: spacing.s,
+  },
+  toolRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.s,
+    marginTop: spacing.xs,
+  },
+  toolButton: {
+    height: sizes.control,
+    borderRadius: radius.control,
+    backgroundColor: colors.signature,
+    paddingHorizontal: spacing.l,
+    justifyContent: 'center',
+  },
+  toolButtonText: {
+    ...typography.button,
   },
   spinner: {
     marginTop: spacing.xxxl,
