@@ -97,18 +97,23 @@ function QuestionGallery({ onAsk }: { onAsk: (question: string) => void }) {
 }
 
 /**
- * The wordmark's own bar line in conversation mode (#207): identity stays
- * on screen without rejoining the icon bar (#179). Pinned above the list;
- * a field-tinted backing fades in as the list scrolls under it.
+ * The wordmark's header row, above even the icon bar. Full size at rest
+ * with its own air; scrolling shrinks it into a compact line at the top,
+ * the collapse the home had before the directory landed (#207, #179).
  */
-function WordmarkBar({ scrollY }: { scrollY: SharedValue<number> }) {
-  const backing = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [0, 24], [0, 1], Extrapolation.CLAMP),
+function WordmarkHeader({ scrollY }: { scrollY: SharedValue<number> }) {
+  const insets = useSafeAreaInsets();
+  const box = useAnimatedStyle(() => ({
+    height: insets.top + interpolate(scrollY.value, [0, 96], [84, 40], Extrapolation.CLAMP),
+  }));
+  const text = useAnimatedStyle(() => ({
+    transform: [
+      { scale: interpolate(scrollY.value, [0, 96], [1, 0.55], Extrapolation.CLAMP) },
+    ],
   }));
   return (
-    <Animated.View entering={FadeInDown.duration(300)} style={styles.wordmarkBar}>
-      <Animated.View style={[styles.wordmarkBarBacking, backing]} />
-      <Text style={styles.wordmarkBarText}>LifeKit</Text>
+    <Animated.View style={[styles.wordmarkHeader, { paddingTop: insets.top }, box]}>
+      <Animated.Text style={[styles.wordmarkHero, text]}>LifeKit</Animated.Text>
     </Animated.View>
   );
 }
@@ -165,9 +170,10 @@ export default function ChatHome() {
     <View style={styles.screen}>
       <StatusBar style="light" />
       <HomeBackdrop scrollY={scrollY} />
+      <WordmarkHeader scrollY={scrollY} />
       {/* The empty-state wordmark carries the name; a title here spills
           against six buttons on narrow screens (#179). */}
-      <TopBar title="" dark>
+      <TopBar title="" dark flat>
         <TopBarButton
           icon="video"
           label="Video mode"
@@ -199,7 +205,6 @@ export default function ChatHome() {
           onPress={() => router.push('/connect')}
         />
       </TopBar>
-      <WordmarkBar scrollY={scrollY} />
       <KeyboardAvoidingView
         style={styles.body}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -225,41 +230,41 @@ export default function ChatHome() {
               />
             </Animated.View>
           </View>
+          <View style={styles.inputArea}>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.input}
+                value={draft}
+                onChangeText={setDraft}
+                placeholder="Ask a question"
+                placeholderTextColor={darkHome.ink3}
+                returnKeyType="send"
+                onSubmitEditing={submit}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Send"
+                onPress={submit}
+                disabled={!draft.trim()}
+                style={[styles.send, !draft.trim() && styles.sendDisabled]}
+              >
+                <Feather name="arrow-up" size={20} color={darkHome.ink} />
+              </Pressable>
+            </View>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => router.push('/reference')}
+              style={styles.sourceRow}
+            >
+              <Text style={styles.sourceText}>Answers adapt {REFERENCE_TITLE}. Read the full text.</Text>
+            </Pressable>
+          </View>
           {/* The whole widget registry scrolls in under the chat face, so
               every camera surface is reachable from the first screen. */}
           <Animated.View entering={FadeInUp.duration(450).delay(240)}>
             <WidgetDirectory />
           </Animated.View>
         </Animated.ScrollView>
-        <View style={[styles.inputArea, { paddingBottom: Math.max(insets.bottom, spacing.m) }]}>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.input}
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Ask a question"
-              placeholderTextColor={darkHome.ink3}
-              returnKeyType="send"
-              onSubmitEditing={submit}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Send"
-              onPress={submit}
-              disabled={!draft.trim()}
-              style={[styles.send, !draft.trim() && styles.sendDisabled]}
-            >
-              <Feather name="arrow-up" size={20} color={darkHome.ink} />
-            </Pressable>
-          </View>
-          <Pressable
-            accessibilityRole="link"
-            onPress={() => router.push('/reference')}
-            style={styles.sourceRow}
-          >
-            <Text style={styles.sourceText}>Answers adapt {REFERENCE_TITLE}. Read the full text.</Text>
-          </Pressable>
-        </View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -275,6 +280,7 @@ const styles = StyleSheet.create({
   },
   homeScroll: {
     flexGrow: 1,
+    paddingBottom: spacing.xxl,
   },
   empty: {
     minHeight: 360,
@@ -284,23 +290,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
     gap: spacing.m,
   },
-  wordmarkBar: {
+  wordmarkHeader: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: darkHome.line,
+    justifyContent: 'flex-end',
+    paddingBottom: spacing.s,
   },
-  wordmarkBarBacking: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: 'rgba(11, 17, 24, 0.70)',
-  },
-  wordmarkBarText: {
-    ...typography.displaySmall,
+  wordmarkHero: {
+    ...typography.display,
     color: darkHome.ink,
   },
   tagline: {
@@ -329,11 +325,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   inputArea: {
+    alignSelf: 'stretch',
     gap: spacing.s,
-    paddingHorizontal: spacing.l,
-    paddingTop: spacing.m,
-    backgroundColor: 'rgba(11, 17, 24, 0.70)',
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.xl,
+    borderTopWidth: 0,
     borderTopColor: darkHome.line,
   },
   inputRow: {

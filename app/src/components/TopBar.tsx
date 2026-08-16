@@ -42,6 +42,7 @@ export function TopBar({
   back,
   dark,
   traceButton = true,
+  flat = false,
   children,
 }: {
   title: string;
@@ -49,16 +50,19 @@ export function TopBar({
   dark?: boolean;
   /** The agent-trace tab rides every bar; its own screen opts out. */
   traceButton?: boolean;
+  /** A screen whose own header already clears the status bar sets flat. */
+  flat?: boolean;
   children?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const inset = flat ? 0 : insets.top;
   return (
     <View
       style={[
         styles.bar,
         dark ? styles.barDark : styles.barLight,
-        { paddingTop: insets.top, height: sizes.topBar + insets.top },
+        { paddingTop: inset, height: sizes.topBar + inset },
       ]}
     >
       {back && (
