@@ -993,6 +993,12 @@ because it sits furthest from the wilderness core of the app.
 
 ## Recurring license traps
 
+Read this section against the inference-only framing at the top of the
+document. "All bench, none ship" is the normal case rather than a trap, since
+no video dataset ships inside the app and none is trained on. The two entries
+that constrain real work are COIN's signed agreement, which bars testing a
+commercial system, and Trauma THOMPSON, which has no access path.
+
 - Non-commercial encumbrance: EPIC-Tent (NCGL v2), R2PPE (CC BY-NC 4.0 on the
   Zenodo record, not the CC BY 4.0 on the paper), EPIC-KITCHENS-100, FishBase,
   T3DB, wikiHow, OpenWHO (CC BY-NC-SA 3.0 IGO). All bench, none ship.
