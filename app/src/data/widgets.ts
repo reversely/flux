@@ -40,12 +40,22 @@ const FALLBACK_WALKS: VideoWidget[] = [
   walkWidget({ id: 'berry-edibility', title: 'Berries' }),
 ];
 
-function walkWidget(guide: { id: string; title: string }): VideoWidget {
+function walkWidget(guide: {
+  id: string;
+  title: string;
+  species_count?: number;
+  danger_count?: number;
+}): VideoWidget {
+  // A connected pack states its real coverage; offline keeps the generic line.
+  const line =
+    guide.species_count !== undefined && guide.species_count > 0
+      ? `${guide.species_count} species, ${guide.danger_count ?? 0} dangerous.`
+      : 'Feature by feature to a verdict.';
   return {
     id: `walk:${guide.id}`,
     kind: 'walk',
     title: guide.title,
-    line: 'Feature by feature to a verdict.',
+    line,
     route: {
       pathname: '/walkthrough',
       // The default guide stays unnamed so pre-guide servers keep working.

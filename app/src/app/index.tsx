@@ -279,15 +279,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   homeScroll: {
-    flexGrow: 1,
+    paddingTop: spacing.m,
     paddingBottom: spacing.xxl,
+    gap: spacing.xl,
   },
   empty: {
-    minHeight: 360,
-    flexGrow: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: spacing.xxl,
+    paddingTop: spacing.xxl,
+    paddingHorizontal: spacing.xl,
     gap: spacing.m,
   },
   wordmarkHeader: {
@@ -302,7 +301,7 @@ const styles = StyleSheet.create({
   tagline: {
     textAlign: 'center',
     color: darkHome.ink2,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.l,
   },
   gallery: {
     alignSelf: 'stretch',
@@ -327,9 +326,7 @@ const styles = StyleSheet.create({
   inputArea: {
     alignSelf: 'stretch',
     gap: spacing.s,
-    paddingTop: spacing.xl,
-    borderTopWidth: 0,
-    borderTopColor: darkHome.line,
+    paddingHorizontal: spacing.xl,
   },
   inputRow: {
     flexDirection: 'row',

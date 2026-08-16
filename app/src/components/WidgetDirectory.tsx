@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useVideoWidgets, type VideoWidgetKind } from '@/data/widgets';
+import { useVideoWidgets, type VideoWidget, type VideoWidgetKind } from '@/data/widgets';
 import { darkHome } from '@/theme/biome';
 import { radius, spacing, typography } from '@/theme/tokens';
 
@@ -16,10 +16,38 @@ const KIND_ICON: Record<VideoWidgetKind, FeatherName> = {
   trail: 'film',
 };
 
+// How many panels a group shows on home; the rest live behind its All
+// link, which opens the camera hub's full list.
+const SHOWCASE = 2;
+
+function Panel({ widget, wide }: { widget: VideoWidget; wide?: boolean }) {
+  const router = useRouter();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={widget.title}
+      onPress={() =>
+        router.push({
+          pathname: widget.route.pathname as never,
+          params: widget.route.params ?? {},
+        })
+      }
+      style={({ pressed }) => [styles.panel, wide && styles.panelWide, pressed && styles.panelPressed]}
+    >
+      <Text style={styles.panelTitle} numberOfLines={1}>
+        {widget.title}
+      </Text>
+      <Text style={styles.panelLine} numberOfLines={2}>
+        {widget.line}
+      </Text>
+    </Pressable>
+  );
+}
+
 /**
- * The video-widget directory: every camera surface from the registry,
- * grouped by kind, launchable in one tap. Rendered on the home scroll so
- * nothing hides behind the chat face.
+ * The video-widget showcase: each category leads with its two panels and
+ * an All link into the camera hub's complete list, so home reads as a
+ * shelf, never an inventory.
  */
 export function WidgetDirectory() {
   const router = useRouter();
@@ -32,27 +60,27 @@ export function WidgetDirectory() {
           <View style={styles.groupHeader}>
             <Feather name={KIND_ICON[group.kind]} size={14} color={darkHome.ink2} />
             <Text style={styles.groupTitle}>{group.title}</Text>
+            <View style={styles.headerSpace} />
+            {group.widgets.length > SHOWCASE && (
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel={`All ${group.widgets.length} ${group.title.toLowerCase()}`}
+                onPress={() => router.push('/capture')}
+                hitSlop={8}
+              >
+                <Text style={styles.allLink}>All {group.widgets.length}</Text>
+              </Pressable>
+            )}
           </View>
-          {group.widgets.map((widget) => (
-            <Pressable
-              key={widget.id}
-              accessibilityRole="button"
-              accessibilityLabel={widget.title}
-              onPress={() =>
-                router.push({
-                  pathname: widget.route.pathname as never,
-                  params: widget.route.params ?? {},
-                })
-              }
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-            >
-              <View style={styles.rowText}>
-                <Text style={styles.rowTitle}>{widget.title}</Text>
-                <Text style={styles.rowLine}>{widget.line}</Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={darkHome.ink3} />
-            </Pressable>
-          ))}
+          <View style={styles.panelRow}>
+            {group.widgets.slice(0, SHOWCASE).map((widget) => (
+              <Panel
+                key={widget.id}
+                widget={widget}
+                wide={group.widgets.length === 1}
+              />
+            ))}
+          </View>
         </View>
       ))}
     </View>
@@ -62,18 +90,18 @@ export function WidgetDirectory() {
 const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl,
-    gap: spacing.l,
-    alignSelf: 'stretch',
+    gap: spacing.xl,
   },
   group: {
-    gap: spacing.xs,
+    gap: spacing.s,
   },
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.s,
-    marginBottom: spacing.xs,
+  },
+  headerSpace: {
+    flex: 1,
   },
   groupTitle: {
     ...typography.annotation,
@@ -81,27 +109,34 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.s,
-    paddingHorizontal: spacing.m,
-    borderRadius: radius.control,
-    backgroundColor: 'rgba(230, 237, 242, 0.06)',
+  allLink: {
+    ...typography.annotation,
+    color: darkHome.link,
   },
-  rowPressed: {
+  panelRow: {
+    flexDirection: 'row',
+    gap: spacing.m,
+  },
+  panel: {
+    flex: 1,
+    gap: spacing.xs,
+    padding: spacing.l,
+    borderRadius: radius.surface,
+    backgroundColor: 'rgba(230, 237, 242, 0.06)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: darkHome.line,
+  },
+  panelWide: {
+    flex: 1,
+  },
+  panelPressed: {
     backgroundColor: 'rgba(230, 237, 242, 0.12)',
   },
-  rowText: {
-    gap: 2,
-    flexShrink: 1,
-  },
-  rowTitle: {
+  panelTitle: {
     ...typography.listBody,
     color: darkHome.ink,
   },
-  rowLine: {
+  panelLine: {
     ...typography.annotation,
     color: darkHome.ink3,
   },
