@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated as RNAnimated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -25,6 +26,66 @@ import { useSession } from '@/store/session';
 import { darkHome } from '@/theme/biome';
 import { aeonikFace } from '@/theme/fonts';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
+
+// The gallery pool: one question per tile subject, phrased the way a user
+// asks. Tapping one sends it as-is.
+const GALLERY_QUESTIONS = [
+  'How do I purify water?',
+  'Which berries are safe to eat?',
+  'Ring around the moon. What does it mean?',
+  'Which way is north without a compass?',
+  'How do I keep a fire going in rain?',
+  'How do I treat a blister on trail?',
+  'Something bit me. What now?',
+  'How do I signal a plane?',
+  'Can I eat this mushroom?',
+] as const;
+
+const GALLERY_VISIBLE = 3;
+const GALLERY_ROTATE_MS = 5000;
+
+/** Three questions at a time, fading to the next three on a timer. */
+function QuestionGallery({ onAsk }: { onAsk: (question: string) => void }) {
+  const [start, setStart] = useState(0);
+  const opacity = useRef(new RNAnimated.Value(1)).current;
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      RNAnimated.timing(opacity, { toValue: 0, duration: 350, useNativeDriver: true }).start(
+        () => {
+          setStart((v) => (v + GALLERY_VISIBLE) % GALLERY_QUESTIONS.length);
+          RNAnimated.timing(opacity, {
+            toValue: 1,
+            duration: 350,
+            useNativeDriver: true,
+          }).start();
+        },
+      );
+    }, GALLERY_ROTATE_MS);
+    return () => clearInterval(timer);
+  }, [opacity]);
+
+  const visible = Array.from(
+    { length: GALLERY_VISIBLE },
+    (_, i) => GALLERY_QUESTIONS[(start + i) % GALLERY_QUESTIONS.length],
+  );
+
+  return (
+    <RNAnimated.View style={[styles.gallery, { opacity }]}>
+      {visible.map((question) => (
+        <Pressable
+          key={question}
+          accessibilityRole="button"
+          accessibilityLabel={`Ask: ${question}`}
+          onPress={() => onAsk(question)}
+          style={({ pressed }) => [styles.galleryChip, pressed && styles.galleryChipPressed]}
+        >
+          <Text style={styles.galleryText}>{question}</Text>
+        </Pressable>
+      ))}
+    </RNAnimated.View>
+  );
+}
 
 function Message({ message }: { message: ChatMessage }) {
   const router = useRouter();
@@ -135,10 +196,9 @@ export default function ChatHome() {
       >
         {messages.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={[typography.body, styles.emptyText]}>
-              Please ask a question about first aid, shelter, fire, water, food, animals, or
-              finding your way.
-            </Text>
+            <Text style={styles.wordmark}>LifeKit</Text>
+            <Text style={[typography.body, styles.tagline]}>A field guide you can ask.</Text>
+            <QuestionGallery onAsk={(question) => void send(question)} />
           </View>
         ) : (
           <Animated.FlatList
@@ -201,11 +261,39 @@ const styles = StyleSheet.create({
   empty: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: spacing.xxl,
+    gap: spacing.m,
   },
-  emptyText: {
+  wordmark: {
+    ...typography.display,
+    color: darkHome.ink,
+    textAlign: 'center',
+  },
+  tagline: {
     textAlign: 'center',
     color: darkHome.ink2,
+    marginBottom: spacing.xl,
+  },
+  gallery: {
+    alignSelf: 'stretch',
+    gap: spacing.s,
+  },
+  galleryChip: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: darkHome.line,
+    borderRadius: radius.control,
+    backgroundColor: 'rgba(11, 17, 24, 0.55)',
+    paddingVertical: spacing.m,
+    paddingHorizontal: spacing.l,
+  },
+  galleryChipPressed: {
+    borderColor: colors.signature,
+  },
+  galleryText: {
+    ...typography.listBody,
+    color: darkHome.ink,
+    textAlign: 'center',
   },
   bubble: {
     maxWidth: '85%',

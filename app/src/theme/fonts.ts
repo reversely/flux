@@ -11,7 +11,8 @@ import { fontMap } from './fonts.generated';
 
 export const fontAssets = fontMap;
 
-const aeonikInstalled = Object.keys(fontMap).length > 0;
+const aeonikInstalled = 'Aeonik-Regular' in fontMap;
+const argentInstalled = 'ArgentPixelCF-Italic' in fontMap;
 
 const systemWeights: Record<AeonikWeight, TextStyle['fontWeight']> = {
   light: '300',
@@ -32,4 +33,13 @@ export function aeonikFace(weight: AeonikWeight): TextStyle {
     return { fontFamily: familyNames[weight] };
   }
   return { fontWeight: systemWeights[weight] };
+}
+
+/** Argent Pixel CF Italic, the display face for wordmarks and directory
+ * numerals; a clone without it falls back to the system serif italic. */
+export function displayFace(): TextStyle {
+  if (argentInstalled) {
+    return { fontFamily: 'ArgentPixelCF-Italic' };
+  }
+  return { fontStyle: 'italic', fontWeight: '600' };
 }

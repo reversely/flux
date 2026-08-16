@@ -1,43 +1,31 @@
-import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { DirectoryList, PARCHMENT } from '@/components/Directory';
 import { TopBar } from '@/components/TopBar';
-import { TILES, type EncyclopediaTile } from '@/data/encyclopedia';
-import { colors, radius, spacing, typography } from '@/theme/tokens';
+import { TILES } from '@/data/encyclopedia';
+import { spacing, typography } from '@/theme/tokens';
 
-function TileCard({ tile }: { tile: EncyclopediaTile }) {
-  const router = useRouter();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={tile.title}
-      onPress={() => router.push(`/encyclopedia/${tile.id}`)}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-    >
-      <View style={styles.cardHeader}>
-        <Feather name={tile.icon} size={18} color={colors.signature} />
-        <Text style={[typography.annotation, styles.tileNumber]}>{tile.id}</Text>
-      </View>
-      <Text style={typography.surfaceTitle}>{tile.title}</Text>
-      <Text style={[typography.annotation, styles.scope]} numberOfLines={2}>
-        {tile.scope}
-      </Text>
-    </Pressable>
-  );
-}
-
+/**
+ * The encyclopedia's table of contents, in the shared book-directory style
+ * (components/Directory.tsx) on the warm paper shade: numeral, title,
+ * dotted leader, tile icon. One row per tile, in priority order.
+ */
 export default function Encyclopedia() {
+  const router = useRouter();
   return (
     <View style={styles.screen}>
       <TopBar title="Encyclopedia" back />
-      <FlatList
-        data={TILES}
-        keyExtractor={(tile) => String(tile.id)}
-        renderItem={({ item }) => <TileCard tile={item} />}
-        numColumns={2}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.grid}
+      <DirectoryList
+        entries={TILES.map((tile) => ({
+          id: String(tile.id),
+          number: String(tile.id),
+          title: tile.title,
+          detail: tile.scope,
+          icon: tile.icon,
+        }))}
+        onPress={(entry) => router.push(`/encyclopedia/${entry.id}`)}
+        header={<Text style={[typography.annotation, styles.contents]}>Contents</Text>}
       />
     </View>
   );
@@ -46,37 +34,11 @@ export default function Encyclopedia() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: PARCHMENT.background,
   },
-  grid: {
-    padding: spacing.l,
-    gap: spacing.m,
-  },
-  row: {
-    gap: spacing.m,
-  },
-  card: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: radius.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line,
-    padding: spacing.l,
-    gap: spacing.xs,
-  },
-  cardPressed: {
-    backgroundColor: colors.signatureSoft,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  contents: {
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
     marginBottom: spacing.s,
-  },
-  tileNumber: {
-    color: colors.ink3,
-  },
-  scope: {
-    marginTop: spacing.xs,
   },
 });

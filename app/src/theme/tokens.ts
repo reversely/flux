@@ -6,7 +6,7 @@
  */
 import type { TextStyle } from 'react-native';
 
-import { aeonikFace } from './fonts';
+import { aeonikFace, displayFace } from './fonts';
 
 export const colors = {
   paper: '#F2F4F5',
@@ -18,6 +18,10 @@ export const colors = {
   // The one configurable brand slot; steel default until flux has a brand colour.
   signature: '#35576B',
   signatureSoft: '#E5EDF2',
+  // The book shade: directory screens sit on warm paper so an index reads
+  // as a different material than a working surface.
+  parchment: '#F6F2E8',
+  parchmentLine: '#E4DCC9',
   // Gold is the annotation budget: the selected joint's marker and nothing else.
   annotate: '#B07A10',
   gold: '#F2B21C',
@@ -68,4 +72,8 @@ export const typography: Record<string, TextStyle> = {
   focalStat: { ...aeonikFace('light'), fontSize: 32, lineHeight: 38, color: colors.ink },
   button: { ...aeonikFace('medium'), fontSize: 14, color: colors.card },
   annotation: { ...aeonikFace('regular'), fontSize: 12, color: colors.ink3 },
+  // The display face carries identity moments only: the wordmark and
+  // directory numerals, never running text.
+  display: { ...displayFace(), fontSize: 44, lineHeight: 48, color: colors.ink },
+  displaySmall: { ...displayFace(), fontSize: 20, lineHeight: 24, color: colors.ink },
 };

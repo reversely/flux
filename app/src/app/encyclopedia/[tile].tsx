@@ -11,6 +11,7 @@ import { loadChapter, loadChapters, tileById } from '@/data/encyclopedia';
 import { getGuide } from '@/data/guides';
 import { launchTool } from '@/lib/launch';
 import { useSession } from '@/store/session';
+import { DirectoryRow, PARCHMENT } from '@/components/Directory';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
 interface TileContent {
@@ -155,22 +156,17 @@ export default function TileSections() {
                   No sections in this pack yet.
                 </Text>
               ) : (
-                <View style={styles.sectionCard}>
-                  {chapter.sections.map((section, index) => (
-                    <Pressable
-                      key={section.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={section.title}
-                      onPress={() => router.push(`/encyclopedia/section/${section.id}`)}
-                      style={[styles.sectionRow, index > 0 && styles.sectionRowBorder]}
-                    >
-                      <Text style={[typography.listBody, styles.sectionTitle]}>
-                        {section.title}
-                      </Text>
-                      <Feather name="chevron-right" size={16} color={colors.ink3} />
-                    </Pressable>
-                  ))}
-                </View>
+                chapter.sections.map((section) => (
+                  <DirectoryRow
+                    key={section.id}
+                    entry={{
+                      id: section.id,
+                      number: `${chapter.fm_number}.${section.order}`,
+                      title: section.title,
+                    }}
+                    onPress={() => router.push(`/encyclopedia/section/${section.id}`)}
+                  />
+                ))
               )}
             </View>
           ))}
@@ -183,7 +179,7 @@ export default function TileSections() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.paper,
+    backgroundColor: PARCHMENT.background,
   },
   guideIntro: {
     marginBottom: spacing.m,
