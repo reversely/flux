@@ -111,11 +111,12 @@ export default function Walkthrough() {
     }
   };
 
-  // A changed replay link restarts the walk; determinism makes that safe.
+  // A changed replay link or guide restarts the walk; determinism makes
+  // that safe, and a stale guide would silently walk the wrong list.
   useEffect(() => {
     void start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [replay]);
+  }, [replay, guide]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowScope(false), SCOPE_BANNER_MS);
@@ -511,6 +512,23 @@ export default function Walkthrough() {
       setHeard(kind === 'denied' ? 'Mic off. Allow the microphone.' : 'Voice needs the server'),
   });
 
+  const skip = async () => {
+    if (walk === null || current === undefined) {
+      return;
+    }
+    setBusy(true);
+    try {
+      // An empty answer records a skip: it filters nothing and the walk
+      // moves on, so a flowerless fern or an out-of-season plant never
+      // blocks on a feature it cannot show.
+      setWalk(await client().answerWalkthrough(walk.session_id, current.character, []));
+    } catch {
+      setMessage('The server did not answer. Please check the connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const stateChips = (question: WalkQuestion) => (
     <View style={styles.stateWrap}>
       {question.states.map((state) => {
@@ -747,6 +765,17 @@ export default function Walkthrough() {
               )}
             </View>
             {stateChips(current)}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Skip this feature"
+              disabled={busy}
+              onPress={() => void skip()}
+              style={styles.skipRow}
+              hitSlop={6}
+            >
+              <Feather name="corner-down-right" size={14} color={colors.ink3} />
+              <Text style={styles.skipText}>Can't see it — skip</Text>
+            </Pressable>
             <Text style={typography.annotation}>{current.citation}</Text>
             {useCamera && current.capture_condition != null && (
               <Text style={typography.annotation}>{current.capture_condition}</Text>
@@ -978,6 +1007,17 @@ const styles = StyleSheet.create({
   },
   reviewContent: {
     gap: spacing.m,
+  },
+  skipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
+  skipText: {
+    ...typography.annotation,
+    color: colors.ink3,
   },
   stateWrap: {
     flexDirection: 'row',
