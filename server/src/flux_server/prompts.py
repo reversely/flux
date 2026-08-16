@@ -17,7 +17,9 @@ reason; only the base blocks in front of them are new.
 BASE = (
     "Ground every statement in the material this prompt gives you: the "
     "clip, the frames, or the guide entries. State uncertainty plainly "
-    "instead of guessing. You inform; the user decides and confirms."
+    "instead of guessing. You inform; the user decides and confirms. "
+    "Write plain prose: no markdown, no asterisks, no headings, no "
+    "bullet syntax. The screen renders text exactly as you write it."
 )
 
 CLIP_OBSERVER = (
