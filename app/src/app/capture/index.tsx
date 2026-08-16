@@ -91,7 +91,10 @@ export default function CameraHub() {
                     params:
                       group.kind === 'trail'
                         ? { prime: prime ?? '', subject: subject ?? '' }
-                        : (first.route.params ?? {}),
+                        : {
+                            ...(first.route.params ?? {}),
+                            ...(group.kind === 'walk' ? { camera: '1' } : {}),
+                          },
                   })
                 }
               >
@@ -117,7 +120,12 @@ export default function CameraHub() {
                     onPress={() =>
                       router.push({
                         pathname: widget.route.pathname as never,
-                        params: widget.route.params ?? {},
+                        // The camera hub opens a walk in camera mode; the
+                        // text-only ask belongs to home and chat launches.
+                        params: {
+                          ...(widget.route.params ?? {}),
+                          ...(group.kind === 'walk' ? { camera: '1' } : {}),
+                        },
                       })
                     }
                     style={({ pressed }) => [dark.chip, pressed && styles.chipPressed]}
