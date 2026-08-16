@@ -14,61 +14,63 @@ const require = createRequire(import.meta.url);
 const appDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { layers, namedFlavor } = require('@protomaps/basemaps');
 
-// Light-minimal palette from src/theme/tokens.ts: paper field, near-white
-// land, steel water, whisper-grey roads, ink labels. Keys not overridden
-// keep the Protomaps light flavor value.
+// Night-navigation palette: the deep blue world of the dark home
+// (src/theme/biome.ts) applied to the basemap. Field falls from slate navy
+// to near-black, water reads as luminous blue, land vegetation keeps a
+// faint green cast, roads are muted slate, labels are moonlit blue-grey.
+// Keys not overridden keep the Protomaps dark flavor value.
 const flavor = {
-  ...namedFlavor('light'),
-  background: '#F2F4F5',
-  earth: '#F7F8F9',
-  water: '#C9D8E2',
-  glacier: '#F4F7F8',
-  sand: '#EFEDE6',
-  beach: '#EFEDE6',
-  wood_a: '#EBF0EA',
-  wood_b: '#E7EDE7',
-  scrub_a: '#EDF1EC',
-  scrub_b: '#EAEFE9',
-  park_a: '#EDF2EC',
-  park_b: '#E9EFE8',
-  hospital: '#F3F1F1',
-  industrial: '#F1F2F3',
-  school: '#F2F1EE',
-  zoo: '#EFF1EE',
-  military: '#F0F0EE',
-  aerodrome: '#EFF1F2',
-  runway: '#E2E7EA',
-  pedestrian: '#F2F3F4',
-  pier: '#EDF0F2',
-  buildings: '#E9ECEE',
-  other: '#FFFFFF',
-  minor_service: '#FFFFFF',
-  minor_a: '#FFFFFF',
-  minor_b: '#FFFFFF',
-  link: '#FFFFFF',
-  major: '#FFFFFF',
-  highway: '#F0EEE6',
-  minor_service_casing: '#E8ECEF',
-  minor_casing: '#E5EAED',
-  link_casing: '#DCE2E6',
-  major_casing_early: '#DCE2E6',
-  major_casing_late: '#DCE2E6',
-  highway_casing_early: '#D3DBE0',
-  highway_casing_late: '#D3DBE0',
-  railway: '#DDE3E7',
-  boundaries: '#9AA7AF',
-  city_label: '#1C2B36',
-  city_label_halo: '#FFFFFF',
-  subplace_label: '#51626E',
-  subplace_label_halo: '#FFFFFF',
-  state_label: '#74858F',
-  state_label_halo: '#FFFFFF',
-  country_label: '#51626E',
-  ocean_label: '#6F93A8',
-  roads_label_minor: '#74858F',
-  roads_label_minor_halo: '#FFFFFF',
-  roads_label_major: '#51626E',
-  roads_label_major_halo: '#FFFFFF',
+  ...namedFlavor('dark'),
+  background: '#0B1420',
+  earth: '#111C2B',
+  water: '#1E4569',
+  glacier: '#16273C',
+  sand: '#182335',
+  beach: '#182335',
+  wood_a: '#122230',
+  wood_b: '#101F2C',
+  scrub_a: '#122130',
+  scrub_b: '#111F2D',
+  park_a: '#122231',
+  park_b: '#101F2D',
+  hospital: '#131E2E',
+  industrial: '#121D2C',
+  school: '#131E2D',
+  zoo: '#121F2D',
+  military: '#121D2B',
+  aerodrome: '#121E2D',
+  runway: '#1B2A3D',
+  pedestrian: '#13202F',
+  pier: '#152334',
+  buildings: '#1B2C40',
+  other: '#243651',
+  minor_service: '#243651',
+  minor_a: '#243651',
+  minor_b: '#243651',
+  link: '#2A3F5C',
+  major: '#2F4664',
+  highway: '#3A5678',
+  minor_service_casing: '#0B1420',
+  minor_casing: '#0B1420',
+  link_casing: '#0B1420',
+  major_casing_early: '#0B1420',
+  major_casing_late: '#0B1420',
+  highway_casing_early: '#091220',
+  highway_casing_late: '#091220',
+  railway: '#20304A',
+  boundaries: '#3E5570',
+  city_label: '#C6D6E4',
+  city_label_halo: '#0B1420',
+  subplace_label: '#8CA3B8',
+  subplace_label_halo: '#0B1420',
+  state_label: '#5E7891',
+  state_label_halo: '#0B1420',
+  country_label: '#8CA3B8',
+  ocean_label: '#4E7EA6',
+  roads_label_minor: '#7590AB',
+  roads_label_minor_halo: '#0B1420',
+  roads_label_major: '#A6BCD1',
+  roads_label_major_halo: '#0B1420',
 };
 
 // Survival-minimal density: POI and address layers add urban clutter the
@@ -82,10 +84,10 @@ const HILLSHADE = {
   type: 'hillshade',
   source: 'terrain',
   paint: {
-    'hillshade-exaggeration': 0.35,
-    'hillshade-shadow-color': '#A9B8C0',
-    'hillshade-highlight-color': '#FFFFFF',
-    'hillshade-accent-color': '#C9D8E2',
+    'hillshade-exaggeration': 0.45,
+    'hillshade-shadow-color': '#04080E',
+    'hillshade-highlight-color': '#3A5678',
+    'hillshade-accent-color': '#1E4569',
   },
 };
 
@@ -114,7 +116,7 @@ const html = `<!DOCTYPE html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <style>${readFileSync(join(appDir, 'node_modules', 'maplibre-gl/dist/maplibre-gl.css'), 'utf8')}</style>
-<style>html, body, #map { margin: 0; height: 100%; background: #F2F4F5; }</style>
+<style>html, body, #map { margin: 0; height: 100%; background: linear-gradient(180deg, #10203A 0%, #0B1420 55%, #070D16 100%); }</style>
 </head>
 <body>
 <div id="map"></div>
@@ -164,6 +166,102 @@ map.on('error', function (e) {
   if (e.sourceId === 'basemap' && (status === 503 || status === 404)) {
     post({ type: 'archive-missing' });
   }
+});
+
+// ---- Position, observations, and gestures over the native bridge ----
+
+var CATEGORY_COLOR = {
+  water: '#4FA8E8', food: '#7BC98A', hazard: '#E8735F',
+  camp: '#E8C25F', note: '#9DB2C6'
+};
+var lastFix = null;
+var emptyFC = { type: 'FeatureCollection', features: [] };
+
+function metersToPixels(meters, lat, zoom) {
+  return meters / (156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom));
+}
+
+function refreshAccuracyRing() {
+  if (!lastFix || !map.getLayer('me-accuracy')) { return; }
+  var px = metersToPixels(lastFix.accuracy || 0, lastFix.lat, map.getZoom());
+  map.setPaintProperty('me-accuracy', 'circle-radius', Math.min(Math.max(px, 0), 400));
+}
+
+map.on('load', function () {
+  map.addSource('me', { type: 'geojson', data: emptyFC });
+  map.addSource('obs', { type: 'geojson', data: emptyFC });
+  map.addLayer({ id: 'me-accuracy', type: 'circle', source: 'me', paint: {
+    'circle-color': '#4FA8E8', 'circle-opacity': 0.12,
+    'circle-stroke-color': '#4FA8E8', 'circle-stroke-opacity': 0.3,
+    'circle-stroke-width': 1, 'circle-radius': 0 } });
+  map.addLayer({ id: 'me-glow', type: 'circle', source: 'me', paint: {
+    'circle-color': '#4FA8E8', 'circle-opacity': 0.25, 'circle-radius': 14,
+    'circle-blur': 0.6 } });
+  map.addLayer({ id: 'me-dot', type: 'circle', source: 'me', paint: {
+    'circle-color': '#4FA8E8', 'circle-radius': 6,
+    'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2.5 } });
+  map.addLayer({ id: 'obs-dots', type: 'circle', source: 'obs', paint: {
+    'circle-color': ['match', ['get', 'category'],
+      'water', CATEGORY_COLOR.water, 'food', CATEGORY_COLOR.food,
+      'hazard', CATEGORY_COLOR.hazard, 'camp', CATEGORY_COLOR.camp,
+      CATEGORY_COLOR.note],
+    'circle-radius': 7, 'circle-stroke-color': '#0B1420',
+    'circle-stroke-width': 2 } });
+  map.addLayer({ id: 'obs-labels', type: 'symbol', source: 'obs', layout: {
+    'text-field': ['get', 'label'],
+    'text-font': ['Noto Sans Regular'],
+    'text-size': 11, 'text-offset': [0, 1.3], 'text-anchor': 'top',
+    'text-optional': true },
+    paint: { 'text-color': '#C6D6E4', 'text-halo-color': '#0B1420',
+      'text-halo-width': 1.5 } });
+  map.on('zoom', refreshAccuracyRing);
+  map.on('click', 'obs-dots', function (e) {
+    if (e.features && e.features[0]) {
+      post({ type: 'obs-tap', id: e.features[0].properties.id });
+    }
+  });
+});
+
+// RN calls window.__native(msg) through injectJavaScript.
+window.__native = function (msg) {
+  if (msg.type === 'fix') {
+    lastFix = msg;
+    var src = map.getSource('me');
+    if (src) {
+      src.setData({ type: 'FeatureCollection', features: [{
+        type: 'Feature', geometry: { type: 'Point', coordinates: [msg.lng, msg.lat] },
+        properties: {} }] });
+      refreshAccuracyRing();
+    }
+  } else if (msg.type === 'obs') {
+    var obs = map.getSource('obs');
+    if (obs) { obs.setData(msg.data); }
+  } else if (msg.type === 'fly') {
+    map.flyTo({ center: [msg.lng, msg.lat], zoom: Math.max(map.getZoom(), msg.zoom || 13),
+      duration: 900, essential: true });
+  }
+};
+
+// Long-press (450 ms, under 10 px of drift) drops an observation.
+var press = null;
+map.getCanvas().addEventListener('touchstart', function (e) {
+  if (e.touches.length !== 1) { press = null; return; }
+  var t = e.touches[0];
+  press = { x: t.clientX, y: t.clientY, timer: setTimeout(function () {
+    var ll = map.unproject([press.x, press.y]);
+    post({ type: 'longpress', lng: ll.lng, lat: ll.lat });
+    press = null;
+  }, 450) };
+});
+map.getCanvas().addEventListener('touchmove', function (e) {
+  if (!press) { return; }
+  var t = e.touches[0];
+  if (Math.abs(t.clientX - press.x) > 10 || Math.abs(t.clientY - press.y) > 10) {
+    clearTimeout(press.timer); press = null;
+  }
+});
+map.getCanvas().addEventListener('touchend', function () {
+  if (press) { clearTimeout(press.timer); press = null; }
 });
 </script>
 </body>
