@@ -86,10 +86,19 @@ export interface SectionDetail {
   blocks: Block[];
 }
 
+export interface IngestEntry {
+  video: string;
+  state: 'summarizing' | 'done' | 'failed';
+}
+
 export interface SessionResults {
   session_id: string;
-  status: 'in_progress' | 'complete';
+  status: 'in_progress' | 'complete' | 'failed';
   records: RecordStub[];
+  summary?: string | null;
+  detail?: string | null;
+  transcript?: string | null;
+  ingest?: IngestEntry[] | null;
 }
 
 export interface FrameUploadResponse {

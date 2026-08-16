@@ -170,6 +170,14 @@ export class ApiClient {
     });
   }
 
+  async finishSession(sessionId: string): Promise<{ session_id: string; status: string }> {
+    return this.postJson(`/v1/sessions/${sessionId}/finish`);
+  }
+
+  async askTrail(sessionId: string, question: string): Promise<{ answer: string }> {
+    return this.postJson(`/v1/sessions/${sessionId}/ask`, { question });
+  }
+
   async interpretWalkthrough(sessionId: string, text: string): Promise<WalkObservation> {
     return this.postJson<WalkObservation>(
       `/v1/walkthrough/sessions/${sessionId}/interpret`,

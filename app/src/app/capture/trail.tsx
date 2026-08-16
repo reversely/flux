@@ -2,11 +2,22 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { PageBackdrop } from '@/components/PageBackdrop';
 import { Tag, type TagTone } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
+import type { SessionResults } from '@/api/types';
+import { useNarration } from '@/api/voice';
 import { type ClipEntry, type ClipStatus, useSession } from '@/store/session';
 import { darkHome } from '@/theme/biome';
 import { dark } from '@/theme/dark';
@@ -57,12 +68,66 @@ function ClipRow({ clip }: { clip: ClipEntry }) {
 export default function Capture() {
   const { prime, subject } = useLocalSearchParams<{ prime?: string; subject?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
-  const { clips, ensureCaptureSession, submitClip } = useSession();
+  const { clips, ensureCaptureSession, submitClip, captureSessionId, client } = useSession();
   const [recording, setRecording] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const recordingRef = useRef(false);
+  // The VSS half (#106): finishing hands the clips to the box, ingest
+  // progress shows per clip, the summary narrates, and a question over the
+  // recorded trail answers implication first.
+  const narration = useNarration();
+  const [summarizing, setSummarizing] = useState(false);
+  const [results, setResults] = useState<SessionResults | null>(null);
+  const [question, setQuestion] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [answer, setAnswer] = useState<string | null>(null);
+
+  const summarize = async () => {
+    if (captureSessionId === null) {
+      return;
+    }
+    setSummarizing(true);
+    setMessage(null);
+    // Poll results while finish runs, so the per-clip ingest states show.
+    const poll = setInterval(() => {
+      void client()
+        .getResults(captureSessionId)
+        .then(setResults)
+        .catch(() => undefined);
+    }, 2000);
+    try {
+      await client().finishSession(captureSessionId);
+      const final = await client().getResults(captureSessionId);
+      setResults(final);
+      if (final.summary) {
+        void narration.speak(final.summary);
+      }
+    } catch {
+      setMessage('The summary needs the box. Please check the server.');
+    } finally {
+      clearInterval(poll);
+      setSummarizing(false);
+    }
+  };
+
+  const ask = async () => {
+    if (captureSessionId === null || question.trim() === '') {
+      return;
+    }
+    setAsking(true);
+    setAnswer(null);
+    try {
+      const reply = await client().askTrail(captureSessionId, question.trim());
+      setAnswer(reply.answer);
+      void narration.speak(reply.answer);
+    } catch {
+      setMessage('The trail answer needs the box. Please check the server.');
+    } finally {
+      setAsking(false);
+    }
+  };
 
   // Leaving the screen stops the recorder; the queue keeps uploading.
   useEffect(
@@ -194,6 +259,56 @@ export default function Capture() {
           {recording && <Tag label="recording" tone="red" />}
         </View>
         {message !== null && <Text style={styles.helper}>{message}</Text>}
+        {clips.some((c) => c.status === 'done') && !recording && (
+          <Pressable
+            style={[dark.primary, summarizing && styles.buttonDisabled]}
+            disabled={summarizing}
+            onPress={() => void summarize()}
+          >
+            <Text style={dark.primaryText}>
+              {summarizing ? 'The box is watching your clips' : 'Summarize the trail'}
+            </Text>
+          </Pressable>
+        )}
+        {summarizing && results?.ingest != null && (
+          <Text style={styles.helper}>
+            {results.ingest.map((e) => `${e.video}: ${e.state}`).join('  ')}
+          </Text>
+        )}
+        {results?.summary != null && (
+          <ScrollView style={styles.summaryScroll}>
+            <Text style={styles.summaryText}>{results.summary}</Text>
+            {results.transcript != null && (
+              <Text style={styles.helper}>You said: {results.transcript}</Text>
+            )}
+          </ScrollView>
+        )}
+        {results?.summary != null && (
+          <View style={styles.askRow}>
+            <TextInput
+              value={question}
+              onChangeText={setQuestion}
+              placeholder="Ask about this trail"
+              placeholderTextColor={darkHome.ink3}
+              style={styles.askInput}
+              editable={!asking}
+              onSubmitEditing={() => void ask()}
+              returnKeyType="send"
+            />
+            <Pressable
+              style={[dark.primary, asking && styles.buttonDisabled]}
+              disabled={asking}
+              onPress={() => void ask()}
+            >
+              <Text style={dark.primaryText}>{asking ? 'Watching' : 'Ask'}</Text>
+            </Pressable>
+          </View>
+        )}
+        {answer !== null && (
+          <ScrollView style={styles.summaryScroll}>
+            <Text style={styles.summaryText}>{answer}</Text>
+          </ScrollView>
+        )}
         {clips.length === 0 ? (
           <Text style={styles.helper}>
             Record. Clips upload as they finish.
@@ -252,6 +367,28 @@ const styles = StyleSheet.create({
     ...dark.body,
     fontSize: 14,
     lineHeight: 21,
+  },
+  summaryScroll: {
+    maxHeight: 170,
+  },
+  summaryText: {
+    ...dark.body,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  askRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+  },
+  askInput: {
+    ...dark.body,
+    flex: 1,
+    height: sizes.control,
+    borderWidth: 1,
+    borderColor: darkHome.line,
+    borderRadius: radius.control,
+    paddingHorizontal: spacing.m,
   },
   clipList: {
     maxHeight: 160,
