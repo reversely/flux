@@ -1,10 +1,11 @@
-import * as Device from 'expo-device';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Device from 'expo-device';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { WalkEdibility, WalkSessionState, WalkSpeciesCard } from '@/api/types';
+import { MushroomDiagram } from '@/components/MushroomDiagram';
 import { Tag, type TagTone } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { useSession } from '@/store/session';
@@ -36,11 +37,12 @@ function SpeciesRow({ card }: { card: WalkSpeciesCard }) {
 }
 
 /**
- * The mushroom walkthrough (#87): one observable-feature question per step
- * against the server's walk session. Every answer is the user's confirmed
- * observation; the danger card stays visible whenever dangerous candidates
- * remain, and the verdict lists candidates with their guide attribution
- * rather than a safety claim.
+ * The mushroom survey: one visual form over the walk session. Every
+ * character section shows the anatomy diagram focused on its region and a
+ * multiselect of that character's states; selections within a character
+ * filter as any-of, sections combine as all-of, and the danger card stays
+ * pinned while dangerous kinds remain. Counts stay hidden until the first
+ * selection: the unfiltered corpus total reads as noise, not guidance.
  */
 export default function Walkthrough() {
   const { client } = useSession();
@@ -64,7 +66,7 @@ export default function Walkthrough() {
       for (const pair of (replay ?? '').split(',')) {
         const [character, answer] = pair.split('=');
         if (character && answer) {
-          state = await client().answerWalkthrough(state.session_id, character, answer);
+          state = await client().answerWalkthrough(state.session_id, character, [answer]);
         }
       }
       setWalk(state);
@@ -83,10 +85,21 @@ export default function Walkthrough() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replay]);
 
-  const send = async (call: () => Promise<WalkSessionState>) => {
+  const selected = new Map<string, string[]>(
+    (walk?.answers ?? []).map((a) => [a.character, a.states ?? []]),
+  );
+
+  const toggle = async (character: string, state: string) => {
+    if (walk === null) {
+      return;
+    }
+    const current = selected.get(character) ?? [];
+    const next = current.includes(state)
+      ? current.filter((s) => s !== state)
+      : [...current, state];
     setBusy(true);
     try {
-      setWalk(await call());
+      setWalk(await client().answerWalkthrough(walk.session_id, character, next));
     } catch {
       setMessage('The server did not answer. Please check the connection and try again.');
     } finally {
@@ -94,16 +107,14 @@ export default function Walkthrough() {
     }
   };
 
+  const anySelected = [...selected.values()].some((states) => states.length > 0);
   const wantCamera = camera === '1';
   const useCamera = wantCamera && Device.isDevice && permission?.granted === true;
-  const question = walk?.question;
 
   return (
     <View style={styles.screen}>
       <TopBar title="Mushrooms" back />
-      {useCamera && (
-        <CameraView style={styles.preview} mode="picture" facing="back" mute />
-      )}
+      {useCamera && <CameraView style={styles.preview} mode="picture" facing="back" mute />}
       {wantCamera && Device.isDevice && permission !== null && !permission.granted && (
         <Pressable style={styles.cameraAsk} onPress={() => void requestPermission()}>
           <Text style={typography.annotation}>
@@ -115,13 +126,19 @@ export default function Walkthrough() {
         {message !== null && <Text style={styles.helper}>{message}</Text>}
         {walk && (
           <>
-            <View style={styles.countRow}>
-              <Text style={typography.surfaceTitle}>
-                {walk.candidate_count} possible
+            {anySelected ? (
+              <View style={styles.countRow}>
+                <Text style={typography.surfaceTitle}>
+                  {walk.candidate_count} kinds match
+                </Text>
+                <Tag label={`${walk.danger_count} dangerous`} tone="red" />
+              </View>
+            ) : (
+              <Text style={typography.body}>
+                Select what you can see. The matches narrow with each feature.
               </Text>
-              <Tag label={`${walk.danger_count} to avoid`} tone="red" />
-            </View>
-            {walk.danger_species && walk.danger_species.length > 0 && (
+            )}
+            {anySelected && walk.danger_species && walk.danger_species.length > 0 && (
               <View style={styles.dangerCard}>
                 <Text style={styles.dangerTitle}>Still possible. Do not eat.</Text>
                 {walk.danger_species.map((card) => (
@@ -129,33 +146,31 @@ export default function Walkthrough() {
                 ))}
               </View>
             )}
-            {question && (
-              <View style={styles.questionCard}>
+            {walk.questions.map((question) => (
+              <View key={question.character} style={styles.questionCard}>
+                <MushroomDiagram character={question.character} />
                 <Text style={typography.surfaceTitle}>{question.question}</Text>
                 <View style={styles.stateWrap}>
-                  {question.states.map((state) => (
-                    <Pressable
-                      key={state}
-                      disabled={busy}
-                      style={styles.stateChip}
-                      onPress={() =>
-                        void send(() =>
-                          client().answerWalkthrough(
-                            walk.session_id,
-                            question.character,
-                            state,
-                          ),
-                        )
-                      }
-                    >
-                      <Text style={styles.stateChipText}>{state}</Text>
-                    </Pressable>
-                  ))}
+                  {question.states.map((state) => {
+                    const active = (selected.get(question.character) ?? []).includes(state);
+                    return (
+                      <Pressable
+                        key={state}
+                        disabled={busy}
+                        style={[styles.stateChip, active && styles.stateChipActive]}
+                        onPress={() => void toggle(question.character, state)}
+                      >
+                        <Text style={[styles.stateChipText, active && styles.stateChipTextActive]}>
+                          {state}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
                 <Text style={typography.annotation}>{question.citation}</Text>
               </View>
-            )}
-            {walk.complete && walk.candidates && (
+            ))}
+            {anySelected && walk.candidates && (
               <View style={styles.questionCard}>
                 <Text style={typography.surfaceTitle}>Matches from your answers</Text>
                 {walk.candidates.map((card) => (
@@ -164,28 +179,6 @@ export default function Walkthrough() {
               </View>
             )}
             <View style={styles.controlRow}>
-              {question && (
-                <Pressable
-                  disabled={busy}
-                  style={styles.secondaryButton}
-                  onPress={() =>
-                    void send(() =>
-                      client().answerWalkthrough(walk.session_id, question.character, null),
-                    )
-                  }
-                >
-                  <Text style={styles.secondaryButtonText}>Not sure, skip</Text>
-                </Pressable>
-              )}
-              {walk.answers.length > 0 && (
-                <Pressable
-                  disabled={busy}
-                  style={styles.secondaryButton}
-                  onPress={() => void send(() => client().undoWalkthrough(walk.session_id))}
-                >
-                  <Text style={styles.secondaryButtonText}>Back one step</Text>
-                </Pressable>
-              )}
               <Pressable disabled={busy} style={styles.secondaryButton} onPress={() => void start()}>
                 <Text style={styles.secondaryButtonText}>Start over</Text>
               </Pressable>
@@ -206,7 +199,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper,
   },
   preview: {
-    height: 220,
+    height: 200,
   },
   cameraAsk: {
     padding: spacing.m,
@@ -258,9 +251,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.card,
   },
+  stateChipActive: {
+    backgroundColor: colors.signature,
+    borderColor: colors.signature,
+  },
   stateChipText: {
     ...typography.listBody,
     color: colors.ink,
+  },
+  stateChipTextActive: {
+    color: colors.card,
   },
   controlRow: {
     flexDirection: 'row',

@@ -120,11 +120,11 @@ export class ApiClient {
   async answerWalkthrough(
     sessionId: string,
     character: string,
-    state: string | null,
+    states: string[],
   ): Promise<WalkSessionState> {
     return this.postJson<WalkSessionState>(
       `/v1/walkthrough/sessions/${sessionId}/answer`,
-      { character, state },
+      { character, states },
     );
   }
 

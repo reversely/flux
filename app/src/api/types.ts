@@ -117,12 +117,14 @@ export interface WalkQuestion {
 
 export interface WalkAnswer {
   character: string;
-  state: string | null;
+  state?: string | null;
+  states?: string[];
 }
 
 export interface WalkSessionState {
   session_id: string;
   answers: WalkAnswer[];
+  questions: WalkQuestion[];
   candidate_count: number;
   danger_count: number;
   danger_species?: WalkSpeciesCard[];
