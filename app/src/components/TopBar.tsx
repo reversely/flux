@@ -41,11 +41,14 @@ export function TopBar({
   title,
   back,
   dark,
+  traceButton = true,
   children,
 }: {
   title: string;
   back?: boolean;
   dark?: boolean;
+  /** The agent-trace tab rides every bar; its own screen opts out. */
+  traceButton?: boolean;
   children?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
@@ -73,7 +76,17 @@ export function TopBar({
       <Text style={[typography.surfaceTitle, styles.title, dark && { color: darkHome.ink }]}>
         {title}
       </Text>
-      <View style={styles.actions}>{children}</View>
+      <View style={styles.actions}>
+        {children}
+        {traceButton && (
+          <TopBarButton
+            icon="activity"
+            label="Agent traces"
+            color={dark ? darkHome.ink2 : colors.ink2}
+            onPress={() => router.push('/traces')}
+          />
+        )}
+      </View>
     </View>
   );
 }

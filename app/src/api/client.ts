@@ -1,5 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
+import { detailOf, traced } from '@/store/traces';
+
 import type {
   ChapterDetail,
   ChapterSummary,
@@ -37,15 +39,7 @@ export class ApiClient {
   }
 
   async chat(question: string): Promise<ChatAnswer> {
-    const response = await fetch(`${this.baseUrl}/v1/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question }),
-    });
-    if (!response.ok) {
-      throw new Error(`chat failed: ${response.status}`);
-    }
-    return (await response.json()) as ChatAnswer;
+    return this.postJson<ChatAnswer>('/v1/chat', { question });
   }
 
   async listChapters(): Promise<ChapterSummary[]> {
@@ -61,28 +55,22 @@ export class ApiClient {
   }
 
   private async getJson<T>(path: string): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`);
-    if (!response.ok) {
-      throw new Error(`${path} failed: ${response.status}`);
-    }
-    return (await response.json()) as T;
+    return traced('GET', path, '', async () => {
+      const response = await fetch(`${this.baseUrl}${path}`);
+      if (!response.ok) {
+        throw new Error(`${path} failed: ${response.status}`);
+      }
+      return (await response.json()) as T;
+    });
   }
 
   async createSession(): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/v1/sessions`, { method: 'POST' });
-    if (!response.ok) {
-      throw new Error(`create session failed: ${response.status}`);
-    }
-    const body = (await response.json()) as { session_id: string };
+    const body = await this.postJson<{ session_id: string }>('/v1/sessions');
     return body.session_id;
   }
 
   async getResults(sessionId: string): Promise<SessionResults> {
-    const response = await fetch(`${this.baseUrl}/v1/sessions/${sessionId}/results`);
-    if (!response.ok) {
-      throw new Error(`results failed: ${response.status}`);
-    }
-    return (await response.json()) as SessionResults;
+    return this.getJson<SessionResults>(`/v1/sessions/${sessionId}/results`);
   }
 
   // RN 0.86's fetch rejects the legacy {uri,name,type} FormData part, so the
@@ -93,21 +81,23 @@ export class ApiClient {
     capturedAt: string,
     mimeType: string = 'image/jpeg',
   ): Promise<FrameUploadResponse> {
-    const result = await FileSystem.uploadAsync(
-      `${this.baseUrl}/v1/sessions/${sessionId}/frames`,
-      fileUri,
-      {
-        httpMethod: 'POST',
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-        fieldName: 'frame',
-        mimeType,
-        parameters: { captured_at: capturedAt },
-      },
-    );
-    if (result.status !== 200) {
-      throw new Error(`upload failed: ${result.status}`);
-    }
-    return JSON.parse(result.body) as FrameUploadResponse;
+    return traced('POST', `/v1/sessions/${sessionId}/frames`, `frame ${mimeType}`, async () => {
+      const result = await FileSystem.uploadAsync(
+        `${this.baseUrl}/v1/sessions/${sessionId}/frames`,
+        fileUri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'frame',
+          mimeType,
+          parameters: { captured_at: capturedAt },
+        },
+      );
+      if (result.status !== 200) {
+        throw new Error(`upload failed: ${result.status}`);
+      }
+      return JSON.parse(result.body) as FrameUploadResponse;
+    });
   }
 
   frameUrl(sessionId: string, frameId: string): string {
@@ -146,31 +136,35 @@ export class ApiClient {
     fileUri: string,
     mimeType: string = 'video/quicktime',
   ): Promise<CoachClipResult> {
-    const result = await FileSystem.uploadAsync(
-      `${this.baseUrl}/v1/coach/sessions/${sessionId}/clip`,
-      fileUri,
-      {
-        httpMethod: 'POST',
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-        fieldName: 'video',
-        mimeType,
-      },
-    );
-    if (result.status !== 200) {
-      throw new Error(`coach clip failed: ${result.status}`);
-    }
-    return JSON.parse(result.body) as CoachClipResult;
+    return traced('POST', `/v1/coach/sessions/${sessionId}/clip`, `clip ${mimeType}`, async () => {
+      const result = await FileSystem.uploadAsync(
+        `${this.baseUrl}/v1/coach/sessions/${sessionId}/clip`,
+        fileUri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'video',
+          mimeType,
+        },
+      );
+      if (result.status !== 200) {
+        throw new Error(`coach clip failed: ${result.status}`);
+      }
+      return JSON.parse(result.body) as CoachClipResult;
+    });
   }
 
   private async postJson<T>(path: string, body?: unknown): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method: 'POST',
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+    return traced('POST', path, body === undefined ? '' : detailOf(body).slice(0, 200), async () => {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method: 'POST',
+        headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      if (!response.ok) {
+        throw new Error(`${path} failed: ${response.status}`);
+      }
+      return (await response.json()) as T;
     });
-    if (!response.ok) {
-      throw new Error(`${path} failed: ${response.status}`);
-    }
-    return (await response.json()) as T;
   }
 }
