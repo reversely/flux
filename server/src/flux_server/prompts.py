@@ -86,6 +86,19 @@ def trail_summary_prompt(sensor_id: str, transcript: str | None = None) -> str:
     return compose(BASE, CLIP_OBSERVER, spoken, task)
 
 
+def trail_ask_prompt(sensor_id: str, question: str) -> str:
+    # Trail answers follow the VSS-surface shape: the practical implication
+    # for the user first, then the observation that supports it.
+    task = (
+        f"Call the video_understanding tool on the video {sensor_id} and answer "
+        f"this question about the recorded trail: {question}. "
+        "Answer with the practical implication for the hiker first, in one or "
+        "two sentences, then the specific observation from the video that "
+        "supports it."
+    )
+    return compose(BASE, CLIP_OBSERVER, task)
+
+
 def chat_system_prompt(corpus_text: str) -> str:
     # /no_think leads the prompt: it switches Nemotron out of its
     # reasoning-trace mode, which would otherwise land in the answer text.

@@ -5,6 +5,7 @@ from flux_server.prompts import (
     CLIP_OBSERVER,
     chat_system_prompt,
     coach_step_prompt,
+    trail_ask_prompt,
     trail_summary_prompt,
 )
 
@@ -12,12 +13,19 @@ from flux_server.prompts import (
 def test_every_surface_carries_the_base_contract():
     coach = coach_step_prompt("bowline", ["make a loop"])
     trail = trail_summary_prompt("sensor-1")
+    ask = trail_ask_prompt("sensor-1", "was the creek crossable?")
     chat = chat_system_prompt("The guide is built on FM 21-76.")
-    for prompt in (coach, trail, chat):
+    for prompt in (coach, trail, ask, chat):
         assert BASE in prompt
-    assert CLIP_OBSERVER in coach
-    assert CLIP_OBSERVER in trail
+    for clip_prompt in (coach, trail, ask):
+        assert CLIP_OBSERVER in clip_prompt
     assert CLIP_OBSERVER not in chat  # chat reads the corpus, no clip
+
+
+def test_trail_ask_keeps_the_implication_first_shape():
+    prompt = trail_ask_prompt("sensor-1", "was the creek crossable?")
+    assert "was the creek crossable?" in prompt
+    assert "practical implication for the hiker first" in prompt
 
 
 def test_coach_task_keeps_the_benched_wording():

@@ -25,23 +25,13 @@ from typing import Literal, Protocol
 
 import httpx
 
-from flux_server.prompts import trail_summary_prompt
+from flux_server.prompts import trail_ask_prompt, trail_summary_prompt
 
 logger = logging.getLogger(__name__)
 
 SUMMARIZE_TIMEOUT_S = 600.0
 DELETE_ATTEMPTS = 3
 DELETE_RETRY_DELAY_S = 1.0
-
-# Trail answers follow the VSS-surface shape: the practical implication for
-# the user first, then the observation from the footage that supports it.
-ASK_PROMPT = (
-    "Call the video_understanding tool on the video {sensor_id} and answer "
-    "this question about the recorded trail: {question}. "
-    "Answer with the practical implication for the hiker first, in one or "
-    "two sentences, then the specific observation from the video that "
-    "supports it."
-)
 
 # Reports one video's ingest state ("summarizing", "done", "failed") while a
 # handoff runs, so the results route can show progress mid-finish.
@@ -189,11 +179,7 @@ class VSSHandoff:
             try:
                 response = self._client.post(
                     f"{self.base_url}/generate",
-                    json={
-                        "input_message": ASK_PROMPT.format(
-                            sensor_id=sensor_id, question=question
-                        )
-                    },
+                    json={"input_message": trail_ask_prompt(sensor_id, question)},
                 )
                 response.raise_for_status()
                 answers.append(answer_from_generate_value(response.json()["value"]))
