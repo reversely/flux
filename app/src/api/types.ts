@@ -94,3 +94,37 @@ export interface FrameUploadResponse {
   frame_id: string;
   results: RecordStub[];
 }
+
+export type WalkEdibility = 'edible' | 'inedible' | 'caution' | 'danger' | 'unknown';
+
+export interface WalkSpeciesCard {
+  species: string;
+  edibility: WalkEdibility;
+  edibility_raw: string;
+  source_title: string;
+  source_revid: string;
+}
+
+export interface WalkQuestion {
+  character: string;
+  ask_order: number;
+  question: string;
+  citation: string;
+  states: string[];
+}
+
+export interface WalkAnswer {
+  character: string;
+  state: string | null;
+}
+
+export interface WalkSessionState {
+  session_id: string;
+  answers: WalkAnswer[];
+  candidate_count: number;
+  danger_count: number;
+  danger_species?: WalkSpeciesCard[];
+  candidates?: WalkSpeciesCard[];
+  complete: boolean;
+  question?: WalkQuestion;
+}

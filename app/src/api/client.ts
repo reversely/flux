@@ -7,6 +7,7 @@ import type {
   FrameUploadResponse,
   SectionDetail,
   SessionResults,
+  WalkSessionState,
 } from './types';
 
 const HEALTH_TIMEOUT_MS = 4000;
@@ -108,5 +109,36 @@ export class ApiClient {
 
   frameUrl(sessionId: string, frameId: string): string {
     return `${this.baseUrl}/v1/sessions/${sessionId}/frames/${frameId}`;
+  }
+
+  async createWalkthrough(): Promise<WalkSessionState> {
+    return this.postJson<WalkSessionState>('/v1/walkthrough/sessions');
+  }
+
+  async answerWalkthrough(
+    sessionId: string,
+    character: string,
+    state: string | null,
+  ): Promise<WalkSessionState> {
+    return this.postJson<WalkSessionState>(
+      `/v1/walkthrough/sessions/${sessionId}/answer`,
+      { character, state },
+    );
+  }
+
+  async undoWalkthrough(sessionId: string): Promise<WalkSessionState> {
+    return this.postJson<WalkSessionState>(`/v1/walkthrough/sessions/${sessionId}/undo`);
+  }
+
+  private async postJson<T>(path: string, body?: unknown): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'POST',
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`${path} failed: ${response.status}`);
+    }
+    return (await response.json()) as T;
   }
 }
