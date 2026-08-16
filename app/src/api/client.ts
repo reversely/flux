@@ -170,6 +170,13 @@ export class ApiClient {
     });
   }
 
+  async interpretWalkthrough(sessionId: string, text: string): Promise<WalkObservation> {
+    return this.postJson<WalkObservation>(
+      `/v1/walkthrough/sessions/${sessionId}/interpret`,
+      { question: text },
+    );
+  }
+
   async readSky(fileUri: string, month: number): Promise<SkyOutlook> {
     const result = await FileSystem.uploadAsync(`${this.baseUrl}/v1/weather/read`, fileUri, {
       httpMethod: 'POST',

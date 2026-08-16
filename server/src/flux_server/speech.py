@@ -13,6 +13,7 @@ match must never advance a node.
 """
 
 import asyncio
+import json
 import os
 import re
 import time
@@ -182,6 +183,62 @@ CONTROL_PHRASES = {
 
 def normalize_utterance(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
+
+
+INTERPRET_PROMPT = (
+    "/no_think\n"
+    "A user answers one question about a specimen in their own words.\n"
+    "Question: {question}\n"
+    "Acceptable answers: {states}.\n"
+    'They said: "{text}"\n'
+    "Which acceptable answer did they mean? Map descriptions to the answer "
+    "they describe: thin blades or fins under a cap are gills, a sponge-like "
+    "underside is pores, a skirt on the stem is a ring. Only when nothing "
+    "fits at all, answer none. "
+    'Reply with JSON only: {{"state": "<acceptable answer or none>", '
+    '"echo": "<their meaning in five words or fewer>"}}'
+)
+
+
+def interpret_utterance(
+    text: str, question: str, states: list[str], nemotron_url: str
+) -> dict | None:
+    """Loose phrasing to a listed state via the box LLM (#80 follow-up).
+
+    The user's utterance is the decision; this call only resolves phrasing
+    ("they're kind of stuck to the stem" -> adnate). A miss returns None and
+    the walk stays put, so interpretation can never invent an answer.
+    """
+    prompt = INTERPRET_PROMPT.format(
+        question=question, states=", ".join(states), text=text[:200]
+    )
+    try:
+        response = httpx.post(
+            nemotron_url.rstrip("/") + "/chat/completions",
+            json={
+                "model": "nvidia/NVIDIA-Nemotron-Nano-9B-v2-FP8",
+                "temperature": 0,
+                "max_tokens": 120,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        reply = response.json()["choices"][0]["message"]["content"]
+    except (httpx.HTTPError, KeyError, IndexError):
+        return None
+    match = re.search(r"\{.*\}", reply, re.DOTALL)
+    if match is None:
+        return None
+    try:
+        parsed = json.loads(match.group(0))
+    except ValueError:
+        return None
+    state = str(parsed.get("state", "none")).strip().lower()
+    for candidate in states:
+        if normalize_utterance(candidate) == normalize_utterance(state):
+            return {"state": candidate, "echo": str(parsed.get("echo", ""))[:60]}
+    return None
 
 
 def map_utterance(text: str, states: list[str]) -> dict:

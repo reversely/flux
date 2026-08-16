@@ -74,7 +74,12 @@ from flux_server.models import (
 from flux_server.observe import ObserveClassifier, observer_from_env
 from flux_server.perception import PerceptionClient, perception_from_env
 from flux_server.retrieval import Retriever, retriever_from_env
-from flux_server.speech import SpeechService, map_utterance, speech_from_env
+from flux_server.speech import (
+    SpeechService,
+    interpret_utterance,
+    map_utterance,
+    speech_from_env,
+)
 from flux_server.storage import SessionStore, UnplayableVideoError
 from flux_server.vss import VideoHandoff, handoff_from_env
 from flux_server.walkthrough import WalkthroughStore, walkthrough_store_from_env
@@ -735,6 +740,42 @@ def create_app(
         meta = json.loads(meta_path.read_text())
         return FileResponse(
             narrations_dir / f"{narration_id}.audio", media_type=meta["media_type"]
+        )
+
+    @app.post(
+        "/v1/walkthrough/sessions/{session_id}/interpret",
+        response_model=WalkObservation,
+        response_model_exclude_none=True,
+    )
+    def interpret_walkthrough(session_id: str, request: ChatRequest) -> WalkObservation:
+        """Loose spoken phrasing resolves to the current node's states.
+
+        The app's exact gate already matched listed options; this route
+        handles everything else through the box LLM. A miss keeps the walk
+        unchanged, and the reply is a suggestion shaped like an observe
+        result so the same confirm affordance renders.
+        """
+        walk = require_walkthrough()
+        transcript = walk.transcript(session_id)
+        if transcript is None:
+            raise HTTPException(status_code=404, detail="unknown walkthrough session")
+        nemotron_url = os.environ.get("FLUX_NEMOTRON_URL")
+        if not nemotron_url:
+            raise HTTPException(status_code=503, detail="no language model configured")
+        question = walk.next_question(transcript)
+        if question is None:
+            raise HTTPException(status_code=409, detail="the walk is complete")
+        states = walk.states.get(question["character"], [])
+        mapped = interpret_utterance(
+            request.question, question["question"], states, nemotron_url
+        )
+        return WalkObservation(
+            character=question["character"],
+            cause="interpreting your answer",
+            state=mapped["state"] if mapped else None,
+            confidence=1.0 if mapped else 0.0,
+            observation=(mapped or {}).get("echo", ""),
+            citation=question["citation"],
         )
 
     @app.post(

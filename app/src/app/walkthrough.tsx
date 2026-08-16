@@ -89,7 +89,15 @@ export default function Walkthrough() {
       : [...current, state];
     setBusy(true);
     try {
-      setWalk(await client().answerWalkthrough(walk.session_id, character, next));
+      const updated = await client().answerWalkthrough(walk.session_id, character, next);
+      setWalk(updated);
+      if (wantCamera) {
+        void narration.speak(
+          `Marked ${next.length > 0 ? next.join(', ') : 'skipped'}. ` +
+            `${updated.candidate_count} match, ${updated.danger_count} dangerous.` +
+            (updated.question === undefined ? ' Every feature answered.' : ''),
+        );
+      }
     } catch {
       setMessage('The server did not answer. Please check the connection and try again.');
     } finally {
@@ -209,6 +217,18 @@ export default function Walkthrough() {
       setHeard(null);
       void narrate(current);
     } else {
+      setHeard(`"${text}" — checking`);
+      try {
+        const meant = await client().interpretWalkthrough(walk.session_id, text);
+        if (meant.state != null && meant.character === current.character) {
+          setHeard(null);
+          void narration.speak(`Heard ${meant.observation || meant.state}.`);
+          await toggle(current.character, meant.state);
+          return;
+        }
+      } catch {
+        // The interpreter needs the server; the exact gate already ran.
+      }
       setHeard(`"${text}" — say a listed option`);
     }
   };

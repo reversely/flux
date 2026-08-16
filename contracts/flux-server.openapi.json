@@ -1267,6 +1267,56 @@
         }
       }
     },
+    "/v1/walkthrough/sessions/{session_id}/interpret": {
+      "post": {
+        "summary": "Interpret Walkthrough",
+        "description": "Loose spoken phrasing resolves to the current node's states.\n\nThe app's exact gate already matched listed options; this route\nhandles everything else through the box LLM. A miss keeps the walk\nunchanged, and the reply is a suggestion shaped like an observe\nresult so the same confirm affordance renders.",
+        "operationId": "interpret_walkthrough_v1_walkthrough_sessions__session_id__interpret_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalkObservation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/walkthrough/sessions/{session_id}/utterance": {
       "post": {
         "summary": "Walkthrough Utterance",
