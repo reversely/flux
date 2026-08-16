@@ -61,7 +61,7 @@ ssh -S "$SOCK" "$BOX" '
     docker run -d --name nemotron-lightning --gpus all -p 30084:8000 \
       -v ~/flux-model/lightning:/model vllm/vllm-openai:latest \
       --model /model --served-model-name nemotron-3.5-lightning \
-      --gpu-memory-utilization 0.2 --max-model-len 8192 >/dev/null
+      --gpu-memory-utilization 0.19 --max-model-len 8192 --max-num-seqs 2 >/dev/null
     echo "  nemotron-lightning starting (first load takes a few minutes)"
   fi' 2>/dev/null || true
 LIGHTNING_ENV=()
