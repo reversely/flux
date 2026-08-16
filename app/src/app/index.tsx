@@ -29,6 +29,7 @@ import type { ChatQueueNote, ChatSource } from '@/api/types';
 import { AnswerText } from '@/components/AnswerText';
 import { HomeBackdrop } from '@/components/HomeBackdrop';
 import { TopBar, TopBarButton } from '@/components/TopBar';
+import { WidgetDirectory } from '@/components/WidgetDirectory';
 import { REFERENCE_TITLE } from '@/data/reference';
 import { launchTool } from '@/lib/launch';
 import { type ChatMessage, useChat } from '@/store/chat';
@@ -279,17 +280,29 @@ export default function ChatHome() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {messages.length === 0 ? (
-          <View style={styles.empty}>
-            <Animated.View entering={FadeInDown.duration(450)}>
-              <Text style={styles.wordmark}>LifeKit</Text>
+          <Animated.ScrollView
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            contentContainerStyle={styles.emptyScroll}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.empty}>
+              <Animated.View entering={FadeInDown.duration(450)}>
+                <Text style={styles.wordmark}>LifeKit</Text>
+              </Animated.View>
+              <Animated.View entering={FadeInDown.duration(450).delay(120)}>
+                <Text style={[typography.body, styles.tagline]}>your offline AI field guide to the world. </Text>
+              </Animated.View>
+              <Animated.View entering={FadeInDown.duration(450).delay(240)}>
+                <QuestionGallery onAsk={(question) => void send(question)} />
+              </Animated.View>
+            </View>
+            {/* The whole widget registry scrolls in under the chat face, so
+                every camera surface is reachable from the first screen. */}
+            <Animated.View entering={FadeInUp.duration(450).delay(360)}>
+              <WidgetDirectory />
             </Animated.View>
-            <Animated.View entering={FadeInDown.duration(450).delay(120)}>
-              <Text style={[typography.body, styles.tagline]}>your offline AI field guide to the world. </Text>
-            </Animated.View>
-            <Animated.View entering={FadeInDown.duration(450).delay(240)}>
-              <QuestionGallery onAsk={(question) => void send(question)} />
-            </Animated.View>
-          </View>
+          </Animated.ScrollView>
         ) : (
           <Animated.FlatList
             ref={listRef}
@@ -348,8 +361,12 @@ const styles = StyleSheet.create({
     padding: spacing.l,
     gap: spacing.m,
   },
+  emptyScroll: {
+    flexGrow: 1,
+  },
   empty: {
-    flex: 1,
+    minHeight: 420,
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.xxl,

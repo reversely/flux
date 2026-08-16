@@ -1,15 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-
-import type { WalkGuideCard } from '@/api/types';
 
 import { PageBackdrop } from '@/components/PageBackdrop';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
-import { PROCEDURES } from '@/data/coach';
+import { useVideoWidgets, type VideoWidgetKind } from '@/data/widgets';
 import { useSession } from '@/store/session';
 import { darkHome } from '@/theme/biome';
 import { dark } from '@/theme/dark';
@@ -52,108 +49,86 @@ function ModeCard({
  * never a bare recorder. Chat tool launches land here with prime/subject
  * params, which pass through to the trail recorder.
  */
-// The one guide every pack carries; shown while the guide list loads or
-// when the server is unreachable, so the walk entry never disappears.
-const FALLBACK_GUIDES: WalkGuideCard[] = [
-  {
-    id: 'fungi-edibility',
-    title: 'Mushrooms',
-    source: '',
-    species_count: 0,
-    danger_count: 0,
-  },
-];
+const KIND_ICON: Record<VideoWidgetKind, FeatherName> = {
+  walk: 'crosshair',
+  coach: 'target',
+  vss: 'cloud',
+  trail: 'film',
+};
+
+const GROUP_LINES: Record<VideoWidgetKind, string> = {
+  walk: 'One question at a time. The checklist decides, you confirm.',
+  coach: 'Camera watches. Steps advance as you work.',
+  vss: 'Short clip. Spoken interview while it reads.',
+  trail: 'Continuous clips to the server. Ask about them later.',
+};
 
 export default function CameraHub() {
   const { prime, subject } = useLocalSearchParams<{ prime?: string; subject?: string }>();
   const router = useRouter();
   const connection = useSession((s) => s.connection);
-  const client = useSession((s) => s.client);
-  const [guides, setGuides] = useState<WalkGuideCard[]>(FALLBACK_GUIDES);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const rows = await client().walkthroughGuides();
-        if (!cancelled && rows.length > 0) {
-          setGuides(rows);
-        }
-      } catch {
-        // The fallback entry stays; the walk screen reports the missing pack.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [client]);
+  const groups = useVideoWidgets();
 
   return (
     <View style={dark.screen}>
       <PageBackdrop />
       <TopBar title="Camera" back dark />
       <ScrollView contentContainerStyle={styles.list}>
-        <ModeCard icon="target" title="Coach" line="Camera watches. Steps advance as you work.">
-          <View style={styles.chipRow}>
-            {PROCEDURES.map((p) => (
-              <Pressable
-                key={p.id}
-                accessibilityRole="button"
-                accessibilityLabel={p.name}
-                onPress={() => router.push(`/coach/${p.id}`)}
-                style={({ pressed }) => [dark.chip, pressed && styles.chipPressed]}
-              >
-                <Text style={dark.chipText}>{p.name}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </ModeCard>
-        <ModeCard
-          icon="crosshair"
-          title="Identify"
-          line="One question at a time. The checklist decides, you confirm."
-        >
-          <View style={styles.chipRow}>
-            {guides.map((g) => (
-              <Pressable
-                key={g.id}
-                accessibilityRole="button"
-                accessibilityLabel={g.title}
+        {/* Every card renders from the widget registry, so this hub and the
+            home directory always list the same surfaces. */}
+        {groups.map((group) => {
+          const [first] = group.widgets;
+          if (group.widgets.length === 1 && first !== undefined) {
+            return (
+              <ModeCard
+                key={group.kind}
+                icon={KIND_ICON[group.kind]}
+                title={first.title}
+                line={first.line}
                 onPress={() =>
-                  router.push({ pathname: '/walkthrough', params: { guide: g.id } })
+                  router.push({
+                    pathname: first.route.pathname as never,
+                    params:
+                      group.kind === 'trail'
+                        ? { prime: prime ?? '', subject: subject ?? '' }
+                        : (first.route.params ?? {}),
+                  })
                 }
-                style={({ pressed }) => [dark.chip, pressed && styles.chipPressed]}
               >
-                <Text style={dark.chipText}>{g.title}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </ModeCard>
-        <ModeCard
-          icon="cloud"
-          title="Read the sky"
-          line="What the weather will do next."
-          onPress={() => router.push('/vss/weather')}
-        />
-        <ModeCard
-          icon="compass"
-          title="Find direction"
-          line="A bearing from the stars or a shadow."
-          onPress={() => router.push('/vss/celestial')}
-        />
-        <ModeCard
-          icon="film"
-          title="Record trail"
-          line="Continuous clips to the server. Ask about them later."
-          onPress={() =>
-            router.push({
-              pathname: '/capture/trail',
-              params: { prime: prime ?? '', subject: subject ?? '' },
-            })
+                {group.kind === 'trail' && connection !== 'connected' && (
+                  <Tag label="Needs a server connection" tone="yellow" />
+                )}
+              </ModeCard>
+            );
           }
-        >
-          {connection !== 'connected' && <Tag label="Needs a server connection" tone="yellow" />}
-        </ModeCard>
+          return (
+            <ModeCard
+              key={group.kind}
+              icon={KIND_ICON[group.kind]}
+              title={group.title}
+              line={GROUP_LINES[group.kind]}
+            >
+              <View style={styles.chipRow}>
+                {group.widgets.map((widget) => (
+                  <Pressable
+                    key={widget.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={widget.title}
+                    onPress={() =>
+                      router.push({
+                        pathname: widget.route.pathname as never,
+                        params: widget.route.params ?? {},
+                      })
+                    }
+                    style={({ pressed }) => [dark.chip, pressed && styles.chipPressed]}
+                  >
+                    <Text style={dark.chipText}>{widget.title}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ModeCard>
+          );
+        })}
       </ScrollView>
     </View>
   );
