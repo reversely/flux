@@ -53,6 +53,7 @@ from flux_server.models import (
     FrameUploadResponse,
     FunctionalityList,
     FunctionalityMode,
+    GraphWindow,
     IdentificationRecord,
     InferenceTrace,
     IngestEntry,
@@ -91,6 +92,7 @@ from flux_server.speech import (
     speech_from_env,
 )
 from flux_server.storage import SessionStore, UnplayableVideoError
+from flux_server.trails import TrailStore, WindowTooLargeError, trail_store_from_env
 from flux_server.vss import VideoHandoff, handoff_from_env
 from flux_server.walkthrough import (
     DEFAULT_GUIDE_ID,
@@ -120,6 +122,7 @@ def create_app(
     perception: PerceptionClient | None = None,
     walk_observer: ObserveClassifier | None | object = _FROM_ENV,
     features: FeatureStore | None | object = _FROM_ENV,
+    trails: TrailStore | None | object = _FROM_ENV,
     sky_reader: SkyReader | None | object = _FROM_ENV,
 ) -> FastAPI:
     """Build the app around one on-disk session store and one retriever."""
@@ -165,6 +168,10 @@ def create_app(
         )
     if features is _FROM_ENV:
         features = feature_store_from_env()
+    if trails is _FROM_ENV:
+        trails = trail_store_from_env()
+    if trails is _FROM_ENV:
+        trails = trail_store_from_env()
     coach_store = CoachStore(data_dir / "coach")
     app = FastAPI(title="flux stub inference server")
     app.add_middleware(
@@ -221,6 +228,25 @@ def create_app(
             ],
             attribution=features.meta.get("attribution", ""),
         )
+
+    # A route corridor from the #148 graph (#229) for the in-app router
+    # (#149); 503 without the artifact, 413 over the edge cap.
+    @app.get("/v1/graph/window", response_model=GraphWindow)
+    def graph_window(
+        min_lat: float = Query(ge=-90, le=90),
+        max_lat: float = Query(ge=-90, le=90),
+        min_lon: float = Query(ge=-180, le=180),
+        max_lon: float = Query(ge=-180, le=180),
+    ) -> GraphWindow:
+        if trails is None or trails is _FROM_ENV:
+            raise HTTPException(status_code=503, detail="no trail graph installed")
+        try:
+            return GraphWindow(**trails.window(min_lat, max_lat, min_lon, max_lon))
+        except WindowTooLargeError as error:
+            raise HTTPException(
+                status_code=413,
+                detail=f"window holds {error} edges; shrink the box",
+            ) from error
 
     def require_content() -> ContentStore:
         if content is None or content is _FROM_ENV:

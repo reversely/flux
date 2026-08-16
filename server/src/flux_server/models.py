@@ -245,6 +245,16 @@ class NearestFeatures(BaseModel):
     attribution: str
 
 
+class GraphWindow(BaseModel):
+    """A route corridor for the in-app router (#229): nodes as
+    [id, lat, lon], edges as [a, b, distance_m], compact because a
+    corridor carries thousands of rows."""
+
+    nodes: list[list[float]]
+    edges: list[list[int]]
+    attribution: str
+
+
 class ResearchTopic(BaseModel):
     """One research-queue entry (#193); question absent on seeded topics."""
 
