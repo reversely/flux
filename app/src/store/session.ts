@@ -34,8 +34,10 @@ interface SessionState {
 // The simulator shares the Mac's network stack, so the stub is on localhost.
 const SIMULATOR_DEFAULT_URL = Device.isDevice ? '' : 'http://localhost:8000';
 
+// Settings exists only on iOS; on Android, web, and the router's node
+// prerender it is undefined, and this module loads during prerender (#156).
 const storedUrl = (): string =>
-  (Settings.get(SERVER_URL_KEY) as string | undefined) ?? SIMULATOR_DEFAULT_URL;
+  (Settings?.get?.(SERVER_URL_KEY) as string | undefined) ?? SIMULATOR_DEFAULT_URL;
 
 // The queue is plumbing, not render state, so it lives outside the store and
 // keeps draining after the capture screen unmounts.
@@ -48,7 +50,7 @@ export const useSession = create<SessionState>((set, get) => ({
   captureSessionId: null,
   clips: [],
   setServerUrl: (url) => {
-    Settings.set({ [SERVER_URL_KEY]: url });
+    Settings?.set?.({ [SERVER_URL_KEY]: url });
     set({ serverUrl: url, connection: 'idle' });
   },
   connect: async () => {
