@@ -187,6 +187,9 @@ class WalkAnswer(BaseModel):
 
 class WalkSpeciesDetail(WalkSpeciesCard):
     traits: dict[str, list[str]]
+    image: bool = False
+    image_artist: str | None = None
+    image_license: str | None = None
 
 
 class WalkSessionState(BaseModel):

@@ -10,6 +10,7 @@ subset of the surviving candidates is computed on every step, never only at
 the end.
 """
 
+import csv
 import json
 import sqlite3
 import threading
@@ -35,8 +36,21 @@ def entry_states(entry: dict) -> set[str]:
 class WalkthroughStore:
     """In-memory mirror of the walk_ tables plus on-disk session transcripts."""
 
-    def __init__(self, db_path: Path, sessions_dir: Path) -> None:
+    def __init__(
+        self, db_path: Path, sessions_dir: Path, images_dir: Path | None = None
+    ) -> None:
         self._sessions_dir = sessions_dir
+        self.images_dir = images_dir
+        # species -> {artist, license}; empty without an images directory.
+        self.image_meta: dict[str, dict[str, str]] = {}
+        manifest = images_dir / "manifest.tsv" if images_dir else None
+        if manifest is not None and manifest.exists():
+            with manifest.open(newline="") as f:
+                for row in csv.DictReader(f, delimiter="\t"):
+                    self.image_meta[row["species"]] = {
+                        "artist": row["artist"],
+                        "license": row["license"],
+                    }
         self._sessions_dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
@@ -117,6 +131,12 @@ class WalkthroughStore:
             )
         ]
 
+    def image_path(self, species: str) -> Path | None:
+        if self.images_dir is None:
+            return None
+        path = self.images_dir / "images" / f"{species.replace(' ', '_')}.jpg"
+        return path if path.exists() else None
+
     def catalog(self) -> list[dict]:
         """Every species card with its trait states, for the static browser."""
         return [
@@ -126,6 +146,9 @@ class WalkthroughStore:
                     character: sorted(states)
                     for character, states in self.traits.get(name, {}).items()
                 },
+                "image": name in self.image_meta,
+                "image_artist": self.image_meta.get(name, {}).get("artist"),
+                "image_license": self.image_meta.get(name, {}).get("license"),
             }
             for name, card in sorted(self.species.items())
         ]
@@ -175,7 +198,12 @@ def walkthrough_store_from_env(data_dir: Path) -> "WalkthroughStore | None":
     db_path = os.environ.get("FLUX_CONTENT_DB")
     if not db_path:
         return None
+    images = os.environ.get("FLUX_SPECIES_IMAGES")
     try:
-        return WalkthroughStore(Path(db_path), data_dir / "walkthroughs")
+        return WalkthroughStore(
+            Path(db_path),
+            data_dir / "walkthroughs",
+            Path(images) if images else None,
+        )
     except sqlite3.OperationalError:
         return None

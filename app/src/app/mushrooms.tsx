@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, SectionList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, SectionList, StyleSheet, Text, View } from 'react-native';
 
 import type { WalkEdibility, WalkSpeciesDetail } from '@/api/types';
 import { Tag, type TagTone } from '@/components/Tag';
@@ -146,11 +146,22 @@ export default function Mushrooms() {
           )}
           renderItem={({ item }) => (
             <View style={styles.row}>
+              {item.image && (
+                <Image
+                  source={{ uri: client().speciesImageUrl(item.species) }}
+                  style={styles.thumb}
+                />
+              )}
               <View style={styles.rowText}>
                 <Text style={typography.listBody}>{item.species}</Text>
                 {traitSummary(item) !== '' && (
                   <Text style={typography.annotation}>{traitSummary(item)}</Text>
                 )}
+                {item.image && item.image_artist ? (
+                  <Text style={typography.annotation}>
+                    {`commons.wikimedia.org · ${item.image_artist} · ${item.image_license ?? ''}`}
+                  </Text>
+                ) : null}
               </View>
               <Tag label={item.edibility} tone={edibilityTone[item.edibility]} />
             </View>
@@ -194,8 +205,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.s,
   },
   rowText: {
-    flexShrink: 1,
+    flex: 1,
     gap: 2,
+  },
+  thumb: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.control,
+    backgroundColor: colors.line,
   },
   dangerLine: {
     ...typography.body,

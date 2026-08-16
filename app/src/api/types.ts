@@ -154,4 +154,7 @@ export interface CoachClipResult {
 
 export interface WalkSpeciesDetail extends WalkSpeciesCard {
   traits: Record<string, string[]>;
+  image: boolean;
+  image_artist: string | null;
+  image_license: string | null;
 }

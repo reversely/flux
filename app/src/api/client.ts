@@ -123,6 +123,10 @@ export class ApiClient {
     return this.getJson<WalkSpeciesDetail[]>('/v1/walkthrough/species');
   }
 
+  speciesImageUrl(species: string): string {
+    return `${this.baseUrl}/v1/walkthrough/images/${encodeURIComponent(species)}`;
+  }
+
   async undoWalkthrough(sessionId: string): Promise<WalkSessionState> {
     return this.postJson<WalkSessionState>(`/v1/walkthrough/sessions/${sessionId}/undo`);
   }

@@ -349,6 +349,13 @@ def create_app(
     def walkthrough_species() -> list[WalkSpeciesDetail]:
         return [WalkSpeciesDetail(**row) for row in require_walkthrough().catalog()]
 
+    @app.get("/v1/walkthrough/images/{species}")
+    def walkthrough_image(species: str) -> FileResponse:
+        path = require_walkthrough().image_path(species)
+        if path is None:
+            raise HTTPException(status_code=404, detail="no image for this species")
+        return FileResponse(path, media_type="image/jpeg")
+
     def coach_state(session_id: str, session: dict) -> CoachSessionState:
         knot = KNOTS[session["knot"]]
         return CoachSessionState(

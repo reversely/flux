@@ -739,6 +739,43 @@
         }
       }
     },
+    "/v1/walkthrough/images/{species}": {
+      "get": {
+        "summary": "Walkthrough Image",
+        "operationId": "walkthrough_image_v1_walkthrough_images__species__get",
+        "parameters": [
+          {
+            "name": "species",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Species"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/coach/sessions": {
       "post": {
         "summary": "Create Coach Session",
@@ -2025,6 +2062,33 @@
             },
             "type": "object",
             "title": "Traits"
+          },
+          "image": {
+            "type": "boolean",
+            "title": "Image",
+            "default": false
+          },
+          "image_artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Artist"
+          },
+          "image_license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image License"
           }
         },
         "type": "object",
