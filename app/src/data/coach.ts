@@ -179,7 +179,7 @@ export const PROCEDURES: Procedure[] = [
     id: 'palomar',
     watchable: true,
     name: 'Palomar knot',
-    tileId: 5,
+    tileId: 8,
     reference: require('../../assets/coach/palomar.jpg'),
     attribution: {
       source: 'commons.wikimedia.org/…/PalomarKnotSequence.jpg',

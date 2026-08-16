@@ -131,7 +131,11 @@ export default function KnotCoach() {
 
   const showCamera = Device.isDevice && permission?.granted === true;
   const active = knot.steps[step];
-  const figure = active.figure ?? knot.reference;
+  // A procedure with per-step figures shows only real ones: repeating the
+  // finished-knot reference on early steps misleads. Procedures with a
+  // single reference (no step figures anywhere) keep it on every step.
+  const hasStepFigures = knot.steps.some((s) => s.figure !== undefined);
+  const figure = active.figure ?? (hasStepFigures ? undefined : knot.reference);
 
   return (
     <View style={styles.screen}>
@@ -198,9 +202,11 @@ export default function KnotCoach() {
           <Feather name={voiceOn ? 'volume-2' : 'volume-x'} size={16} color={voiceOn ? HOME_BIOME.glow : darkHome.ink3} />
         </Pressable>
       </View>
-      <View style={[styles.referenceWrap, { top: insets.top + 64 }]} pointerEvents="none">
-        <Image source={figure} style={styles.reference} contentFit="contain" />
-      </View>
+      {figure !== undefined && (
+        <View style={[styles.referenceWrap, { top: insets.top + 64 }]} pointerEvents="none">
+          <Image source={figure} style={styles.reference} contentFit="contain" />
+        </View>
+      )}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.m }]}>
         <Text style={styles.fragment}>{active.screen}</Text>
         {active.manual !== undefined && (
