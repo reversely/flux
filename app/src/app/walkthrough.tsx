@@ -83,6 +83,11 @@ export default function Walkthrough() {
   const [message, setMessage] = useState<string | null>(null);
   const [showScope, setShowScope] = useState(true);
   const [reviewing, setReviewing] = useState(false);
+  // Camera mode keeps the frame clear: the survey collapses to one line
+  // while a suggestion asks for confirmation, and the reference diagram
+  // stays a thumbnail unless tapped.
+  const [surveyCollapsed, setSurveyCollapsed] = useState(false);
+  const [figureLarge, setFigureLarge] = useState(false);
 
   const start = async () => {
     setMessage(null);
@@ -202,6 +207,13 @@ export default function Walkthrough() {
   // mirror render state for the loop, which outlives any one render.
   const walkRef = useRef<WalkSessionState | null>(null);
   const currentRef = useRef<WalkQuestion | undefined>(undefined);
+  useEffect(() => {
+    if (useCamera) {
+      setSurveyCollapsed(suggestion !== null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestion]);
+
   const suggestionRef = useRef<WalkObservation | null>(null);
   const lastSpokenRef = useRef<{ kind: string; at: number }>({ kind: '', at: 0 });
   walkRef.current = walk;
@@ -508,13 +520,18 @@ export default function Walkthrough() {
       {/* The node's reference figure sits beside the feed, so the user
           compares the specimen against the drawing in place. */}
       {walk && current !== undefined && !reviewing && NODE_FIGURES[current.character] && (
-        <View style={styles.figureCard}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={figureLarge ? 'Shrink the diagram' : 'Enlarge the diagram'}
+          onPress={() => setFigureLarge((v) => !v)}
+          style={[styles.figureCard, useCamera && !figureLarge && styles.figureCardThumb]}
+        >
           <Image
             source={NODE_FIGURES[current.character]}
-            style={styles.figureImage}
+            style={useCamera && !figureLarge ? styles.figureImageThumb : styles.figureImage}
             resizeMode="contain"
           />
-        </View>
+        </Pressable>
       )}
 
       {/* The camera-check status banner: filming, then the model reading,
@@ -643,9 +660,37 @@ export default function Walkthrough() {
       <View style={[styles.dock, useCamera && styles.dockOverCamera]}>
         {message !== null && <Text style={styles.helper}>{message}</Text>}
 
-        {walk && current !== undefined && !reviewing && (
+        {walk && current !== undefined && !reviewing && surveyCollapsed && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Expand the survey"
+            onPress={() => setSurveyCollapsed(false)}
+            style={[styles.nodeCard, styles.nodeCardCollapsed]}
+          >
+            <Text style={[typography.surfaceTitle, styles.collapsedQuestion]} numberOfLines={1}>
+              {current.question}
+            </Text>
+            <Feather name="chevron-up" size={18} color={colors.ink2} />
+          </Pressable>
+        )}
+
+        {walk && current !== undefined && !reviewing && !surveyCollapsed && (
           <View style={styles.nodeCard}>
-            <Text style={typography.surfaceTitle}>{current.question}</Text>
+            <View style={styles.nodeHeader}>
+              <Text style={[typography.surfaceTitle, styles.nodeQuestion]}>
+                {current.question}
+              </Text>
+              {useCamera && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Collapse the survey"
+                  onPress={() => setSurveyCollapsed(true)}
+                  hitSlop={8}
+                >
+                  <Feather name="chevron-down" size={18} color={colors.ink2} />
+                </Pressable>
+              )}
+            </View>
             {stateChips(current)}
             <Text style={typography.annotation}>{current.citation}</Text>
             {useCamera && current.capture_condition != null && (
@@ -835,6 +880,32 @@ const styles = StyleSheet.create({
   figureImage: {
     width: 150,
     height: 180,
+  },
+  // Camera mode: a corner thumbnail; the frame's center stays the
+  // user's workspace. Tap trades sizes.
+  figureCardThumb: {
+    padding: spacing.xs,
+    opacity: 0.9,
+  },
+  figureImageThumb: {
+    width: 76,
+    height: 92,
+  },
+  nodeHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.s,
+  },
+  nodeQuestion: {
+    flex: 1,
+  },
+  nodeCardCollapsed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+  },
+  collapsedQuestion: {
+    flex: 1,
   },
   resultList: {
     maxHeight: 260,
