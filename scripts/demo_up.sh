@@ -48,6 +48,28 @@ else
   echo "  adapter not serving: tourniquet coach stays on the base model"
 fi
 
+echo "== lightning chat option"
+# Nemotron 3.5 Lightning (NVFP4 DSpark build) serves from the vLLM
+# container when the downloaded model exists; the chat option registers
+# only on a healthy probe, so chat runs unchanged without it (#237/#238).
+ssh -S "$SOCK" "$BOX" '
+  if [ -f ~/flux-model/lightning/model.safetensors ] && \
+      ! docker ps --format "{{.Names}}" | grep -q "^nemotron-lightning$"; then
+    docker rm nemotron-lightning >/dev/null 2>&1
+    docker run -d --name nemotron-lightning --gpus all -p 30084:8000 \
+      -v ~/flux-model/lightning:/model vllm/vllm-openai:latest \
+      --model /model --served-model-name nemotron-3.5-lightning \
+      --gpu-memory-utilization 0.2 --max-model-len 8192 >/dev/null
+    echo "  nemotron-lightning starting (first load takes a few minutes)"
+  fi' 2>/dev/null || true
+LIGHTNING_ENV=()
+if curl -s -m 5 http://localhost:30084/v1/models | grep -q nemotron-3.5-lightning; then
+  LIGHTNING_ENV=(FLUX_CHAT_OPTION_LIGHTNING="http://localhost:30084/v1|nemotron-3.5-lightning")
+  echo "  lightning healthy: chat option registered"
+else
+  echo "  lightning not serving: chat stays on the default model"
+fi
+
 echo "== pack"
 cd "$REPO"
 if [ ! -f data/demo/content.db ]; then
@@ -71,7 +93,7 @@ FLUX_COSMOS_URL="http://localhost:30082" \
 VSS_BASE_URL="http://localhost:18000" \
 FLUX_PERCEPTION_URL="http://localhost:18100" \
 FLUX_SPEECH_URL="http://localhost:18110" \
-nohup env ${T3_ENV[@]:+"${T3_ENV[@]}"} \
+nohup env ${T3_ENV[@]:+"${T3_ENV[@]}"} ${LIGHTNING_ENV[@]:+"${LIGHTNING_ENV[@]}"} \
   uv run flux-server --host 0.0.0.0 --port 8000 > /tmp/flux-server.log 2>&1 &
 sleep 6
 
