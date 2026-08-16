@@ -940,6 +940,171 @@
           }
         }
       }
+    },
+    "/v1/speech/transcriptions": {
+      "post": {
+        "summary": "Transcribe Utterance",
+        "description": "One utterance to text on the box; plain STT with its trace.",
+        "operationId": "transcribe_utterance_v1_speech_transcriptions_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_utterance_v1_speech_transcriptions_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptionResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speech/narrations": {
+      "post": {
+        "summary": "Create Narration",
+        "description": "Synthesize narration on the box. The id is content-addressed, so\na repeated node question replays the cached audio without a second\nsynthesis; the stored trace reports the original one.",
+        "operationId": "create_narration_v1_speech_narrations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationCreated"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speech/narrations/{narration_id}": {
+      "get": {
+        "summary": "Get Narration",
+        "operationId": "get_narration_v1_speech_narrations__narration_id__get",
+        "parameters": [
+          {
+            "name": "narration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Narration Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/walkthrough/sessions/{session_id}/utterance": {
+      "post": {
+        "summary": "Walkthrough Utterance",
+        "description": "A spoken answer for the current node. Exact matches only: an\nunrecognized utterance comes back as ask_again and changes nothing,\nso a garbled transcript can never advance the walk (#80).",
+        "operationId": "walkthrough_utterance_v1_walkthrough_sessions__session_id__utterance_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_walkthrough_utterance_v1_walkthrough_sessions__session_id__utterance_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalkUtteranceResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1061,6 +1226,25 @@
         ],
         "title": "Body_coach_clip_v1_coach_sessions__session_id__clip_post"
       },
+      "Body_transcribe_utterance_v1_speech_transcriptions_post": {
+        "properties": {
+          "audio": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Audio"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine",
+            "default": "parakeet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "audio"
+        ],
+        "title": "Body_transcribe_utterance_v1_speech_transcriptions_post"
+      },
       "Body_upload_frame_v1_sessions__session_id__frames_post": {
         "properties": {
           "frame": {
@@ -1098,6 +1282,25 @@
           "captured_at"
         ],
         "title": "Body_upload_video_v1_sessions__session_id__videos_post"
+      },
+      "Body_walkthrough_utterance_v1_walkthrough_sessions__session_id__utterance_post": {
+        "properties": {
+          "audio": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Audio"
+          },
+          "engine": {
+            "type": "string",
+            "title": "Engine",
+            "default": "parakeet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "audio"
+        ],
+        "title": "Body_walkthrough_utterance_v1_walkthrough_sessions__session_id__utterance_post"
       },
       "ChapterDetail": {
         "properties": {
@@ -1511,6 +1714,64 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "NarrationCreated": {
+        "properties": {
+          "narration_id": {
+            "type": "string",
+            "title": "Narration Id"
+          },
+          "audio_url": {
+            "type": "string",
+            "title": "Audio Url"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "voice": {
+            "type": "string",
+            "title": "Voice"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/SpeechTrace"
+          }
+        },
+        "type": "object",
+        "required": [
+          "narration_id",
+          "audio_url",
+          "media_type",
+          "voice",
+          "trace"
+        ],
+        "title": "NarrationCreated",
+        "description": "A synthesized narration, fetchable at audio_url until server restart."
+      },
+      "NarrationRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "NarrationRequest",
+        "description": "Text to synthesize; voice picks a Kokoro voice, absent for default."
+      },
       "RecordStub": {
         "properties": {
           "record_id": {
@@ -1772,6 +2033,48 @@
           "records"
         ],
         "title": "SessionResults"
+      },
+      "SpeechTrace": {
+        "properties": {
+          "engine": {
+            "type": "string",
+            "title": "Engine"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "title": "Latency Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "engine",
+          "model",
+          "latency_ms"
+        ],
+        "title": "SpeechTrace",
+        "description": "Where a speech inference ran; shown raw in the app's traces tab."
+      },
+      "TranscriptionResult": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/SpeechTrace"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "trace"
+        ],
+        "title": "TranscriptionResult",
+        "description": "One utterance transcribed on the box."
       },
       "ValidationError": {
         "properties": {
@@ -2101,6 +2404,62 @@
           "traits"
         ],
         "title": "WalkSpeciesDetail"
+      },
+      "WalkUtteranceResult": {
+        "properties": {
+          "transcript": {
+            "type": "string",
+            "title": "Transcript"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "answer",
+              "skip",
+              "undo",
+              "repeat",
+              "ask_again"
+            ],
+            "title": "Action"
+          },
+          "character": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Character"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/SpeechTrace"
+          },
+          "walk": {
+            "$ref": "#/components/schemas/WalkSessionState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transcript",
+          "action",
+          "trace",
+          "walk"
+        ],
+        "title": "WalkUtteranceResult",
+        "description": "A spoken walk answer: the transcript, what it mapped to, and the\nsession after applying it. ask_again means nothing matched exactly and\nthe node did not advance."
       }
     }
   }

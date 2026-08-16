@@ -5,10 +5,21 @@ on POST /sessions/{id}/finish (PRD 3.4) and the summary comes back through
 the results route. The routes and models.py are the contract with the app.
 """
 
+import asyncio
+import hashlib
+import json
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Form, HTTPException, Query, UploadFile
+import httpx
+from fastapi import (
+    FastAPI,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    WebSocket,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -38,18 +49,24 @@ from flux_server.models import (
     FrameUploadResponse,
     FunctionalityList,
     FunctionalityMode,
+    NarrationCreated,
+    NarrationRequest,
     SearchResults,
     SectionDetail,
     SessionCreated,
     SessionCreateRequest,
     SessionFinished,
     SessionResults,
+    SpeechTrace,
+    TranscriptionResult,
     VideoUploadResponse,
     WalkAnswer,
     WalkSessionState,
     WalkSpeciesDetail,
+    WalkUtteranceResult,
 )
 from flux_server.retrieval import Retriever, retriever_from_env
+from flux_server.speech import SpeechService, map_utterance, speech_from_env
 from flux_server.storage import SessionStore, UnplayableVideoError
 from flux_server.vss import VideoHandoff, handoff_from_env
 from flux_server.walkthrough import WalkthroughStore, walkthrough_store_from_env
@@ -69,6 +86,7 @@ def create_app(
     tile_archive: Path | None | object = _FROM_ENV,
     walkthrough: WalkthroughStore | None | object = _FROM_ENV,
     coach_classifier: StepClassifier | None | object = _FROM_ENV,
+    speech: SpeechService | None | object = _FROM_ENV,
 ) -> FastAPI:
     """Build the app around one on-disk session store and one retriever."""
     if data_dir is None:
@@ -87,6 +105,8 @@ def create_app(
         walkthrough = walkthrough_store_from_env(data_dir)
     if coach_classifier is _FROM_ENV:
         coach_classifier = classifier_from_env()
+    if speech is _FROM_ENV:
+        speech = speech_from_env()
     coach_store = CoachStore(data_dir / "coach")
     app = FastAPI(title="flux stub inference server")
     app.add_middleware(
@@ -415,6 +435,179 @@ def create_app(
             raise HTTPException(status_code=404, detail="unknown walkthrough session")
         walk.undo(session_id)
         return walk_state(walk, session_id)
+
+    def require_speech() -> SpeechService:
+        if speech is None or speech is _FROM_ENV:
+            raise HTTPException(status_code=503, detail="speech backend not configured")
+        return speech  # type: ignore[return-value]
+
+    def speech_trace(engine: str, model: str, latency_ms: int) -> SpeechTrace:
+        return SpeechTrace(engine=engine, model=model, latency_ms=latency_ms)
+
+    narrations_dir = data_dir / "narrations"
+
+    @app.post("/v1/speech/transcriptions", response_model=TranscriptionResult)
+    async def transcribe_utterance(
+        audio: UploadFile, engine: str = Form("parakeet")
+    ) -> TranscriptionResult:
+        """One utterance to text on the box; plain STT with its trace."""
+        relay = require_speech()
+        data = await audio.read()
+        try:
+            heard = await asyncio.to_thread(relay.transcribe, data, engine)
+        except httpx.HTTPError as error:
+            raise HTTPException(
+                status_code=502, detail="speech backend unreachable"
+            ) from error
+        return TranscriptionResult(
+            text=heard.text,
+            trace=speech_trace(heard.engine, heard.model, heard.latency_ms),
+        )
+
+    @app.post("/v1/speech/narrations", response_model=NarrationCreated)
+    async def create_narration(request: NarrationRequest) -> NarrationCreated:
+        """Synthesize narration on the box. The id is content-addressed, so
+        a repeated node question replays the cached audio without a second
+        synthesis; the stored trace reports the original one."""
+        relay = require_speech()
+        narration_id = hashlib.sha1(
+            f"{request.voice or ''}\n{request.text}".encode()
+        ).hexdigest()[:16]
+        meta_path = narrations_dir / f"{narration_id}.json"
+        if not meta_path.exists():
+            try:
+                spoken = await asyncio.to_thread(
+                    relay.synthesize, request.text, request.voice
+                )
+            except httpx.HTTPError as error:
+                raise HTTPException(
+                    status_code=502, detail="speech backend unreachable"
+                ) from error
+            narrations_dir.mkdir(parents=True, exist_ok=True)
+            (narrations_dir / f"{narration_id}.audio").write_bytes(spoken.audio)
+            meta_path.write_text(
+                json.dumps(
+                    {
+                        "media_type": spoken.media_type,
+                        "voice": spoken.voice,
+                        "model": spoken.model,
+                        "latency_ms": spoken.latency_ms,
+                    }
+                )
+            )
+        meta = json.loads(meta_path.read_text())
+        return NarrationCreated(
+            narration_id=narration_id,
+            audio_url=f"/v1/speech/narrations/{narration_id}",
+            media_type=meta["media_type"],
+            voice=meta["voice"],
+            trace=speech_trace("kokoro", meta["model"], meta["latency_ms"]),
+        )
+
+    @app.get("/v1/speech/narrations/{narration_id}")
+    def get_narration(narration_id: str) -> FileResponse:
+        meta_path = narrations_dir / f"{narration_id}.json"
+        if not narration_id.isalnum() or not meta_path.exists():
+            raise HTTPException(status_code=404, detail="unknown narration")
+        meta = json.loads(meta_path.read_text())
+        return FileResponse(
+            narrations_dir / f"{narration_id}.audio", media_type=meta["media_type"]
+        )
+
+    @app.post(
+        "/v1/walkthrough/sessions/{session_id}/utterance",
+        response_model=WalkUtteranceResult,
+        response_model_exclude_none=True,
+    )
+    async def walkthrough_utterance(
+        session_id: str, audio: UploadFile, engine: str = Form("parakeet")
+    ) -> WalkUtteranceResult:
+        """A spoken answer for the current node. Exact matches only: an
+        unrecognized utterance comes back as ask_again and changes nothing,
+        so a garbled transcript can never advance the walk (#80)."""
+        walk = require_walkthrough()
+        transcript = walk.transcript(session_id)
+        if transcript is None:
+            raise HTTPException(status_code=404, detail="unknown walkthrough session")
+        relay = require_speech()
+        data = await audio.read()
+        try:
+            heard = await asyncio.to_thread(relay.transcribe, data, engine)
+        except httpx.HTTPError as error:
+            raise HTTPException(
+                status_code=502, detail="speech backend unreachable"
+            ) from error
+        question = walk.next_question(transcript)
+        states = [] if question is None else walk.states.get(question["character"], [])
+        mapped = map_utterance(heard.text, states)
+        action = mapped["action"]
+        if question is None and action in ("answer", "skip"):
+            action = "ask_again"
+        if action == "answer":
+            walk.record(
+                session_id,
+                {"character": question["character"], "states": [mapped["state"]]},
+            )
+        elif action == "skip":
+            walk.record(session_id, {"character": question["character"], "states": []})
+        elif action == "undo":
+            walk.undo(session_id)
+        return WalkUtteranceResult(
+            transcript=heard.text,
+            action=action,
+            character=None if question is None else question["character"],
+            state=mapped.get("state"),
+            trace=speech_trace(heard.engine, heard.model, heard.latency_ms),
+            walk=WalkSessionState(
+                **walk.state(session_id, walk.transcript(session_id) or [])
+            ),
+        )
+
+    @app.websocket("/v1/speech/stream")
+    async def speech_stream(ws: WebSocket) -> None:
+        """Live transcription relay: binary PCM frames from the app forward
+        to the box stream; partial and final transcript events come back as
+        they are produced. A text frame ends the utterance."""
+        await ws.accept()
+        if speech is None or speech is _FROM_ENV:
+            await ws.send_json(
+                {"type": "error", "detail": "speech backend not configured"}
+            )
+            await ws.close()
+            return
+        stream = speech.stream(ws.query_params.get("engine", "parakeet"))
+
+        async def pump_up() -> bool:
+            """True when the client ended the utterance, False on disconnect."""
+            while True:
+                message = await ws.receive()
+                if message["type"] == "websocket.disconnect":
+                    return False
+                if message.get("bytes") is not None:
+                    await stream.send(message["bytes"])
+                elif message.get("text") is not None:
+                    await stream.finish()
+                    return True
+
+        async def pump_down() -> None:
+            async for event in stream.events():
+                await ws.send_json(event)
+
+        down = asyncio.create_task(pump_down())
+        try:
+            ended = await pump_up()
+            if ended:
+                await down
+            else:
+                down.cancel()
+        finally:
+            if not down.done():
+                down.cancel()
+            await stream.close()
+            try:
+                await ws.close()
+            except RuntimeError:
+                pass  # already closed by the client
 
     return app
 

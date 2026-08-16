@@ -8,6 +8,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.141.1",
+    "websockets>=17.0.1",
 ]
 
 [project.scripts]

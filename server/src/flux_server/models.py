@@ -240,3 +240,48 @@ class CoachClipResult(BaseModel):
     prediction: int | None = None
     step: int
     advanced: bool
+
+
+class SpeechTrace(BaseModel):
+    """Where a speech inference ran; shown raw in the app's traces tab."""
+
+    engine: str
+    model: str
+    latency_ms: int
+
+
+class TranscriptionResult(BaseModel):
+    """One utterance transcribed on the box."""
+
+    text: str
+    trace: SpeechTrace
+
+
+class NarrationRequest(BaseModel):
+    """Text to synthesize; voice picks a Kokoro voice, absent for default."""
+
+    text: str
+    voice: str | None = None
+
+
+class NarrationCreated(BaseModel):
+    """A synthesized narration, fetchable at audio_url until server restart."""
+
+    narration_id: str
+    audio_url: str
+    media_type: str
+    voice: str
+    trace: SpeechTrace
+
+
+class WalkUtteranceResult(BaseModel):
+    """A spoken walk answer: the transcript, what it mapped to, and the
+    session after applying it. ask_again means nothing matched exactly and
+    the node did not advance."""
+
+    transcript: str
+    action: Literal["answer", "skip", "undo", "repeat", "ask_again"]
+    character: str | None = None
+    state: str | None = None
+    trace: SpeechTrace
+    walk: "WalkSessionState"

@@ -551,6 +551,7 @@ version = "0.1.0"
 source = { editable = "server" }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
+    { name = "websockets" },
 ]
 
 [package.dev-dependencies]
@@ -561,7 +562,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "fastapi", extras = ["standard"], specifier = ">=0.141.1" }]
+requires-dist = [
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.141.1" },
+    { name = "websockets", specifier = ">=17.0.1" },
+]
 
 [package.metadata.requires-dev]
 dev = [
