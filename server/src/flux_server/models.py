@@ -29,6 +29,15 @@ class RecordStub(BaseModel):
     record_id: str
 
 
+class IdentificationRecord(BaseModel):
+    """One candidate from the box perception relay (#105): the model that
+    produced it, the candidate label, and its score."""
+
+    source: Literal["speciesnet", "bioclip", "fungitastic"]
+    label: str
+    score: float
+
+
 class SessionCreateRequest(BaseModel):
     """Optional creation body; a session without one accepts either kind."""
 
@@ -53,6 +62,10 @@ class FunctionalityList(BaseModel):
 class FrameUploadResponse(BaseModel):
     frame_id: str
     results: list[RecordStub]
+    # Real identification candidates from the perception relay; absent when
+    # no perception endpoint is configured (#105). records stays alongside
+    # the stub field so shipped clients keep their contract.
+    identifications: list[IdentificationRecord] | None = None
 
 
 class IngestEntry(BaseModel):
@@ -66,6 +79,7 @@ class SessionResults(BaseModel):
     session_id: str
     status: Literal["in_progress", "complete", "failed"]
     records: list[RecordStub]
+    identifications: list[IdentificationRecord] | None = None
     summary: str | None = None
     detail: str | None = None
     # Per-clip handoff progress; absent before the finish starts (#106).

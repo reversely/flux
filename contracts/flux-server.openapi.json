@@ -1704,6 +1704,20 @@
             },
             "type": "array",
             "title": "Results"
+          },
+          "identifications": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/IdentificationRecord"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifications"
           }
         },
         "type": "object",
@@ -1763,6 +1777,35 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "IdentificationRecord": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "speciesnet",
+              "bioclip",
+              "fungitastic"
+            ],
+            "title": "Source"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "label",
+          "score"
+        ],
+        "title": "IdentificationRecord",
+        "description": "One candidate from the box perception relay (#105): the model that\nproduced it, the candidate label, and its score."
       },
       "IngestEntry": {
         "properties": {
@@ -2076,6 +2119,20 @@
             },
             "type": "array",
             "title": "Records"
+          },
+          "identifications": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/IdentificationRecord"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifications"
           },
           "summary": {
             "anyOf": [

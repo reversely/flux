@@ -136,6 +136,17 @@ class SessionStore:
             directory / f"{video_id}.mp4" for video_id in self.video_ids(session_id)
         ]
 
+    def write_identifications(self, session_id: str, records: list[dict]) -> None:
+        (self.root / session_id / "identifications.json").write_text(
+            json.dumps(records)
+        )
+
+    def read_identifications(self, session_id: str) -> list[dict] | None:
+        path = self.root / session_id / "identifications.json"
+        if not path.is_file():
+            return None
+        return json.loads(path.read_text())
+
     def write_ingest(self, session_id: str, entries: list[dict]) -> None:
         (self.root / session_id / "ingest.json").write_text(json.dumps(entries))
 

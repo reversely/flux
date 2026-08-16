@@ -65,6 +65,7 @@ def test_results_stay_empty_and_in_progress(client: TestClient) -> None:
         "summary": None,
         "detail": None,
         "ingest": None,
+        "identifications": None,
         "transcript": None,
     }
 

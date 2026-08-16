@@ -49,6 +49,7 @@ from flux_server.models import (
     FrameUploadResponse,
     FunctionalityList,
     FunctionalityMode,
+    IdentificationRecord,
     IngestEntry,
     NarrationCreated,
     NarrationRequest,
@@ -68,6 +69,7 @@ from flux_server.models import (
     WalkSpeciesDetail,
     WalkUtteranceResult,
 )
+from flux_server.perception import PerceptionClient, perception_from_env
 from flux_server.retrieval import Retriever, retriever_from_env
 from flux_server.speech import SpeechService, map_utterance, speech_from_env
 from flux_server.storage import SessionStore, UnplayableVideoError
@@ -90,6 +92,7 @@ def create_app(
     walkthrough: WalkthroughStore | None | object = _FROM_ENV,
     coach_classifier: StepClassifier | None | object = _FROM_ENV,
     speech: SpeechService | None | object = _FROM_ENV,
+    perception: PerceptionClient | None = None,
 ) -> FastAPI:
     """Build the app around one on-disk session store and one retriever."""
     if data_dir is None:
@@ -110,6 +113,8 @@ def create_app(
         coach_classifier = classifier_from_env()
     if speech is _FROM_ENV:
         speech = speech_from_env()
+    if perception is None:
+        perception = perception_from_env()
     coach_store = CoachStore(data_dir / "coach")
     app = FastAPI(title="flux stub inference server")
     app.add_middleware(
@@ -234,7 +239,11 @@ def create_app(
             media_mode=media_mode,
         )
 
-    @app.post("/v1/sessions/{session_id}/frames", response_model=FrameUploadResponse)
+    @app.post(
+        "/v1/sessions/{session_id}/frames",
+        response_model=FrameUploadResponse,
+        response_model_exclude_none=True,
+    )
     async def upload_frame(
         session_id: str, frame: UploadFile, captured_at: str = Form()
     ) -> FrameUploadResponse:
@@ -242,7 +251,17 @@ def create_app(
         require_media_mode(session_id, "photo")
         data = await frame.read()
         frame_id = store.add_frame(session_id, data, captured_at)
-        return FrameUploadResponse(frame_id=frame_id, results=[])
+        records = perception.identify(data)
+        if records is None:
+            return FrameUploadResponse(frame_id=frame_id, results=[])
+        stored = store.read_identifications(session_id) or []
+        stored.extend(records)
+        store.write_identifications(session_id, stored)
+        return FrameUploadResponse(
+            frame_id=frame_id,
+            results=[],
+            identifications=[IdentificationRecord(**r) for r in records],
+        )
 
     @app.post("/v1/sessions/{session_id}/videos", response_model=VideoUploadResponse)
     async def upload_video(
@@ -333,6 +352,7 @@ def create_app(
                 status="in_progress",
                 records=[],
                 ingest=ingest_entries(session_id),
+                identifications=stored_identifications(session_id),
             )
         return SessionResults(
             session_id=session_id,
@@ -342,7 +362,16 @@ def create_app(
             detail=result.get("detail"),
             transcript=result.get("transcript"),
             ingest=ingest_entries(session_id),
+            identifications=stored_identifications(session_id),
         )
+
+    def stored_identifications(
+        session_id: str,
+    ) -> list[IdentificationRecord] | None:
+        stored = store.read_identifications(session_id)
+        if stored is None:
+            return None
+        return [IdentificationRecord(**record) for record in stored]
 
     def ingest_entries(session_id: str) -> list[IngestEntry] | None:
         stored = store.read_ingest(session_id)
