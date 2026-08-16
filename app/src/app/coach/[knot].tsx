@@ -39,6 +39,12 @@ export default function KnotCoach() {
   const [permission, requestPermission] = useCameraPermissions();
   const [step, setStep] = useState(() => Number(stepParam) || 0);
 
+  // Entering the screen narrates the current instruction once.
+  useEffect(() => {
+    speak(step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // A later link to the same screen updates the param without remounting.
   useEffect(() => {
     const wanted = Number(stepParam);
@@ -48,6 +54,9 @@ export default function KnotCoach() {
   }, [stepParam]);
   const [voiceOn, setVoiceOn] = useState(true);
   const [watch, setWatch] = useState<WatchState>('off');
+  // True while a recorded clip is uploading and the box classifies it: the
+  // camera dims and the chip flips to Checking, so a model call is visible.
+  const [checking, setChecking] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const watchingRef = useRef(false);
 
@@ -99,17 +108,21 @@ export default function KnotCoach() {
         if (video === undefined) {
           break;
         }
+        setChecking(true);
         const result = await client().coachClip(sessionId, video.uri);
+        setChecking(false);
         if (watchingRef.current && result.step > pointer) {
           pointer = result.step;
           goTo(result.step);
         }
       } catch {
+        setChecking(false);
         setWatch('failed');
         watchingRef.current = false;
         return;
       }
     }
+    setChecking(false);
     setWatch('off');
   };
 
@@ -158,6 +171,7 @@ export default function KnotCoach() {
           videoBitrate={COACH_VIDEO_BITRATE}
         />
       )}
+      {checking && <View style={styles.freeze} pointerEvents="none" />}
       <View style={[styles.top, { top: insets.top + spacing.s }]}>
         <Pressable
           accessibilityRole="button"
@@ -183,16 +197,17 @@ export default function KnotCoach() {
                 void startWatch();
               }
             }}
-            style={[styles.chip, watch === 'watching' && styles.chipActive]}
+            style={[styles.chip, watch === 'watching' && styles.chipActive, checking && styles.chipChecking]}
           >
             <Text
               style={[
                 styles.chipText,
                 watch === 'watching' && { color: HOME_BIOME.glow },
+                checking && { color: '#B5E3DC' },
                 watch === 'failed' && { color: darkHome.ink3 },
               ]}
             >
-              {watch === 'watching' ? 'Watching' : watch === 'starting' ? 'Starting' : watch === 'failed' ? 'Watch (no server)' : 'Watch'}
+              {checking ? 'Checking' : watch === 'watching' ? 'Watching' : watch === 'starting' ? 'Starting' : watch === 'failed' ? 'Watch (no server)' : 'Watch'}
             </Text>
           </Pressable>
         )}
@@ -286,6 +301,18 @@ const styles = StyleSheet.create({
   },
   chipActive: {
     borderColor: HOME_BIOME.glow,
+  },
+  chipChecking: {
+    borderColor: '#B5E3DC',
+  },
+  freeze: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(6, 10, 13, 0.45)',
+    zIndex: 1,
   },
   chipText: {
     ...typography.tag,
