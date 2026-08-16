@@ -14,6 +14,45 @@ before `watchable: true`.
 Findings by tile follow. Anything not verified against a live page is
 marked UNVERIFIED.
 
+## What these datasets are for: the coach runs inference, not training
+
+The controlling decision is in docs/log.md, 2026-08-15 night, "coach pivots to
+inference": there is no fine-tune. cosmos-reason2-8b classifies each 8-second
+chunk against the full step list, stateless, and the server applies monotone
+plus majority smoothing to move a step pointer. PRD section 6.3 "Fine-tune
+targets", the 6.1 CPR fine-tune row, 2.1 "one selected fine-tuned coach", and
+2.2 "Fine-tuning targets a measurable execution signal" all describe a plan
+that was dropped. Read the log, not the PRD, on this point.
+
+Every dataset named below is therefore a measuring instrument rather than a
+training corpus, which changes four things a reader would otherwise get wrong:
+
+1. Non-commercial licensing is mostly not the binding constraint. No video
+   dataset was ever going to ship inside the app, and none is trained on, so
+   CC BY-NC on R2PPE, EPIC-KITCHENS, or EgoEMS restricts far less than the
+   "Recurring license traps" section at the foot of this document implies. The
+   real question per dataset is narrower: can it be downloaded once and have
+   local inference run over it.
+2. COIN is the exception that still bites. Its signed agreement bars use for
+   "testing commercial systems", and benching is exactly that. COIN gates the
+   fish-cleaning item (#112) in a way NC licenses elsewhere do not.
+3. Volume requirements collapse. EPIC-Tent's 179 GB segmented download was
+   staged for the abandoned structural-mistake fine-tune. A bench needs on the
+   order of ten to twenty minutes of footage with markable step boundaries,
+   not a training-scale corpus.
+4. The tiles this document calls thin are less thin than that framing
+   suggests. Self-shot footage is a first-class bench input, which the six
+   shipped knots already proved. A tile with no research dataset is a tile
+   that needs an afternoon of filming, not a blocked tile.
+
+The one number that governs every item is the accuracy gate in epic #111: at
+least 85.7% per-chunk step-state after monotone and majority smoothing, the
+figure the coarse-phase bowline reached.
+
+Two other PRD sections are stale for reasons recorded in the 2026-08-15
+evening entry: the phone-only model tier in 3.6 is cut for MVP, since all
+perception runs on the GN100, and the web app is deferred.
+
 ## Cross-cutting: what COIN actually contains
 
 COIN's full 180-task taxonomy was downloaded and parsed (taxonomy.xlsx from
@@ -68,11 +107,20 @@ are the unexplored ones.
 
 ### 1.2 Tourniquet application
 
-- Video: Trauma THOMPSON (verified: Sci Data s41597-025-06365-y, plus the 2023
-  and 2025 grand-challenge.org pages) has 220 egocentric videos and 3,717
-  clips across five lifesaving procedures including tourniquet application,
-  verb-noun annotated. Access runs through challenge registration;
-  redistribution license UNVERIFIED (the Nature page is login-gated). EgoEMS
+- Video: NOT AVAILABLE TO THIS PROJECT TODAY. Trauma THOMPSON exists as a
+  published dataset (Sci Data s41597-025-06365-y; MICCAI 2023 challenge report
+  at doi 10.1007/978-3-031-71626-3_8; MELBA 2025:048; the 2025 challenge is
+  live and open at https://t3challenge25.grand-challenge.org/) and describes
+  3,717 egocentric clips across five lifesaving procedures including
+  tourniquet application, verb-noun annotated. What could NOT be verified is
+  any path to the bytes: the challenge page publishes no download mechanism
+  and gates data behind registration, the Nature article 303-redirects to a
+  login wall, and the DOI cited in PRD 6.3, 10.7910/DVN/V5BTRU, does not
+  resolve to a readable Harvard Dataverse record (302 to a citation page that
+  renders empty; the Dataverse API returns HTTP 202 with an empty body).
+  Treat this dataset as aspirational until someone registers for the challenge
+  and confirms what registration actually yields. Do not plan the tourniquet
+  bench around it. FILE A PRD CORRECTION for the unresolvable DOI. EgoEMS
   (verified, github.com/UVA-DSA/EgoEMS, openly hosted on Harvard Dataverse,
   20+ hours, keystep annotations) covers cardiac and stroke protocols with no
   confirmed tourniquet keysteps, so treat it as CPR-adjacent. PD supplement:
@@ -89,7 +137,8 @@ are the unexplored ones.
 - Bench feasibility: good. Band around limb, windlass turning, windlass
   secured, and time marked are coarse whole-frame states; only windlass-twist
   counting would hit the fine-manipulation limit.
-- Ticket: Bench tourniquet application on Trauma THOMPSON clips
+- Ticket: Bench tourniquet application on the DVIDS PD demonstration clip
+  (Trauma THOMPSON is unobtainable today; see the video note above)
 
 ### 1.3 Splinting a limb
 
@@ -250,8 +299,9 @@ false`), pending a bench.
 - EPIC-Tent: Non-Commercial Government Licence v2. Bench yes, ship no.
 - COIN: signed institutional license, videos re-fetched from YouTube (link rot
   risk). Bench only.
-- Trauma THOMPSON: challenge-registration access, redistribution terms
-  UNVERIFIED.
+- Trauma THOMPSON: no obtainable access path found. Published and its 2025
+  challenge is open, but no public download, the article is login-gated, and
+  the PRD's DOI does not resolve. Not a dataset this project has.
 - EgoEMS: openly downloadable from Harvard Dataverse, with no explicit license
   in the README. Check the Dataverse record terms before shipping anything
   derived.
@@ -898,8 +948,9 @@ Strong open data (a real dataset or a PD figure set plus a workable bench):
   PPE adherence labels, CDC supplies PD reference stills, and the ERG plus
   CAMEO tables are the best structured data found anywhere in this survey.
 - Tile 1 Survival Medicine. COIN BandageHead and BandageDogPaw bench wound
-  care, Trauma THOMPSON covers tourniquets, and FM 4-25.11, TC 4-02.1, and
-  STP 21-1-SMCT give PD figures plus numbered performance measures.
+  care, and FM 4-25.11, TC 4-02.1, and STP 21-1-SMCT give PD figures plus
+  numbered performance measures. Tourniquets fall back to a single PD DVIDS
+  demonstration clip, since Trauma THOMPSON turned out to be unobtainable.
 - Tile 5 Food. COIN CleanFish carries 50 videos at exactly the right step
   granularity, and FM 21-76 Ch 8 has verified figure numbers for every trap.
 - Tile 6 Poisonous Plants. No coaching, but the richest structured data after
@@ -945,8 +996,12 @@ because it sits furthest from the wilderness core of the app.
 - Non-commercial encumbrance: EPIC-Tent (NCGL v2), R2PPE (CC BY-NC 4.0 on the
   Zenodo record, not the CC BY 4.0 on the paper), EPIC-KITCHENS-100, FishBase,
   T3DB, wikiHow, OpenWHO (CC BY-NC-SA 3.0 IGO). All bench, none ship.
-- Signed-agreement access: COIN, Assembly101, Ego-Exo4D, Trauma THOMPSON,
-  OpenAnimalTracks.
+- Signed-agreement access: COIN, Assembly101, Ego-Exo4D, OpenAnimalTracks.
+- No obtainable access path found at all: Trauma THOMPSON. It is published and
+  its 2025 challenge is open, but no public download exists, the article is
+  login-gated, and the DOI in PRD 6.3 (10.7910/DVN/V5BTRU) does not resolve to
+  a readable Dataverse record. Existence is not access; the PRD cites it as
+  though it were in hand.
 - No stated license at all: NC State Plant Toolbox, Cornell Plants Poisonous
   to Livestock, Clinical Toxinology Resources, EgoEMS README, Civil Air Patrol
   manuals, USAP field manuals.
@@ -955,3 +1010,32 @@ because it sits furthest from the wilderness core of the app.
 - Commons categories assumed by tile plans that do not exist: Solar stills,
   Animal traps, Fish filleting, Snares, Lashings, Ground-air signals, Snow
   shelters, Bandaging, Fire making.
+
+## Verified license verdicts
+
+Each item was checked against the licence text at the source, not inferred
+from reputation. SHIP means the asset can travel inside a pack; BENCH means it
+can be downloaded and measured against locally, which is all the inference
+coach needs from video. Read these with the inference framing at the top: for
+video, BENCH is the whole requirement.
+
+| Asset | Verdict | Evidence |
+| --- | --- | --- |
+| EPIC-Tent | BENCH | Non-Commercial Government Licence v2. Attribution string "Contains information licensed under the Non-Commercial Government Licence v2.0" is mandatory. Unfunded demo fine, commercial app not. |
+| R2PPE | BENCH | Article is CC BY 4.0 with no data-license statement; the Zenodo record of record is CC BY-NC 4.0 (SPDX cc-by-nc-4.0 in DataCite). The NC licence governs the data. |
+| Trauma THOMPSON | BENCH, gated, unobtainable so far | Grand Challenge path requires agreeing not to "distribute, copy, or reproduce any of the individual images or videos". The Dataverse record is tagged CC BY 4.0 and simultaneously restrictedAccess. No download path reached from here. |
+| EgoEMS | BENCH | Dataverse record is CC BY-NC-ND 4.0 plus restrictedAccess. ND blocks reformatting into pack form; benching is unaffected. |
+| CDC PHIL | SHIP, per-image check | Each image is individually marked Public Domain or Copyright Protected. For PD: credit the institution and contributor, no fixed string published; use the image's own Content Provider field. |
+| DVIDS | SHIP, per-item check | US-government-employee works are not eligible for US copyright. Attribution is requested, not required. The binding rule is non-endorsement. Some items are third-party copyrighted regardless of any notice. |
+| USAP field manuals | SHIP text, strip figures | NSF policy states works are government-authored or prepared under contracts giving NSF the right to place text in the public domain. NSF separately disclaims visual media, and the manuals credit named artists and reprint third-party material. |
+| Civil Air Patrol pubs | UNUSABLE | Not PD: 36 U.S.C. 40306 gives CAP exclusive copyright, the library carries an all-rights-reserved notice, and CAPR 1-2 permits only unaltered reproduction. Excerpting into packs breaches it. Use FM 21-76 and AFH 10-644. |
+| NC State Plant Toolbox | SHIP fields only | No terms-of-use, copyright notice, or robots.txt published; field values are uncopyrightable facts under Feist. Their one licence statement covers photographs, so ship no images and no prose. Rests on absence of a restriction, not granted permission. |
+| iNaturalist similar_species | BENCH | About 1 request per second and roughly 10k per day, explicitly "not meant to be a way to download data in bulk". Terms bar using iNaturalist data to train ML models for commercial purposes; content defaults to CC BY-NC. |
+| COIN | UNUSABLE if LifeKit is commercial | The signed agreement bars use for "Testing commercial systems" and bars redistribution. Annotations are CC BY-NC by Meitu and Tsinghua; the videos belong to individual YouTube uploaders and nobody has cleared them. |
+| PHMSA ERG + PubChem mirror | SHIP | Both are US federal works. Current edition is ERG2024, but PHMSA publishes structured data files for 2020 only, so use the PubChem ERG2024 mirror as the machine-readable source. Unresolved: the ERG is a joint US, Transport Canada, and SCT work, and Canadian Crown copyright has no US-style exemption. |
+
+Two consequences worth carrying into the tickets. COIN's "testing commercial
+systems" clause is the only licence here that blocks a bench outright, and it
+sits under the top-ranked next item (#112 fish cleaning), so that ticket needs
+a decision on LifeKit's commercial posture or a substitute corpus. Every other
+video licence permits the measurement the inference coach actually performs.
