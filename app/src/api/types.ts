@@ -40,6 +40,12 @@ export interface ChatSource {
   snippet: string;
 }
 
+/** The research queue's note on an unsourced answer (#193). */
+export interface ChatQueueNote {
+  topic: string;
+  state: 'added' | 'queued';
+}
+
 export interface ChatAnswer {
   answer_id: string;
   text: string;
@@ -49,6 +55,8 @@ export interface ChatAnswer {
   citations?: unknown[];
   /** Present when the answer quotes pack passages; absent on plain answers. */
   sources?: ChatSource[];
+  /** Present when an unsourced question's topic entered the research queue. */
+  queued?: ChatQueueNote;
   trace?: InferenceTrace;
 }
 

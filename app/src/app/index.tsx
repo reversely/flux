@@ -16,7 +16,7 @@ import {
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { ChatSource } from '@/api/types';
+import type { ChatQueueNote, ChatSource } from '@/api/types';
 import { AnswerText } from '@/components/AnswerText';
 import { HomeBackdrop } from '@/components/HomeBackdrop';
 import { TopBar, TopBarButton } from '@/components/TopBar';
@@ -115,6 +115,26 @@ function Message({ message }: { message: ChatMessage }) {
         </Pressable>
       )}
       <SourceLine sources={message.sources} />
+      <QueueLine queued={message.queued} />
+    </View>
+  );
+}
+
+/**
+ * The research-queue note under an unsourced answer (#194): whether this
+ * question added its topic to the library queue or found it already there.
+ */
+function QueueLine({ queued }: { queued?: ChatQueueNote }) {
+  if (!queued) {
+    return null;
+  }
+  const added = queued.state === 'added';
+  return (
+    <View style={styles.sourceLine}>
+      <Feather name={added ? 'plus-circle' : 'clock'} size={12} color={colors.ink3} />
+      <Text style={styles.sourceLabel}>
+        {added ? `Queued for the library: ${queued.topic}` : `In the library queue: ${queued.topic}`}
+      </Text>
     </View>
   );
 }
