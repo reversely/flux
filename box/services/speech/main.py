@@ -91,24 +91,34 @@ def wav_header(n_samples: int, rate: int) -> bytes:
 
 
 class Engines:
-    """The three models, loaded once; each ASR call returns (text, model_id)."""
+    """The three models, loaded once; each ASR call returns (text, model_id).
+
+    The GN100 runs at its memory edge next to VSS and two vLLM stacks, so
+    every load tries CUDA and falls back to CPU instead of crashing: the
+    Grace cores keep an 82M TTS and command-length ASR usable. Whisper is
+    the second-opinion engine and loads lazily on its first request.
+    """
 
     def __init__(self) -> None:
         import nemo.collections.asr as nemo_asr
+        import torch
 
         nemo_files = list(PARAKEET_DIR.glob("*.nemo"))
         if not nemo_files:
             raise RuntimeError(f"no .nemo file under {PARAKEET_DIR}")
-        self.parakeet = nemo_asr.models.ASRModel.restore_from(str(nemo_files[0]))
+        self.parakeet = nemo_asr.models.ASRModel.restore_from(
+            str(nemo_files[0]), map_location="cpu"
+        )
         self.parakeet.eval()
+        self.parakeet_device = "cpu"
+        try:
+            self.parakeet = self.parakeet.cuda()
+            self.parakeet_device = "cuda"
+        except (RuntimeError, torch.AcceleratorError):
+            pass
 
         self.whisper = None
-        if WHISPER_DIR.exists():
-            from faster_whisper import WhisperModel
-
-            self.whisper = WhisperModel(
-                str(WHISPER_DIR), device="cuda", compute_type="float16"
-            )
+        self.whisper_device = None
 
         from kokoro import KModel, KPipeline
 
@@ -116,7 +126,30 @@ class Engines:
         # with the box offline.
         weights = next(KOKORO_DIR.glob("*.pth"))
         model = KModel(config=str(KOKORO_DIR / "config.json"), model=str(weights))
-        self.kokoro = KPipeline(lang_code="a", model=model.eval().cuda())
+        model.eval()
+        self.kokoro_device = "cpu"
+        try:
+            model = model.cuda()
+            self.kokoro_device = "cuda"
+        except (RuntimeError, torch.AcceleratorError):
+            pass
+        self.kokoro = KPipeline(lang_code="a", model=model)
+
+    def load_whisper(self):
+        if self.whisper is None and WHISPER_DIR.exists():
+            from faster_whisper import WhisperModel
+
+            try:
+                self.whisper = WhisperModel(
+                    str(WHISPER_DIR), device="cuda", compute_type="float16"
+                )
+                self.whisper_device = "cuda"
+            except (RuntimeError, ValueError):
+                self.whisper = WhisperModel(
+                    str(WHISPER_DIR), device="cpu", compute_type="int8"
+                )
+                self.whisper_device = "cpu"
+        return self.whisper
 
     def voice_ref(self, name: str) -> str:
         """A fetched voice file when present, else the name for hub lookup."""
@@ -125,9 +158,10 @@ class Engines:
 
     def transcribe(self, audio: np.ndarray, engine: str) -> tuple[str, str]:
         if engine == "whisper":
-            if self.whisper is None:
+            whisper = self.load_whisper()
+            if whisper is None:
                 raise HTTPException(status_code=503, detail="whisper not fetched")
-            segments, _ = self.whisper.transcribe(audio, beam_size=1, language="en")
+            segments, _ = whisper.transcribe(audio, beam_size=1, language="en")
             return " ".join(
                 s.text.strip() for s in segments
             ).strip(), "faster-whisper-large-v3"
@@ -151,9 +185,9 @@ def create_app() -> FastAPI:
     @app.get("/healthz")
     def healthz() -> dict:
         return {
-            "parakeet": True,
-            "whisper": engines.whisper is not None,
-            "kokoro": True,
+            "parakeet": engines.parakeet_device,
+            "whisper": engines.whisper_device or "lazy",
+            "kokoro": engines.kokoro_device,
         }
 
     @app.post("/asr")
