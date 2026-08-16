@@ -17,6 +17,7 @@ so pre-#129 clients keep their exact behavior.
 
 import csv
 import json
+import re
 import sqlite3
 import threading
 import uuid
@@ -55,6 +56,23 @@ class GuideView:
     traits: dict[str, dict[str, set[str]]] = field(default_factory=dict)
 
 
+def clean_artist(raw: str) -> str:
+    """One short attribution name from a Commons artist field.
+
+    Mushroom Observer imports arrive as a whole paragraph ("This image was
+    created by user Jane Doe (jdoe) at Mushroom Observer... contact this
+    user here."); the attribution line wants just the name. Anything still
+    long after the known patterns is cut at the first sentence and capped,
+    because the UI shows attribution as one small line.
+    """
+    text = " ".join(raw.split())
+    match = re.search(r"created by user (.+?)\s*(?:\(|at Mushroom Observer)", text)
+    if match:
+        return match.group(1).strip()
+    text = text.split(". ")[0]
+    return text[:60].rstrip()
+
+
 class WalkthroughStore:
     """In-memory mirror of the walk_ tables plus on-disk session transcripts."""
 
@@ -70,7 +88,7 @@ class WalkthroughStore:
             with manifest.open(newline="") as f:
                 for row in csv.DictReader(f, delimiter="\t"):
                     self.image_meta[row["species"]] = {
-                        "artist": row["artist"],
+                        "artist": clean_artist(row["artist"]),
                         "license": row["license"],
                     }
         self._sessions_dir.mkdir(parents=True, exist_ok=True)

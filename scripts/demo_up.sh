@@ -63,6 +63,7 @@ echo "== flux server"
 pkill -f "flux-server --host" 2>/dev/null
 sleep 2
 FLUX_CONTENT_DB="$REPO/data/demo/content.db" \
+FLUX_SPECIES_IMAGES="$REPO/data/demo/species-images" \
 FLUX_TILE_ARCHIVE="$REPO/data/demo/tiles/wa-dev.pmtiles" \
 FLUX_DATA_DIR="$REPO/data/demo/sessions" \
 FLUX_NEMOTRON_URL="http://localhost:30081/v1" \

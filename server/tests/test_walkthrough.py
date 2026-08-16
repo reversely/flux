@@ -418,3 +418,16 @@ def test_observe_reports_off_subject(observe_client):
     assert body.get("state") is None
     # The guide's title travels to the model as the expected subject.
     assert observer.calls[0][3] == "fungi edibility"
+
+
+def test_clean_artist_shortens_commons_paragraphs():
+    from flux_server.walkthrough import clean_artist
+
+    observer = (
+        "This image was created by user Martin Livezey (MLivezey) at Mushroom "
+        "Observer, a source for mycological images.You can contact this user here."
+    )
+    assert clean_artist(observer) == "Martin Livezey"
+    assert clean_artist("Alan Rockefeller") == "Alan Rockefeller"
+    long = "A very long descriptive credit that keeps going. Second sentence."
+    assert clean_artist(long) == "A very long descriptive credit that keeps going"
