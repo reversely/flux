@@ -99,6 +99,18 @@ records the endpoint facts and round-trips a chat completion against it:
 bash box/scripts/verify_nemotron.sh
 ```
 
+## Terrain archive
+
+`scripts/build_terrain_pmtiles.py` (the `~/flux/venvs/terrain` venv: rasterio,
+rio-rgbify's stack without GDAL binaries) encodes the staged 3DEP GeoTIFFs as
+one terrain-RGB PMTiles archive; `~/flux/bin/pmtiles` converts the MBTiles
+output. Built 2026-08-16 from the 36 Washington DEMs (14 GB): zooms 5 to 12,
+9,318 tiles in 224 s, 638 MB as `wa-terrain.pmtiles`, decode spot-checked
+against Mount Rainier (4,309 m at z8). The flux server serves it on the
+terrain layer of the per-layer tile route (#75) via
+`FLUX_TILE_ARCHIVE_TERRAIN`; MapLibre reads it as a raster-dem source for
+hillshade, and the same archive later backs the PRD 5.2 altitude grid.
+
 ## Fetching data and corpora
 
 Pack data divides into universal content that ships in every pack
