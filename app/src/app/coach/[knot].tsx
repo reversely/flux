@@ -88,7 +88,11 @@ export default function KnotCoach() {
 
   const stopWatch = useCallback(() => {
     watchingRef.current = false;
-    cameraRef.current?.stopRecording();
+    try {
+        cameraRef.current?.stopRecording();
+      } catch {
+        // Recorder already torn down.
+      }
     setWatch('off');
   }, []);
 
@@ -167,7 +171,11 @@ export default function KnotCoach() {
   useEffect(
     () => () => {
       watchingRef.current = false;
-      cameraRef.current?.stopRecording();
+      try {
+        cameraRef.current?.stopRecording();
+      } catch {
+        // Recorder already torn down.
+      }
       narration.stop();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

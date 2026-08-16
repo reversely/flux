@@ -133,7 +133,11 @@ export default function Capture() {
   useEffect(
     () => () => {
       recordingRef.current = false;
-      cameraRef.current?.stopRecording();
+      try {
+        cameraRef.current?.stopRecording();
+      } catch {
+        // Recorder already torn down.
+      }
     },
     [],
   );
@@ -172,7 +176,11 @@ export default function Capture() {
 
   const stop = () => {
     recordingRef.current = false;
-    cameraRef.current?.stopRecording();
+    try {
+        cameraRef.current?.stopRecording();
+      } catch {
+        // Recorder already torn down.
+      }
   };
 
   const primeRow = (prime || subject) && (

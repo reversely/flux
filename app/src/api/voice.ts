@@ -39,6 +39,8 @@ export function useNarration() {
         player.replace({ uri: client().narrationUrl(narration.audio_url) });
         player.play();
       } catch {
+        // Server narration failed or the player was released mid-await;
+        // the device voice carries the line either way.
         Speech.speak(line);
       }
     },
@@ -77,6 +79,17 @@ export function useHoldToTalk(options: {
     onBuffer: (buffer) => wsRef.current?.feed(buffer.data, buffer.sampleRate),
   });
 
+  // Every mic call tolerates a released native stream: leaving the screen
+  // mid-hold (or a stop after teardown) must never throw out of a Swift
+  // sync function into a crash (expo-modules-core SyncFunctionDefinition).
+  const micStop = () => {
+    try {
+      mic.stop();
+    } catch {
+      // Released stream; nothing left to stop.
+    }
+  };
+
   const start = async () => {
     const permission = await requestRecordingPermissionsAsync();
     if (!permission.granted) {
@@ -97,19 +110,28 @@ export function useHoldToTalk(options: {
         handlers.current.onProblem('server');
       },
     });
-    await mic.start();
+    try {
+      await mic.start();
+    } catch {
+      setListening(false);
+      wsRef.current?.cancel();
+      wsRef.current = null;
+      handlers.current.onProblem('denied');
+    }
   };
 
   const stop = () => {
     setListening(false);
-    mic.stop();
-    void setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+    micStop();
+    void setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(
+      () => undefined,
+    );
     wsRef.current?.end();
   };
 
   useEffect(
     () => () => {
-      mic.stop();
+      micStop();
       wsRef.current?.cancel();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
