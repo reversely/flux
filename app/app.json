@@ -18,7 +18,8 @@
         },
         "NSLocationWhenInUseUsageDescription": "Flux shows your position on the offline map and centers it on you.",
         "NSMicrophoneUsageDescription": "Flux listens while you answer a question hands-free.",
-        "NSSpeechRecognitionUsageDescription": "Flux turns your spoken answer into text on the local server."
+        "NSSpeechRecognitionUsageDescription": "Flux turns your spoken answer into text on the local server.",
+        "NSMotionUsageDescription": "Flux reads the barometer for the pressure trend on the Conditions screen."
       }
     },
     "android": {
@@ -61,6 +62,12 @@
         "expo-audio",
         {
           "microphonePermission": "Flux listens while you answer a question hands-free."
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Flux reads the barometer for the pressure trend on the Conditions screen."
         }
       ]
     ],
