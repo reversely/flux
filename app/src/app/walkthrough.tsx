@@ -4,13 +4,23 @@ import { useRef } from 'react';
 import * as Device from 'expo-device';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { ImageSourcePropType } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { mapTranscript } from '@/api/speech';
 import type { WalkObservation, WalkQuestion, WalkSessionState } from '@/api/types';
 import { useHoldToTalk, useNarration } from '@/api/voice';
-import { MushroomDiagram } from '@/components/MushroomDiagram';
+// One labeled anatomy diagram per fungi node, the asked region shaded.
+// A character with no entry (spore print, every berry node) shows no
+// figure rather than a wrong drawing.
+const NODE_FIGURES: Record<string, ImageSourcePropType> = {
+  capShape: require('../../assets/images/mushrooms/cao.png'),
+  hymeniumType: require('../../assets/images/mushrooms/margin.png'),
+  whichGills: require('../../assets/images/mushrooms/gills.png'),
+  stipeCharacter: require('../../assets/images/mushrooms/stem.png'),
+  ecologicalType: require('../../assets/images/mushrooms/hyphae.png'),
+};
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { useSession } from '@/store/session';
@@ -304,12 +314,14 @@ export default function Walkthrough() {
       <View style={styles.spacer} />
 
       {/* The node's reference figure sits beside the feed, so the user
-          compares the specimen against the manual's drawing in place. */}
-      {/* The hand-built diagram knows only fungi characters; a guide walk
-          shows no figure until its pack nodes carry reference images. */}
-      {walk && current !== undefined && !reviewing && !walk.guide_id && (
+          compares the specimen against the drawing in place. */}
+      {walk && current !== undefined && !reviewing && NODE_FIGURES[current.character] && (
         <View style={styles.figureCard}>
-          <MushroomDiagram character={current.character} />
+          <Image
+            source={NODE_FIGURES[current.character]}
+            style={styles.figureImage}
+            resizeMode="contain"
+          />
         </View>
       )}
 
@@ -525,6 +537,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.92)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
+  },
+  // The diagrams are portrait scans (~5:6); contain keeps the labels legible.
+  figureImage: {
+    width: 150,
+    height: 180,
   },
   review: {
     maxHeight: 280,
