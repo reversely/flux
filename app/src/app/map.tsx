@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 import type { NearestFeatures } from '@/api/types';
+import { planRoute, type TrailRoute } from '@/lib/route';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { useSession } from '@/store/session';
@@ -93,6 +94,7 @@ export default function MapScreen() {
   const [nearest, setNearest] = useState<NearestFeatures | null>(null);
   const [nearestState, setNearestState] = useState<NearestState>('idle');
   const [routedIndex, setRoutedIndex] = useState(0);
+  const [route, setRoute] = useState<{ kind: 'trail'; distanceM: number } | { kind: 'bearing' } | null>(null);
   const webviewRef = useRef<WebView>(null);
   const lastFixRef = useRef<{ lat: number; lng: number } | null>(null);
   const centeredOnceRef = useRef(false);
@@ -167,23 +169,46 @@ export default function MapScreen() {
     [serverUrl],
   );
 
-  // Nearest water (#223): ask the server for the closest features to the
-  // fix, show them in a sheet, and draw a straight line to the chosen one.
-  // Trail routing takes over when the #148 graph lands (#149's fallback).
+  // Nearest water (#223) routed by the in-app A* (#149): fetch a graph
+  // corridor, plan locally with hazard markers as penalties, and fall back
+  // to the straight bearing line whenever the graph cannot serve.
   const drawRoute = useCallback(
-    (result: NearestFeatures, index: number) => {
+    async (result: NearestFeatures, index: number) => {
       const fix = lastFixRef.current;
       const hit = result.hits[index];
       if (fix === null || hit === undefined) {
         return;
       }
       setRoutedIndex(index);
+      const from = { lat: fix.lat, lng: fix.lng };
+      const to = { lat: hit.lat, lng: hit.lon };
+      let planned: TrailRoute | null = null;
+      try {
+        const margin = Math.max(0.02, Math.abs(from.lat - to.lat), Math.abs(from.lng - to.lng)) * 0.5;
+        const window = await useSession
+          .getState()
+          .client()
+          .graphWindow(
+            Math.min(from.lat, to.lat) - margin,
+            Math.max(from.lat, to.lat) + margin,
+            Math.min(from.lng, to.lng) - margin,
+            Math.max(from.lng, to.lng) + margin,
+          );
+        const avoid = useObservations
+          .getState()
+          .observations.filter((o) => o.category === 'hazard')
+          .map((o) => ({ lat: o.lat, lng: o.lng }));
+        planned = planRoute(window, from, to, avoid);
+      } catch {
+        planned = null;
+      }
+      setRoute(planned === null ? { kind: 'bearing' } : { kind: 'trail', distanceM: planned.distanceM });
       sendToMap({
         type: 'route',
-        fromLat: fix.lat,
-        fromLng: fix.lng,
-        toLat: hit.lat,
-        toLng: hit.lon,
+        coords: planned?.coords ?? [
+          [from.lng, from.lat],
+          [to.lng, to.lat],
+        ],
       });
     },
     [sendToMap],
@@ -203,7 +228,7 @@ export default function MapScreen() {
       const result = await useSession.getState().client().nearestFeatures(fix.lat, fix.lng);
       setNearest(result);
       setNearestState('ready');
-      drawRoute(result, 0);
+      void drawRoute(result, 0);
     } catch (error) {
       setNearest(null);
       setNearestState(String(error).includes('503') ? 'no-layer' : 'error');
@@ -214,6 +239,7 @@ export default function MapScreen() {
     setNearest(null);
     setNearestState('idle');
     setRoutedIndex(0);
+    setRoute(null);
     sendToMap({ type: 'route-clear' });
   };
 
@@ -332,7 +358,7 @@ export default function MapScreen() {
                       key={`${hit.lat},${hit.lon}`}
                       accessibilityRole="button"
                       accessibilityLabel={`Route to ${hit.name ?? hit.feature_class}`}
-                      onPress={() => drawRoute(nearest, index)}
+                      onPress={() => void drawRoute(nearest, index)}
                       style={styles.hitRow}
                     >
                       <Feather
@@ -349,7 +375,10 @@ export default function MapScreen() {
                     </Pressable>
                   ))}
                   <Text style={styles.attribution}>
-                    bearing line only · {nearest.attribution}
+                    {route?.kind === 'trail'
+                      ? `trail route ${formatDistance(route.distanceM)}`
+                      : 'bearing line only'}{' '}
+                    · {nearest.attribution}
                   </Text>
                 </>
               )}

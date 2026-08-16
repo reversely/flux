@@ -20,6 +20,7 @@ import type {
   WalkSessionState,
   WalkSurveyResult,
   WalkSpeciesDetail,
+  GraphWindow,
   NearestFeatures,
 } from './types';
 
@@ -48,6 +49,16 @@ export class ApiClient {
 
   async chat(question: string): Promise<ChatAnswer> {
     return this.postJson<ChatAnswer>('/v1/chat', { question });
+  }
+
+  async graphWindow(
+    minLat: number,
+    maxLat: number,
+    minLon: number,
+    maxLon: number,
+  ): Promise<GraphWindow> {
+    const params = `min_lat=${minLat}&max_lat=${maxLat}&min_lon=${minLon}&max_lon=${maxLon}`;
+    return this.getJson<GraphWindow>(`/v1/graph/window?${params}`);
   }
 
   async nearestFeatures(lat: number, lon: number, cls?: string): Promise<NearestFeatures> {

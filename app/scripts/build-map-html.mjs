@@ -246,15 +246,17 @@ window.__native = function (msg) {
     if (obs) { obs.setData(msg.data); }
   } else if (msg.type === 'route') {
     var route = map.getSource('route');
-    if (route) {
+    if (route && msg.coords && msg.coords.length > 1) {
+      var end = msg.coords[msg.coords.length - 1];
       route.setData({ type: 'FeatureCollection', features: [
-        { type: 'Feature', geometry: { type: 'LineString',
-          coordinates: [[msg.fromLng, msg.fromLat], [msg.toLng, msg.toLat]] },
+        { type: 'Feature', geometry: { type: 'LineString', coordinates: msg.coords },
           properties: {} },
-        { type: 'Feature', geometry: { type: 'Point',
-          coordinates: [msg.toLng, msg.toLat] }, properties: {} }] });
-      map.fitBounds([[Math.min(msg.fromLng, msg.toLng), Math.min(msg.fromLat, msg.toLat)],
-        [Math.max(msg.fromLng, msg.toLng), Math.max(msg.fromLat, msg.toLat)]],
+        { type: 'Feature', geometry: { type: 'Point', coordinates: end },
+          properties: {} }] });
+      var lngs = msg.coords.map(function (c) { return c[0]; });
+      var lats = msg.coords.map(function (c) { return c[1]; });
+      map.fitBounds([[Math.min.apply(null, lngs), Math.min.apply(null, lats)],
+        [Math.max.apply(null, lngs), Math.max.apply(null, lats)]],
         { padding: 80, duration: 900 });
     }
   } else if (msg.type === 'route-clear') {

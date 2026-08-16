@@ -285,6 +285,13 @@ export interface FeatureHit {
   lon: number;
 }
 
+/** A route corridor (#229): nodes [id, lat, lon], edges [a, b, meters]. */
+export interface GraphWindow {
+  nodes: [number, number, number][];
+  edges: [number, number, number][];
+  attribution: string;
+}
+
 export interface NearestFeatures {
   hits: FeatureHit[];
   /** The layer's ODbL line; rendered beside results. */
