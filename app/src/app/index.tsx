@@ -16,6 +16,7 @@ import {
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { ChatSource } from '@/api/types';
 import { AnswerText } from '@/components/AnswerText';
 import { HomeBackdrop } from '@/components/HomeBackdrop';
 import { TopBar, TopBarButton } from '@/components/TopBar';
@@ -113,7 +114,41 @@ function Message({ message }: { message: ChatMessage }) {
           <Text style={styles.toolLabel}>{message.tool.label}</Text>
         </Pressable>
       )}
+      <SourceLine sources={message.sources} />
     </View>
+  );
+}
+
+/**
+ * One book line under an answer that quotes pack passages (#186): the
+ * chapters the sources cite, tapping into the reference. Chapter numbers
+ * parse from the pack's chapter ids ("fm21-76-ch06"); an id that does not
+ * carry one drops out rather than rendering a broken link.
+ */
+function SourceLine({ sources }: { sources?: ChatSource[] }) {
+  const router = useRouter();
+  const chapters = [
+    ...new Set(
+      (sources ?? [])
+        .map((s) => /ch(\d+)$/.exec(s.chapter_id)?.[1])
+        .filter((n): n is string => n !== undefined)
+        .map((n) => String(Number(n))),
+    ),
+  ];
+  if (chapters.length === 0) {
+    return null;
+  }
+  return (
+    <Pressable
+      accessibilityRole="link"
+      onPress={() => router.push({ pathname: '/reference', params: { chapter: chapters[0] } })}
+      style={styles.sourceLine}
+    >
+      <Feather name="book-open" size={12} color={colors.ink3} />
+      <Text style={styles.sourceLabel}>
+        {chapters.length === 1 ? `chapter ${chapters[0]}` : `chapters ${chapters.join(', ')}`}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -329,6 +364,18 @@ const styles = StyleSheet.create({
     ...aeonikFace('medium'),
     fontSize: 12,
     color: colors.signature,
+  },
+  sourceLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing.xs,
+    paddingTop: spacing.xs,
+  },
+  sourceLabel: {
+    ...aeonikFace('regular'),
+    fontSize: 12,
+    color: colors.ink3,
   },
   inputArea: {
     gap: spacing.s,

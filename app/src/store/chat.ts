@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 import { askChat } from '@/api/chat';
-import type { ChatAnswer, ChatTool } from '@/api/types';
+import type { ChatAnswer, ChatSource, ChatTool } from '@/api/types';
 import { useSession } from '@/store/session';
 
 export interface ChatMessage {
@@ -9,6 +9,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
   tool?: ChatTool;
+  sources?: ChatSource[];
   pending?: boolean;
 }
 
@@ -52,7 +53,9 @@ export const useChat = create<ChatState>((set) => ({
     const answer = await answerFor(trimmed);
     set((s) => ({
       messages: s.messages.map((m) =>
-        m.id === pendingId ? { ...m, text: answer.text, tool: answer.tool, pending: false } : m,
+        m.id === pendingId
+          ? { ...m, text: answer.text, tool: answer.tool, sources: answer.sources, pending: false }
+          : m,
       ),
     }));
   },
