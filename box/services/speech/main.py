@@ -1,4 +1,4 @@
-"""Speech service on the GN100: ASR (Parakeet, Whisper) and TTS (Kokoro).
+"""Speech service on the GN100: ASR (Parakeet, Whisper) and TTS (Riva, Kokoro).
 
 One FastAPI app behind the voice loop (#74 ASR, #77 TTS; flux-server relays,
 #80). Models load once at startup from MODELS_DIR (the fetch_models.sh tree):
@@ -20,6 +20,7 @@ the inference trace in front of the app's traces tab unchanged.
 """
 
 import asyncio
+import logging
 import os
 import struct
 import subprocess
@@ -46,6 +47,14 @@ KOKORO_DIR = MODELS_DIR / "kokoro-82m"
 SAMPLE_RATE = 16_000
 TTS_SAMPLE_RATE = 24_000
 DEFAULT_VOICE = os.environ.get("KOKORO_VOICE", "af_heart")
+
+# Riva TTS NIM (gRPC). When set and reachable, narration synthesizes
+# through Riva; Kokoro stays loaded as the fallback, so a stopped
+# container degrades the voice, never the walk.
+log = logging.getLogger("speech")
+
+RIVA_TTS_URL = os.environ.get("RIVA_TTS_URL", "")
+RIVA_VOICE = os.environ.get("RIVA_VOICE", "")
 # Re-transcribe the stream buffer once at least this much new audio arrived.
 PARTIAL_STRIDE_S = 1.0
 # A stream longer than this is not a command utterance; refuse to grow.
@@ -146,6 +155,47 @@ class Engines:
         except (RuntimeError, torch.AcceleratorError):
             pass
         self.kokoro = KPipeline(lang_code="a", model=model)
+
+        self.riva = None
+        self.riva_voice = None
+        if RIVA_TTS_URL:
+            self.load_riva()
+
+    def load_riva(self):
+        try:
+            import riva.client
+
+            auth = riva.client.Auth(uri=RIVA_TTS_URL)
+            service = riva.client.SpeechSynthesisService(auth)
+            voice = RIVA_VOICE
+            if not voice:
+                from riva.client.proto import riva_tts_pb2
+
+                config = service.stub.GetRivaSynthesisConfig(
+                    riva_tts_pb2.RivaSynthesisConfigRequest()
+                )
+                voices = [
+                    m.parameters["voice_name"]
+                    for m in config.model_config
+                    if "voice_name" in m.parameters
+                ]
+                voice = voices[0] if voices else ""
+            if not voice:
+                return
+            # One synthesis proves the pair works before narration relies on it.
+            service.synthesize(
+                "ready",
+                voice_name=voice,
+                language_code=os.environ.get("RIVA_LANGUAGE", "en-US"),
+                sample_rate_hz=TTS_SAMPLE_RATE,
+            )
+            self.riva = service
+            self.riva_voice = voice
+        except Exception as error:  # noqa: BLE001 - any failure means fallback
+            # Unreachable or incompatible Riva leaves Kokoro serving.
+            log.warning("riva unavailable, kokoro serves: %s", error)
+            self.riva = None
+            self.riva_voice = None
 
     def load_whisper(self):
         if self.whisper is None and WHISPER_DIR.exists():
@@ -282,6 +332,36 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=422, detail="empty text")
         voice = str(body.get("voice") or DEFAULT_VOICE)
         started = time.monotonic()
+
+        if engines.riva is not None:
+            try:
+                response = await asyncio.to_thread(
+                    engines.riva.synthesize,
+                    text,
+                    voice_name=engines.riva_voice,
+                    language_code=os.environ.get("RIVA_LANGUAGE", "en-US"),
+                    sample_rate_hz=TTS_SAMPLE_RATE,
+                )
+                pcm16 = np.frombuffer(response.audio, dtype=np.int16)
+                latency_ms = int((time.monotonic() - started) * 1000)
+
+                def riva_iter():
+                    yield wav_header(len(pcm16), TTS_SAMPLE_RATE)
+                    yield pcm16.tobytes()
+
+                return StreamingResponse(
+                    riva_iter(),
+                    media_type="audio/wav",
+                    headers={
+                        "X-Model": "riva-tts",
+                        "X-Voice": str(engines.riva_voice),
+                        "X-Latency-Ms": str(latency_ms),
+                        "X-Audio-S": str(round(len(pcm16) / TTS_SAMPLE_RATE, 2)),
+                    },
+                )
+            except Exception as error:  # noqa: BLE001 - fallback beats a 500
+                # A Riva failure mid-flight falls back to Kokoro below.
+                log.warning("riva synthesis failed, kokoro serves: %s", error)
 
         async with gpu_lock:
             pieces: list[np.ndarray] = await asyncio.to_thread(
