@@ -38,6 +38,10 @@ export interface VssFinding {
   quote: string;
   source: string;
   image?: ImageSourcePropType;
+  /** A step whose completion is a wait, in seconds, shown as a timer. */
+  wait?: number;
+  /** What to do when the timer ends. */
+  waitLabel?: string;
 }
 
 export interface VssSession {
@@ -209,7 +213,9 @@ const CELESTIAL: VssSession = {
     {
       when: { time: 'day' },
       means:
-        'Use a shadow. Mark a stick tip shadow, wait 15 minutes, mark again. First mark is west, second is east.',
+        'Push a stick upright. Mark the shadow tip now, wait, then mark it again. First mark is west, second is east, and you are facing north with west on your left.',
+      wait: 900,
+      waitLabel: 'Mark the shadow tip again, then stand with the first mark on your left.',
       quote:
         'The shadow-tip method ... the first mark is always west and the second mark is always east.',
       source: FM18.id,

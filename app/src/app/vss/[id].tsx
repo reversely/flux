@@ -311,6 +311,9 @@ export default function VssScreen() {
           <View style={styles.card}>
             {finding.image !== undefined && <Image source={finding.image} style={styles.figure} />}
             <Text style={typography.surfaceTitle}>{finding.means}</Text>
+            {finding.wait !== undefined && (
+              <Countdown seconds={finding.wait} label={finding.waitLabel} />
+            )}
             {baseline !== undefined && (
               <View style={styles.baseline}>
                 <Feather name="bar-chart-2" size={14} color={colors.ink2} />
@@ -358,6 +361,35 @@ export default function VssScreen() {
   );
 }
 
+/** A wait is part of the method, so it runs on screen instead of in the user's head. */
+function Countdown({ seconds, label }: { seconds: number; label?: string }) {
+  const [left, setLeft] = useState(seconds);
+  const [running, setRunning] = useState(false);
+
+  useEffect(() => {
+    if (!running || left === 0) {
+      return;
+    }
+    const timer = setInterval(() => setLeft((v) => (v <= 1 ? 0 : v - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [running, left]);
+
+  const minutes = Math.floor(left / 60);
+  const secondsLeft = String(left % 60).padStart(2, '0');
+
+  return (
+    <View style={styles.timerBox}>
+      <Pressable style={styles.timer} onPress={() => setRunning((v) => !v)}>
+        <Feather name={running ? 'pause' : 'clock'} size={16} color={colors.signature} />
+        <Text style={styles.timerText}>
+          {left === 0 ? 'Time is up' : `${minutes}m ${secondsLeft}s`}
+        </Text>
+      </Pressable>
+      {left === 0 && label !== undefined && <Text style={typography.annotation}>{label}</Text>}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   pad: { ...typography.body, padding: spacing.l },
@@ -382,6 +414,19 @@ const styles = StyleSheet.create({
   readingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   readingText: { ...typography.annotation, color: colors.signature },
   baseline: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
+  timerBox: { gap: spacing.xs },
+  timer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+    alignSelf: 'flex-start',
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    borderColor: colors.signature,
+    paddingHorizontal: spacing.m,
+    height: sizes.chip,
+  },
+  timerText: { ...typography.listBody, color: colors.signature },
   quote: {
     borderLeftWidth: 2,
     borderLeftColor: colors.steel[1],
