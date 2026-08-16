@@ -14,6 +14,8 @@ export interface Observation {
   lng: number;
   category: ObservationCategory;
   note: string;
+  /** Saved-place name (#230); pins label with it, category label when absent. */
+  title?: string;
   createdAt: string;
 }
 
@@ -62,7 +64,7 @@ interface ObservationState {
   remove: (id: string) => Promise<void>;
   update: (
     id: string,
-    changes: Partial<Pick<Observation, 'category' | 'note'>>,
+    changes: Partial<Pick<Observation, 'category' | 'note' | 'title'>>,
   ) => Promise<void>;
 }
 
@@ -121,7 +123,7 @@ export function observationsToGeoJSON(observations: Observation[]) {
     features: observations.map((o) => ({
       type: 'Feature' as const,
       geometry: { type: 'Point' as const, coordinates: [o.lng, o.lat] },
-      properties: { id: o.id, category: o.category, label: CATEGORY_LABEL[o.category] },
+      properties: { id: o.id, category: o.category, label: o.title || CATEGORY_LABEL[o.category] },
     })),
   };
 }

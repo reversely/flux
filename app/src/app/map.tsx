@@ -3,12 +3,12 @@ import { Asset } from 'expo-asset';
 import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 import type { NearestFeatures } from '@/api/types';
-import { planRoute, type TrailRoute } from '@/lib/route';
+import { haversineM, planRoute, type TrailRoute } from '@/lib/route';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { useSession } from '@/store/session';
@@ -63,6 +63,31 @@ function formatDistance(meters: number): string {
 
 type NearestState = 'idle' | 'loading' | 'no-fix' | 'no-layer' | 'error' | 'ready';
 
+/** Saved-list rows (#230): distance-sorted beside a fix, newest first without. */
+function savedRows(
+  observations: Observation[],
+  filter: ObservationCategory | 'all',
+  fix: { lat: number; lng: number } | null,
+) {
+  const filtered = observations.filter((o) => filter === 'all' || o.category === filter);
+  const rows = filtered.map((obs) => {
+    const meters =
+      fix === null ? null : Math.round(haversineM(fix, { lat: obs.lat, lng: obs.lng }));
+    return {
+      obs,
+      label: obs.title || obs.note || CATEGORY_LABEL[obs.category],
+      meters,
+      distance: meters === null ? null : formatDistance(meters),
+    };
+  });
+  rows.sort((a, b) =>
+    a.meters !== null && b.meters !== null
+      ? a.meters - b.meters
+      : b.obs.createdAt.localeCompare(a.obs.createdAt),
+  );
+  return rows;
+}
+
 const CATEGORY_TINT: Record<ObservationCategory, string> = {
   water: '#4FA8E8',
   food: '#7BC98A',
@@ -91,6 +116,10 @@ export default function MapScreen() {
   const [openObs, setOpenObs] = useState<Observation | null>(null);
   const [editCategory, setEditCategory] = useState<ObservationCategory>('note');
   const [editNote, setEditNote] = useState('');
+  const [editTitle, setEditTitle] = useState('');
+  const [draftTitle, setDraftTitle] = useState('');
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [savedFilter, setSavedFilter] = useState<ObservationCategory | 'all'>('all');
   const [nearest, setNearest] = useState<NearestFeatures | null>(null);
   const [nearestState, setNearestState] = useState<NearestState>('idle');
   const [routedIndex, setRoutedIndex] = useState(0);
@@ -247,9 +276,15 @@ export default function MapScreen() {
     if (draft === null) {
       return;
     }
-    await addObservation({ ...draft, category: draftCategory, note: draftNote.trim() });
+    await addObservation({
+      ...draft,
+      category: draftCategory,
+      note: draftNote.trim(),
+      title: draftTitle.trim() || undefined,
+    });
     setDraft(null);
     setDraftNote('');
+    setDraftTitle('');
     setDraftCategory('note');
   };
 
@@ -305,6 +340,7 @@ export default function MapScreen() {
                   if (tapped) {
                     setEditCategory(tapped.category);
                     setEditNote(tapped.note);
+                    setEditTitle(tapped.title ?? '');
                   }
                 }
               } catch {
@@ -339,6 +375,98 @@ export default function MapScreen() {
           >
             <Feather name="droplet" size={22} color={darkHome.ink} />
           </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Saved markers"
+            onPress={() => {
+              setDraft(null);
+              setOpenObs(null);
+              closeNearest();
+              setSavedOpen(true);
+            }}
+            style={[styles.locateButton, { bottom: insets.bottom + spacing.l + 128 }]}
+          >
+            <Feather name="bookmark" size={22} color={darkHome.ink} />
+          </Pressable>
+          {savedOpen && (
+            <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.m }]}>
+              <Text style={styles.sheetTitle}>Saved markers</Text>
+              <View style={styles.chipRow}>
+                {(['all', ...CATEGORIES] as const).map((category) => {
+                  const count =
+                    category === 'all'
+                      ? observations.length
+                      : observations.filter((o) => o.category === category).length;
+                  return (
+                    <Pressable
+                      key={category}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Filter ${category === 'all' ? 'all' : CATEGORY_LABEL[category]}`}
+                      onPress={() => setSavedFilter(category)}
+                      style={[
+                        styles.chip,
+                        savedFilter === category && {
+                          borderColor:
+                            category === 'all' ? darkHome.ink2 : CATEGORY_TINT[category],
+                          backgroundColor: 'rgba(255,255,255,0.06)',
+                        },
+                      ]}
+                    >
+                      {category !== 'all' && (
+                        <View
+                          style={[styles.chipDot, { backgroundColor: CATEGORY_TINT[category] }]}
+                        />
+                      )}
+                      <Text style={styles.chipText}>
+                        {category === 'all' ? 'All' : CATEGORY_LABEL[category]} {count}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <ScrollView style={styles.savedList}>
+                {savedRows(observations, savedFilter, lastFixRef.current).map((row) => (
+                  <Pressable
+                    key={row.obs.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${row.label}`}
+                    onPress={() => {
+                      setSavedOpen(false);
+                      sendToMap({ type: 'fly', lat: row.obs.lat, lng: row.obs.lng, zoom: 14 });
+                      setOpenObs(row.obs);
+                      setEditCategory(row.obs.category);
+                      setEditNote(row.obs.note);
+                      setEditTitle(row.obs.title ?? '');
+                    }}
+                    style={styles.hitRow}
+                  >
+                    <View
+                      style={[styles.chipDot, { backgroundColor: CATEGORY_TINT[row.obs.category] }]}
+                    />
+                    <Text style={styles.hitText} numberOfLines={1}>
+                      {row.label}
+                    </Text>
+                    {row.distance !== null && (
+                      <Text style={styles.hitDistance}>{row.distance}</Text>
+                    )}
+                  </Pressable>
+                ))}
+                {observations.length === 0 && (
+                  <Text style={styles.noteBody}>No markers yet. Long-press the map.</Text>
+                )}
+              </ScrollView>
+              <View style={styles.sheetActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close saved markers"
+                  onPress={() => setSavedOpen(false)}
+                  style={[styles.sheetButton, styles.sheetButtonPrimary]}
+                >
+                  <Text style={[styles.sheetButtonText, styles.sheetButtonPrimaryText]}>Close</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
           {nearestState !== 'idle' && (
             <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.m }]}>
               <Text style={styles.sheetTitle}>Nearest water</Text>
@@ -418,6 +546,13 @@ export default function MapScreen() {
                 ))}
               </View>
               <TextInput
+                value={draftTitle}
+                onChangeText={setDraftTitle}
+                placeholder="Name (optional)"
+                placeholderTextColor={darkHome.ink3}
+                style={styles.input}
+              />
+              <TextInput
                 value={draftNote}
                 onChangeText={setDraftNote}
                 placeholder="Note (what you saw)"
@@ -469,6 +604,13 @@ export default function MapScreen() {
                 ))}
               </View>
               <TextInput
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholder="Name (optional)"
+                placeholderTextColor={darkHome.ink3}
+                style={styles.input}
+              />
+              <TextInput
                 value={editNote}
                 onChangeText={setEditNote}
                 placeholder="Note (what you saw)"
@@ -505,6 +647,7 @@ export default function MapScreen() {
                     void updateObservation(openObs.id, {
                       category: editCategory,
                       note: editNote.trim(),
+                      title: editTitle.trim() || undefined,
                     });
                     setOpenObs(null);
                   }}
@@ -618,6 +761,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
     paddingHorizontal: spacing.s,
     paddingVertical: spacing.xs,
+  },
+  savedList: {
+    maxHeight: 320,
   },
   hitRow: {
     flexDirection: 'row',
