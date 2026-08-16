@@ -1,0 +1,58 @@
+# Flux ops-console policy for the GN100 NemoClaw sandbox (#48).
+# Applied with `nemoclaw flux-ops policy-add --from-file`; merges into the
+# base OpenShell sandbox policy. Deliberately offline: only host-local
+# service ports, no cloud endpoints, no chat-channel integrations. The
+# blueprint's vss_nemoclaw_policy.yaml stays unused because it opens
+# Anthropic, GitHub, Discord, Slack, npm, and PyPI origins this console
+# never needs.
+
+preset:
+  name: flux-ops
+  description: "Flux base-station operations: local VSS, NIMs, perception, speech"
+
+network_policies:
+  flux-local-stack:
+    name: flux-local-stack
+    # Docker bridge CIDRs only, matching the blueprint's guidance to avoid
+    # the full private range.
+    endpoints:
+      # VSS agent API
+      - host: host.openshell.internal
+        port: 8000
+        access: full
+        allowed_ips: [172.17.0.0/16, 172.18.0.0/16, 172.20.0.0/16]
+      # VST / VIOS
+      - host: host.openshell.internal
+        port: 30888
+        access: full
+        allowed_ips: [172.17.0.0/16, 172.18.0.0/16, 172.20.0.0/16]
+      # Nemotron NIM (also the console's own model endpoint)
+      - host: host.openshell.internal
+        port: 30081
+        access: full
+        allowed_ips: [172.17.0.0/16, 172.18.0.0/16, 172.20.0.0/16]
+      # Cosmos NIM
+      - host: host.openshell.internal
+        port: 30082
+        access: full
+        allowed_ips: [172.17.0.0/16, 172.18.0.0/16, 172.20.0.0/16]
+      # Perception service
+      - host: host.openshell.internal
+        port: 8100
+        access: full
+        allowed_ips: [172.17.0.0/16, 172.18.0.0/16, 172.20.0.0/16]
+      # Speech service
+      - host: host.openshell.internal
+        port: 8110
+        access: full
+        allowed_ips: [172.17.0.0/16, 172.18.0.0/16, 172.20.0.0/16]
+      # VST MCP
+      - host: host.openshell.internal
+        port: 8001
+        access: full
+        allowed_ips: [172.17.0.0/16, 172.18.0.0/16, 172.20.0.0/16]
+    binaries:
+      - { path: /usr/bin/curl }
+      - { path: /usr/local/bin/node }
+      - { path: /usr/local/bin/openclaw }
+      - { path: /usr/bin/python3 }
