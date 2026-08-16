@@ -1,12 +1,17 @@
-import { useMemo, useState } from 'react';
+import { Asset } from 'expo-asset';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
-import { MAP_HTML } from '@/map/mapHtml.generated';
 import { useSession } from '@/store/session';
 import { colors, radius, spacing, typography } from '@/theme/tokens';
+
+// The map document is an asset, not a bundled string: 2 MB of MapLibre,
+// pmtiles, style, and glyphs stays out of every screen's JS payload, and
+// the WebView loads it from disk. scripts/build-map-html.mjs writes it.
+const mapDocument = require('../../assets/map/index.html');
 
 // Dev-only relief so the hillshade is visually tunable before the box builds
 // the terrain-RGB archive (#78) and the server serves it per layer (#75).
@@ -25,6 +30,13 @@ const DEV_TERRAIN = __DEV__
 export default function MapScreen() {
   const serverUrl = useSession((s) => s.serverUrl).trim();
   const [archiveMissing, setArchiveMissing] = useState(false);
+  const [documentUri, setDocumentUri] = useState<string>();
+
+  useEffect(() => {
+    void Asset.fromModule(mapDocument)
+      .downloadAsync()
+      .then((asset) => setDocumentUri(asset.localUri ?? asset.uri));
+  }, []);
 
   const bootConfig = useMemo(
     () =>
@@ -40,11 +52,17 @@ export default function MapScreen() {
           <Text style={typography.body}>No server connected</Text>
           <Text style={[typography.annotation, styles.hint]}>Connect from the home screen</Text>
         </View>
+      ) : documentUri === undefined ? (
+        <View style={styles.empty}>
+          <Text style={typography.body}>Opening the map</Text>
+        </View>
       ) : (
         <View style={styles.mapWrap}>
           <WebView
             originWhitelist={['*']}
-            source={{ html: MAP_HTML }}
+            allowFileAccess
+            allowingReadAccessToURL={documentUri}
+            source={{ uri: documentUri }}
             injectedJavaScriptBeforeContentLoaded={bootConfig}
             onMessage={(event) => {
               try {
