@@ -77,6 +77,18 @@ export default function CameraHub() {
           onPress={() => router.push('/capture/identify')}
         />
         <ModeCard
+          icon="cloud"
+          title="Read the sky"
+          line="What the weather will do next."
+          onPress={() => router.push('/vss/weather')}
+        />
+        <ModeCard
+          icon="compass"
+          title="Find direction"
+          line="A bearing from the stars or a shadow."
+          onPress={() => router.push('/vss/celestial')}
+        />
+        <ModeCard
           icon="film"
           title="Record trail"
           line="Continuous clips to the server. Ask about them later."

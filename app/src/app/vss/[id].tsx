@@ -12,6 +12,15 @@ import { useHoldToTalk, useNarration } from '@/api/voice';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { NORMALS_SOURCE, findingFor, localBaseline, sourceById, vssById } from '@/data/vss';
+
+/** Until sources are carried in the pack (#162, #164), a tap needs a network. */
+async function openSource(url: string, onFail: (message: string) => void) {
+  try {
+    await Linking.openURL(url);
+  } catch {
+    onFail('That source is online only for now. Its address is above.');
+  }
+}
 import { useSession } from '@/store/session';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
@@ -313,7 +322,7 @@ export default function VssScreen() {
             <View style={styles.quote}>
               <Text style={styles.quoteText}>{finding.quote}</Text>
               {findingSource !== undefined && (
-                <Pressable onPress={() => void Linking.openURL(findingSource.url)}>
+                <Pressable onPress={() => void openSource(findingSource.url, setNote)}>
                   <Text style={styles.sourceLine}>{findingSource.title}</Text>
                 </Pressable>
               )}
@@ -336,7 +345,7 @@ export default function VssScreen() {
         <View style={styles.sources}>
           <Text style={styles.sourcesHead}>Sources</Text>
           {(baseline === undefined ? session.sources : [...session.sources, NORMALS_SOURCE]).map((s, i) => (
-            <Pressable key={s.id} onPress={() => void Linking.openURL(s.url)}>
+            <Pressable key={s.id} onPress={() => void openSource(s.url, setNote)}>
               <Text style={styles.sourceLine}>
                 [{i + 1}] {s.title}
               </Text>
