@@ -69,6 +69,23 @@ Sources, verified:
   use only, with no right to redistribute, compile, or create derivative works, and prior
   permission is required for anything else. Do not extract characters or images from it.
 
+## Tile 11, the tropical chapter
+
+Chapter 14 runs seven pages, 139 to 145 of the reprint, and carries one figure callout, 14-1. Most
+of it is zone description (rain forest, secondary jungle, scrub and thorn forest, savanna, salt and
+fresh water swamps), an edible-plant list, and warnings, which is reference material rather than
+procedure.
+
+One genuine process sits inside it: obtaining drinking water from a palm. The manual's own words
+give the steps, which is unusual for this chapter. Bend a flowering stalk of a buri, coconut, or
+nipa palm downward and cut off its tip, collect the sugary fluid, and renew the flow by cutting a
+thin slice from the stalk. It has an observable completion cue at each step, so it fits the process
+form, and the shelter and insect-protection material belongs with the Shelter tile's guides rather
+than with a tropical guide of its own.
+
+Chapter 14 has no per-step figure. Commons has no plate citing it. The palm-tapping procedure
+therefore ships with its text and no reference image until one is found.
+
 ## The manual in this repo is truncated
 
 `FM21-76_SurvivalManual.pdf` is a 233-page reprint that ends part-way through chapter 23, on
