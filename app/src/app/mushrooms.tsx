@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, SectionList, StyleSheet, Text, View } from 'react-native';
 
@@ -41,6 +42,18 @@ function traitSummary(card: WalkSpeciesDetail): string {
  */
 export default function Mushrooms() {
   const { client } = useSession();
+  // The survey hands over its selections; the same filter rule applies
+  // client-side: any-of within a character, all-of across, missing data
+  // never eliminates.
+  const { answers: answersParam } = useLocalSearchParams<{ answers?: string }>();
+  const answers = useMemo<Record<string, string[]>>(() => {
+    try {
+      return answersParam ? JSON.parse(answersParam) : {};
+    } catch {
+      return {};
+    }
+  }, [answersParam]);
+  const filtering = Object.values(answers).some((states) => states.length > 0);
   const [species, setSpecies] = useState<WalkSpeciesDetail[] | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -63,20 +76,46 @@ export default function Mushrooms() {
     };
   }, [client]);
 
+  const matches = useMemo(() => {
+    if (!filtering) {
+      return species ?? [];
+    }
+    return (species ?? []).filter((card) =>
+      Object.entries(answers).every(([character, states]) => {
+        if (states.length === 0) {
+          return true;
+        }
+        const recorded = card.traits[character];
+        return recorded === undefined || recorded.some((s) => states.includes(s));
+      }),
+    );
+  }, [species, answers, filtering]);
+
+  const dangerCount = useMemo(
+    () => matches.filter((card) => card.edibility === 'danger').length,
+    [matches],
+  );
+
   const sections = useMemo(() => {
     const byGenus = new Map<string, WalkSpeciesDetail[]>();
-    for (const card of species ?? []) {
+    for (const card of matches) {
       const genus = card.species.split(' ')[0];
       byGenus.set(genus, [...(byGenus.get(genus) ?? []), card]);
     }
     return [...byGenus.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([genus, cards]) => ({ title: genus, data: cards }));
-  }, [species]);
+      .map(([genus, cards]) => ({
+        title: genus,
+        // Danger rows first inside a genus, so the warning reads in place.
+        data: [...cards].sort(
+          (a, b) => Number(b.edibility === 'danger') - Number(a.edibility === 'danger'),
+        ),
+      }));
+  }, [matches]);
 
   return (
     <View style={styles.screen}>
-      <TopBar title="Mushroom catalog" back />
+      <TopBar title={filtering ? 'Matches' : 'Mushroom catalog'} back />
       {species === null ? (
         failed ? (
           <Text style={[typography.body, styles.message]}>
@@ -88,6 +127,13 @@ export default function Mushrooms() {
         )
       ) : (
         <SectionList
+          ListHeaderComponent={
+            filtering && dangerCount > 0 ? (
+              <Text style={styles.dangerLine}>
+                {dangerCount} dangerous kinds still match. Rule them out before eating.
+              </Text>
+            ) : null
+          }
           sections={sections}
           keyExtractor={(card) => card.species}
           contentContainerStyle={styles.list}
@@ -150,5 +196,10 @@ const styles = StyleSheet.create({
   rowText: {
     flexShrink: 1,
     gap: 2,
+  },
+  dangerLine: {
+    ...typography.body,
+    color: '#8C3730',
+    paddingVertical: spacing.s,
   },
 });

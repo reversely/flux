@@ -1,52 +1,26 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { WalkEdibility, WalkSessionState, WalkSpeciesCard } from '@/api/types';
+import type { WalkSessionState } from '@/api/types';
 import { MushroomDiagram } from '@/components/MushroomDiagram';
-import { Tag, type TagTone } from '@/components/Tag';
+import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { useSession } from '@/store/session';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
-const edibilityTone: Record<WalkEdibility, TagTone> = {
-  danger: 'red',
-  caution: 'orange',
-  inedible: 'gray',
-  edible: 'green',
-  unknown: 'gray',
-};
-
-function attribution(card: WalkSpeciesCard): string {
-  const page = card.source_title.replace(/ /g, '_');
-  return `en.wikipedia.org/wiki/${page} · rev ${card.source_revid} · CC BY-SA`;
-}
-
-function SpeciesRow({ card }: { card: WalkSpeciesCard }) {
-  return (
-    <View style={styles.speciesRow}>
-      <View style={styles.speciesName}>
-        <Text style={typography.listBody}>{card.species}</Text>
-        <Text style={typography.annotation}>{attribution(card)}</Text>
-      </View>
-      <Tag label={card.edibility} tone={edibilityTone[card.edibility]} />
-    </View>
-  );
-}
-
 /**
- * The mushroom survey: one visual form over the walk session. Every
- * character section shows the anatomy diagram focused on its region and a
- * multiselect of that character's states; selections within a character
- * filter as any-of, sections combine as all-of, and the danger card stays
- * pinned while dangerous kinds remain. Counts stay hidden until the first
- * selection: the unfiltered corpus total reads as noise, not guidance.
+ * The mushroom survey: one visual form over the walk session, and only the
+ * form. The emphasis is the per-part guides (diagram, question, states);
+ * no species list renders here. The count row stays compact, and See
+ * matches opens the catalog filtered by the current answers.
  */
 export default function Walkthrough() {
   const { client } = useSession();
+  const router = useRouter();
   // A launch may carry a transcript to replay, `answers=char=state,...`:
   // sessions are deterministic, so a replayed link reopens the same walk.
   // `camera=1` opens the preview; the default is the text-only ask.
@@ -155,14 +129,6 @@ export default function Walkthrough() {
                 Select what you can see. The matches narrow with each feature.
               </Text>
             )}
-            {anySelected && walk.danger_species && walk.danger_species.length > 0 && (
-              <View style={styles.dangerCard}>
-                <Text style={styles.dangerTitle}>Still possible. Do not eat.</Text>
-                {walk.danger_species.map((card) => (
-                  <SpeciesRow key={card.species} card={card} />
-                ))}
-              </View>
-            )}
             {walk.questions.map((question) => (
               <View key={question.character} style={styles.questionCard}>
                 <MushroomDiagram character={question.character} />
@@ -187,15 +153,23 @@ export default function Walkthrough() {
                 <Text style={typography.annotation}>{question.citation}</Text>
               </View>
             ))}
-            {anySelected && walk.candidates && (
-              <View style={styles.questionCard}>
-                <Text style={typography.surfaceTitle}>Matches from your answers</Text>
-                {walk.candidates.map((card) => (
-                  <SpeciesRow key={card.species} card={card} />
-                ))}
-              </View>
-            )}
             <View style={styles.controlRow}>
+              {anySelected && (
+                <Pressable
+                  disabled={busy}
+                  style={styles.primaryButton}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/mushrooms',
+                      params: {
+                        answers: JSON.stringify(Object.fromEntries(selected)),
+                      },
+                    })
+                  }
+                >
+                  <Text style={typography.button}>See the matches</Text>
+                </Pressable>
+              )}
               <Pressable disabled={busy} style={styles.secondaryButton} onPress={() => void start()}>
                 <Text style={styles.secondaryButtonText}>Start over</Text>
               </Pressable>
@@ -233,18 +207,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  dangerCard: {
-    backgroundColor: '#F7E3E1',
-    borderRadius: radius.surface,
-    borderWidth: 1,
-    borderColor: '#E5B5B0',
-    padding: spacing.l,
-    gap: spacing.s,
-  },
-  dangerTitle: {
-    ...typography.surfaceTitle,
-    color: '#8C3730',
   },
   questionCard: {
     backgroundColor: colors.card,
@@ -284,6 +246,13 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.s,
   },
+  primaryButton: {
+    height: sizes.control,
+    borderRadius: radius.control,
+    backgroundColor: colors.signature,
+    paddingHorizontal: spacing.l,
+    justifyContent: 'center',
+  },
   secondaryButton: {
     height: sizes.control,
     borderRadius: radius.control,
@@ -295,16 +264,6 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     ...typography.listBody,
     color: colors.ink,
-  },
-  speciesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.m,
-  },
-  speciesName: {
-    flexShrink: 1,
-    gap: 2,
   },
   helper: {
     ...typography.body,
