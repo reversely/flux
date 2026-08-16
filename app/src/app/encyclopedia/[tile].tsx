@@ -6,7 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import type { ChapterDetail } from '@/api/types';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
-import { knotsForTile } from '@/data/coach';
+import { proceduresForTile } from '@/data/coach';
 import { loadChapter, loadChapters, tileById } from '@/data/encyclopedia';
 import { getGuide } from '@/data/guides';
 import { launchTool } from '@/lib/launch';
@@ -89,7 +89,7 @@ export default function TileSections() {
           {/* The tile's guide: an intro story plus items whose buttons launch
               tools (data/guide.ts). Where the coach owns a tile its corpus
               guide predates the coach redesign and stays unrendered. */}
-          {guide !== undefined && knotsForTile(tile.id).length === 0 && (
+          {guide !== undefined && proceduresForTile(tile.id).length === 0 && (
             <View style={styles.chapter}>
               <Text style={[typography.body, styles.guideIntro]}>{guide.intro}</Text>
               {guide.groups.map((group) => (
@@ -125,11 +125,11 @@ export default function TileSections() {
               ))}
             </View>
           )}
-          {knotsForTile(tile.id).length > 0 && (
+          {proceduresForTile(tile.id).length > 0 && (
             <View style={styles.chapter}>
-              <Text style={[typography.annotation, styles.chapterLabel]}>Knot coach</Text>
+              <Text style={[typography.annotation, styles.chapterLabel]}>Coach</Text>
               <View style={styles.sectionCard}>
-                {knotsForTile(tile.id).map((knot, index) => (
+                {proceduresForTile(tile.id).map((knot, index) => (
                   <Pressable
                     key={knot.id}
                     accessibilityRole="button"

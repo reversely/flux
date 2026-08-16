@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { knotById } from '@/data/coach';
+import { procedureById } from '@/data/coach';
 import { useSession } from '@/store/session';
 import { darkHome, HOME_BIOME } from '@/theme/biome';
 import { radius, spacing, typography } from '@/theme/tokens';
@@ -29,7 +29,7 @@ type WatchState = 'off' | 'starting' | 'watching' | 'failed';
  */
 export default function KnotCoach() {
   const { knot: knotId } = useLocalSearchParams<{ knot: string }>();
-  const knot = knotById(knotId ?? '');
+  const knot = procedureById(knotId ?? '');
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const client = useSession((s) => s.client);
@@ -127,6 +127,8 @@ export default function KnotCoach() {
   }
 
   const showCamera = Device.isDevice && permission?.granted === true;
+  const active = knot.steps[step];
+  const figure = active.figure ?? knot.reference;
 
   return (
     <View style={styles.screen}>
@@ -155,7 +157,7 @@ export default function KnotCoach() {
             {knot.name} · {step + 1}/{knot.steps.length}
           </Text>
         </View>
-        {showCamera && (
+        {showCamera && knot.watchable && (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={watch === 'off' || watch === 'failed' ? 'Watch my tying' : 'Stop watching'}
@@ -194,10 +196,24 @@ export default function KnotCoach() {
         </Pressable>
       </View>
       <View style={[styles.referenceWrap, { top: insets.top + 64 }]} pointerEvents="none">
-        <Image source={knot.reference} style={styles.reference} contentFit="contain" />
+        <Image source={figure} style={styles.reference} contentFit="contain" />
       </View>
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.m }]}>
-        <Text style={styles.fragment}>{knot.steps[step].screen}</Text>
+        <Text style={styles.fragment}>{active.screen}</Text>
+        {active.manual !== undefined && (
+          <Text style={styles.manual} numberOfLines={4}>
+            {active.manual}
+          </Text>
+        )}
+        {knot.manualChapter !== undefined && (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Open FM 21-76 chapter ${knot.manualChapter}`}
+            onPress={() => router.push(`/reference?chapter=${knot.manualChapter}`)}
+          >
+            <Text style={styles.manualLink}>FM 21-76 · Chapter {knot.manualChapter}</Text>
+          </Pressable>
+        )}
         <View style={styles.dots}>
           {knot.steps.map((_, index) => (
             <Pressable
@@ -309,6 +325,16 @@ const styles = StyleSheet.create({
   },
   dotTextCurrent: {
     color: darkHome.field,
+  },
+  manual: {
+    ...typography.annotation,
+    color: darkHome.ink2,
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+  manualLink: {
+    ...typography.tag,
+    color: HOME_BIOME.glow,
   },
   attribution: {
     ...typography.annotation,
