@@ -6,14 +6,20 @@ models and serves the web app on the local network (docs/prd.md, section 2).
 
 ## Reaching the box
 
-The box drops new TCP flows, so every connection multiplexes over the existing
-SSH ControlMaster socket:
+Connections multiplex over an SSH ControlMaster socket. If the socket is gone,
+rebuild it directly; the box accepts the Mac's key as `acer01@172.16.94.108`
+(wifi address, also pinned in `scripts/verify_nemotron.sh`):
 
 ```
-ssh -o ControlPath=~/.ssh/cm-gn100 gn100
+rm -f ~/.ssh/cm-gn100
+ssh -M -S ~/.ssh/cm-gn100 -o ControlPersist=yes -fN acer01@172.16.94.108
+ssh -S ~/.ssh/cm-gn100 acer01@172.16.94.108
 ```
 
-If the socket is gone, re-establish it from an interactive login session first.
+The `gn100` alias is NVIDIA Sync convenience config and can vanish with that
+app's state; do not depend on it. The MOTD's enP7s7 address (172.16.95.x)
+refuses key auth; use the wifi address above. Only the sudo DNS fix
+(`sudo resolvectl dns wlP9s9 1.1.1.1`) needs the user in an interactive session.
 
 ## Layout on the box
 
@@ -62,6 +68,19 @@ vocabulary round-trip, and streaming partial cadence:
 ```
 python box/bench/bench_speech.py http://localhost:8110
 ```
+
+Measured 2026-08-15 on the GN100 (deployed at `~/flux/services/speech`, run
+from the `~/flux/venvs/asr` venv, 8.2 GB RSS total beside the two NIMs and
+VSS): Kokoro on CUDA synthesizes a node question in 25 to 55 ms warm (first
+call 1.0 s), real-time factor 0.02 to 0.03. Parakeet on CUDA transcribes a
+command utterance in about 50 ms warm (first call 360 ms) and round-trips
+the six-word answer vocabulary 6/6. Streaming emits its first partial 860 ms
+into the utterance, one partial per second after, and the final about 200 ms
+after end-of-audio. Whisper's CUDA load fails under ctranslate2 on this
+machine, so it falls back to CPU int8 at about 5 s per utterance: usable as
+the second opinion, not the live path. Loading the speech models OOM-killed
+the two NIM containers once (Docker restarted them); at the edge, start this
+service before or between the heavy stacks, not while they are loading.
 
 ## Nemotron chat endpoint
 
