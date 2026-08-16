@@ -19,13 +19,16 @@ carries current guidance and names the divergence (PRD 6.5.7).
 
 ## Identification
 
+Ticks are deliberately not a walk. They ship as a reference document, cited and readable, with no
+characters and no camera judgement.
+
 | Tile | Item | Characters | Value source | Status |
 | --- | --- | --- | --- | --- |
 | 6 Poisonous Plants | Fungi edibility | 26 designed, 6 shipped | mycomorphbox backbone, McIlvaine 1902 extraction | partial, #135 |
 | 6 Poisonous Plants | Toxic plants | 28 designed | USDA PLANTS for 5 fields, Britton and Brown 1913 and Gray 1908 for keys | partial, #141 |
 | 5 Food | Edible plants | shares the 28-character plant set | FM 21-76 Appendix B: 111 species with edible part, preparation, habitat, and a caution on one record; season from USDA PLANTS | ready once the appendix is parsed |
 | 7 Dangerous Animals | Snakes | 14 asked, 3 key-only | prose extraction with review, no structured source exists | partial, #138 |
-| 7 Dangerous Animals | Medically significant arthropods | 17 across a router and four branches | prose extraction; the INHS tick key is a real matrix awaiting a licence answer | partial, #139 |
+| 7 Dangerous Animals | Medically significant arthropods | a router plus spiders, scorpions, and hymenoptera; ticks are out of the walk | prose extraction with review | partial, #139 |
 | 7 Dangerous Animals | Tracks and sign | 13, four of them measurements | NPS carnivore reference and Taylor and Raphael 1988, both public domain | ready, #140 |
 | 7 Dangerous Animals | Encounter and bite care | not a walk | routes into advice records; WHO snakebite is reference only, the CC BY crotaline algorithm ships | partial |
 
