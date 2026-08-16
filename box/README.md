@@ -46,6 +46,23 @@ BioCLIP zero-shot over taxonomic label strings, and FungiTastic-Mini class score
 starter list of Pacific Northwest species applies. `scripts/build_gbif_checklist.py`
 turns a GBIF SPECIES_LIST extract into `checklist.tsv` plus that label file.
 
+## Speech service
+
+`services/speech/main.py` runs on the box (port 8110, its own venv with
+`nemo_toolkit[asr]`, `faster-whisper`, `kokoro`, `fastapi`): the ASR and TTS
+behind the voice loop (#74/#77; flux-server relays it, #80). POST /asr
+transcribes one utterance (`engine=parakeet` default, `engine=whisper` second
+opinion), WS /asr/stream takes 16 kHz s16le PCM frames and emits partial then
+final transcripts, POST /tts synthesizes Kokoro-82M narration as WAV. Every
+response carries engine, model, and latency_ms for the app's traces tab.
+`bench/bench_speech.py` produces the ticket numbers: Kokoro time-to-first-audio
+and real-time factor per phrase, per-engine utterance latency, the answer
+vocabulary round-trip, and streaming partial cadence:
+
+```
+python box/bench/bench_speech.py http://localhost:8110
+```
+
 ## Nemotron chat endpoint
 
 The chat LLM the flux server calls is the VSS stack's own Nemotron Nano 9B v2

@@ -15,3 +15,6 @@ fungitastic-mini	fungi-classifier	hf	BVRA/tf_efficientnet_b3.in1k_ft_fungitastic
 snakeclef	snake-classifier	url	snakeclef-recipe-unverified	verify	pending
 cosmos3-nano	vlm-lora-target	hf	nvidia/Cosmos3-Nano	nvidia-open-model	fetch
 cosmos-reason2-8b	vlm-serving-lora-target	hf	nvidia/Cosmos-Reason2-8B	nvidia-open-model	fetch
+parakeet-tdt-0.6b-v3	asr-voice-commands	hf	nvidia/parakeet-tdt-0.6b-v3	cc-by-4.0	fetch
+kokoro-82m	tts-narration	hf	hexgrad/Kokoro-82M	apache-2.0	fetch
+faster-whisper-large-v3	asr-second-engine	hf	Systran/faster-whisper-large-v3	mit	fetch
