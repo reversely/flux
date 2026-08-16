@@ -41,9 +41,9 @@ training corpus, which changes four things a reader would otherwise get wrong:
    order of ten to twenty minutes of footage with markable step boundaries,
    not a training-scale corpus.
 4. The tiles this document calls thin are less thin than that framing
-   suggests. Self-shot footage is a first-class bench input, which the six
-   shipped knots already proved. A tile with no research dataset is a tile
-   that needs an afternoon of filming, not a blocked tile.
+   suggests, but this project produces no footage of its own. A tile with no
+   open research dataset cannot be benched, so its procedures ship
+   reference-only: steps, figures, and narration, with no camera judgement.
 
 The one number that governs every item is the accuracy gate in epic #111: at
 least 85.7% per-chunk step-state after monotone and majority smoothing, the
@@ -145,7 +145,8 @@ are the unexplored ones.
 - Video: no research dataset covers splinting. Best open footage is DVIDS
   combat lifesaver and SAM-splint training b-roll (PD; splinting is named in
   CLS course coverage, and individual splint b-roll needs curation) plus
-  CC-filtered YouTube instructional video. This procedure needs self-shot
+  CC-filtered YouTube instructional video. Without an open source this ships
+  reference-only, not
   ground truth, as the knots did.
 - Images: FM 21-76 Fig 4-6 (improvised traction splint from natural material);
   FM 4-25.11 Ch 4 fracture-immobilization figures (arm sling, leg splint
@@ -165,7 +166,7 @@ are the unexplored ones.
   step-by-step sequences) covers the image need.
 - Bench feasibility: likely the easiest bench in the tile, since arm
   positioned, knee raised, rolled to side, and head tilted are maximally
-  coarse body-pose states. Footage must be self-shot.
+  coarse body-pose states. No open footage exists, so this ships reference-only.
 - Ticket: Shoot and bench recovery-position footage against Commons step
   images
 
@@ -243,7 +244,7 @@ false`), pending a bench.
   `OperateFireExtinguisher`; CrossTask has none; HowTo100M may contain "build
   a campfire" (UNVERIFIED, unlicensed). Open footage: DVIDS SERE b-roll shows
   fire building (SERE Skills 937101, Misawa 931619, PD), unscripted;
-  archive.org USAF survival films (PD) supplement. Plan on self-shot golden
+  archive.org USAF survival films (PD) supplement. Without open step-annotated
   footage, as with the knots.
 - Images: FM 21-76 Fig 7-5 covers all four fire lays in one figure (tepee,
   lean-to, cross-ditch, pyramid, confirmed in the local PDF), Fig 7-1 (fire
@@ -259,11 +260,11 @@ false`), pending a bench.
   coarse-phase regime. This is the bench the shipped `fire-tepee` procedure is
   waiting on.
 - Ticket: Build tepee fire-lay step records from FM 21-76 Fig 7-5 and bench
-  self-shot footage
+  no open footage, so reference-only
 
 ### 3.2 Ferro-rod and flint-and-steel ignition
 
-- Video: no dataset. CC-filtered YouTube bushcraft footage plus self-shot
+- Video: no dataset. CC-filtered YouTube bushcraft footage only, otherwise
   ground truth is the realistic source, with DVIDS SERE firecraft b-roll as a
   PD supplement. Nothing could be verified as CC-BY, so treat the video column
   as UNVERIFIED pending curation.
@@ -329,7 +330,7 @@ false`), pending a bench.
   (https://www.dvidshub.net/about/copyright, verified) is PD for
   USG-produced footage with a non-endorsement disclaimer, but its SERE water
   content is raft and pool training rather than procurement. The practical
-  path is the knots workflow: CC-BY YouTube plus self-shot clips, hand-marked.
+  path is the knots workflow's CC-BY YouTube half; with no open source, reference-only.
 - Images: FM 21-76 Ch 6 figures above, all PD. FM 3-05.70 (2002) redraws the
   same steps in a second art style (https://landsurvival.com/06.htm).
   Wikimedia Commons Category:Solar stills does not exist; use the files
@@ -343,7 +344,7 @@ false`), pending a bench.
 
 - FM 21-76 Fig 6-9: cloth, sand, crushed rock, and charcoal in bamboo, a
   hollow log, or a cloth tripod.
-- Video: same as 4.1, no dataset; CC-BY plus self-shot.
+- Video: same as 4.1, no open dataset, so reference-only.
 - Images: FM 21-76 Fig 6-9 (PD); Commons Category:Water filters.
 - Bench feasibility: feasible if merged per material layer. Distinguishing a
   sand pour from a crushed-rock pour likely needs merging into "add coarse
@@ -775,11 +776,11 @@ plus DVIDS b-roll.
 ### 10.2 Signal fire and smoke generator build
 
 - Phases: platform; pyre laid; ignition; green boughs added for smoke.
-- Video: same DVIDS PD b-roll plus self-shot ground truth.
+- Video: DVIDS PD b-roll only.
 - Images: FM 21-76 Ch 19 and AFH 10-644, both PD.
 - Bench feasibility: good. The phases are coarse and visually distinct, and
   smoke onset is unmistakable at 8-frame sampling.
-- Ticket: Signal fire and smoke generator pack benched on self-shot and DVIDS
+- Ticket: Signal fire and smoke generator pack benched on DVIDS PD footage
   footage
 
 ### 10.3 Signal mirror aiming (demote to reference card)
@@ -892,7 +893,7 @@ knowledge plus region selection, where the camera does scene classification
 ### 12.2 Sealing a room (shelter-in-place)
 
 - Phases: bare window or door; plastic sheet placed; perimeter taped.
-- Video: no dataset. Bench on self-shot footage against Ready.gov steps.
+- Video: no dataset, so reference-only against Ready.gov steps.
 - Images: Ready.gov and FEMA shelter-in-place graphics, PD, already in the
   project's source set. Army CBRN manuals (FM 3-11 family) carry PD decon
   figures (figure inventory UNVERIFIED).
@@ -957,7 +958,7 @@ Strong open data (a real dataset or a PD figure set plus a workable bench):
   mycomorphbox: NC State Plant Toolbox poison fields, Dr. Duke's USDA CSVs,
   and the iNaturalist similar_species confusion matrix.
 
-Thin (PD figures exist, video must be self-shot):
+Reference-only (PD figures exist, no open video, and this project films nothing):
 
 - Tile 3 Fire, Tile 4 Water, Tile 8 Tools and Cordage, Tile 9 Direction
   Finding, Tile 10 Signaling, Tile 11 Environments. Every one of these has
@@ -979,7 +980,7 @@ Three best next items after knots:
    ground truth already annotated at the granularity the bowline bench proved
    works: COIN CleanFish, 50 videos, five whole-frame-distinct steps.
 2. Tepee fire lay (Tile 3). The procedure is already shipped as a
-   follow-along with `watchable: false`; it needs only self-shot bench footage
+   follow-along with `watchable: false`; without open bench footage it stays there
    to flip the flag, and its phases are scene-scale. Lowest work per shipped
    capability.
 3. Square lashing (Tile 8). Same rope-on-pole visual class the knot bench
