@@ -32,14 +32,14 @@ carries current guidance and names the divergence (PRD 6.5.7).
 | 1 Survival Medicine | Splint a fracture | STP 21-1-SMCT 081-831-1034 | countable GO/NO-GO measures | FM 4-25.11 ch 4, 30 figures | ready, #142 |
 | 1 Survival Medicine | Control bleeding and tourniquet | STP 21-1-SMCT | sub-measures with measurements | FM 4-25.11 | ready, divergence flagged in #143 |
 | 1 Survival Medicine | Heat injuries | STP 21-1-SMCT | too coarse to drive a walk | text | partial |
-| 2 Shelter | Poncho lean-to, debris hut, tree-pit | FM 21-76 ch 5 | steps only, no criteria | single end-state plates | partial |
-| 3 Fire | Site prep and Dakota hole, fire lays, bow and drill | FM 21-76 ch 7 | steps only | single end-state plates | partial |
-| 4 Water | Solar still, making water safe, stream fording | FM 21-76 ch 6 and 17 | steps only; contact times need a current source | figure 17-3 is per-step | partial |
+| 2 Shelter | Poncho lean-to, debris hut, tree-pit | FM 21-76 ch 5 | steps only, no criteria | 9 public-domain Commons crops verified | partial, figures available |
+| 3 Fire | Site prep and Dakota hole, fire lays, bow and drill | FM 21-76 ch 7 | steps only | 8 public-domain Commons crops verified | partial, figures available |
+| 4 Water | Solar still, making water safe, stream fording | FM 21-76 ch 6 and 17 | steps only; contact times need a current source | 11 public-domain Commons crops verified, and figure 17-3 is per-step | partial, figures available |
 | 8 Tools and Cordage | Bowline, prusik | TC 3-97.61 ch 8 | explicit checkpoint blocks | 247 born-digital figures | ready, #142 |
 | 8 Tools and Cordage | Square and shear lashing | FM 5-125 | steps only | no Commons category exists; only end states | blocked on figures |
-| 9 Direction Finding | Shadow-tip, watch method | FM 21-76 ch 18 | steps only | figure 18-1 is per-step | partial |
+| 9 Direction Finding | Shadow-tip, watch method | FM 21-76 ch 18 | steps only | 9 public-domain Commons crops verified, including both star charts | partial, figures available |
 | 9 Direction Finding | Improvised floating compass | FM 21-76 ch 18 | steps only | no figure anywhere | blocked on figures |
-| 10 Signaling and Rescue | Ground-to-air panels, signal mirror, signal fires | FM 21-76 ch 19, FAA AIM for body signals | steps only | figure 19-7 is per-step | partial |
+| 10 Signaling and Rescue | Ground-to-air panels, signal mirror, signal fires | FM 21-76 ch 19, FAA AIM for body signals | steps only | smoke generator crop verified; figure 19-7 is per-step | partial |
 | 11 Environments | Desert water discipline, sea raft and immersion, cold layering | FM 21-76 ch 13, 15, 16 | steps only | mixed | partial; figure 15-1 must be replaced |
 | 11 Environments | Tropical, ch 14 | under research | | | open |
 | 12 Man-Made Hazards | Personal decontamination | STP 031-COM-1006 | sequenced measures with a time budget | Commons decontamination category, 154 public-domain files | ready, #142 |
@@ -56,8 +56,11 @@ carries current guidance and names the divergence (PRD 6.5.7).
 
 ## What blocks the most rows
 
-Figures block more items than steps do. FM 21-76's plates are mostly single end-state images of a
-finished shelter or fire, so they illustrate a procedure rather than a node, and four items have no
-figure anywhere. Steps, by contrast, exist for every process item; what most of them lack is a
+Figures block fewer items than first thought. Forty Commons files cite FM 21-76 and all forty are
+public domain, covering the shelter, fire, water, and direction-finding procedures; the audit is on
+#137. What remains true is that most plates show a finished result rather than one step, so a plate
+usually grounds a whole procedure while individual nodes still need their own art, and four items
+(square and shear lashing, the floating compass, the fallout shelter, cold-weather layering) have no
+usable figure at any source. Steps, by contrast, exist for every process item; what most of them lack is a
 statement of what completion looks like, which only the mountaineering and task-checklist manuals
 provide.
