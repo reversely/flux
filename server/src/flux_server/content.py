@@ -114,6 +114,21 @@ class ContentStore:
         # Quote each term so FTS5 operators in user input read as words,
         # not query syntax; terms combine with FTS5's implicit AND.
         terms = " ".join('"{}"'.format(term.replace('"', "")) for term in query.split())
+        return self._search_match(terms, limit)
+
+    def search_any(self, query: str, limit: int) -> list[dict]:
+        """OR-match for chat retrieval: a natural-language question rarely
+        has every word in one block, so any informative term may hit and
+        FTS5 rank orders the results. Words under four characters drop out
+        as noise."""
+        terms = " OR ".join(
+            '"{}"'.format(term.replace('"', ""))
+            for term in query.split()
+            if len(term) >= 4
+        )
+        return self._search_match(terms, limit)
+
+    def _search_match(self, terms: str, limit: int) -> list[dict]:
         if not terms:
             return []
         return self._rows(

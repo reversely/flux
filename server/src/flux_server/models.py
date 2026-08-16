@@ -189,12 +189,26 @@ class InferenceTrace(BaseModel):
     latency_ms: int
 
 
+class ChatSource(BaseModel):
+    """One pack passage the answer drew on; the ids anchor content deep links."""
+
+    block_id: str
+    section_id: str
+    chapter_id: str
+    snippet: str
+
+
 class ChatAnswer(BaseModel):
-    """Chapter mentions in text carry the reference links (no citations field)."""
+    """Chapter mentions in text carry the reference links.
+
+    sources present means the answer quotes pack passages; absent means the
+    model answered without pack coverage (or a config notice answered).
+    """
 
     answer_id: str
     text: str
     tool: ChatTool | None = None
+    sources: list[ChatSource] | None = None
     # Absent when the model is unreachable and the keyword floor answered.
     trace: InferenceTrace | None = None
 

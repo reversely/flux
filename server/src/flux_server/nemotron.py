@@ -21,18 +21,30 @@ plain answer; the route never errors because the box is down.
 import json
 import logging
 import re
+import sqlite3
 import time
 import uuid
 from pathlib import Path
 
 import httpx
 
-from flux_server.models import ChatAnswer, ChatTool, InferenceTrace
+from flux_server.content import ContentStore
+from flux_server.models import ChatAnswer, ChatSource, ChatTool, InferenceTrace
 from flux_server.prompts import chat_system_prompt
 
 logger = logging.getLogger(__name__)
 
 CHAT_TIMEOUT_S = 120.0
+
+# Two-tier retrieval (#185): how many pack blocks a question pulls into the
+# prompt, and how much of each block's text rides along.
+PASSAGE_LIMIT = 3
+PASSAGE_CHARS = 800
+
+PASSAGES_HEADER = (
+    "\n\nPack passages matching the question (quote these for the technical "
+    "parts and cite their chapters):\n"
+)
 DEFAULT_CORPUS_PATH = (
     Path(__file__).resolve().parents[3] / "app" / "src" / "data" / "guide-corpus.json"
 )
@@ -184,6 +196,7 @@ class NemotronRetriever:
         model: str,
         corpus_path: Path = DEFAULT_CORPUS_PATH,
         http_client: httpx.Client | None = None,
+        content: ContentStore | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -193,12 +206,14 @@ class NemotronRetriever:
             (tile["title"], tile["chapter"]) for tile in corpus.get("tiles", [])
         ]
         self._client = http_client or httpx.Client(timeout=CHAT_TIMEOUT_S)
+        self._content = content
 
     def answer(self, question: str) -> ChatAnswer:
         answer_id = f"ans_{uuid.uuid4().hex[:8]}"
         started = time.monotonic()
+        sources, passages = self._retrieve(question)
         try:
-            content = self._answer_text(question)
+            content = self._answer_text(question + passages)
         except (httpx.HTTPError, KeyError, IndexError, TypeError) as error:
             logger.error("Nemotron chat completion failed: %s", error)
             return ChatAnswer(
@@ -214,11 +229,46 @@ class NemotronRetriever:
             answer_id=answer_id,
             text=text,
             tool=tool,
+            sources=sources or None,
             trace=InferenceTrace(
                 model=self.model,
                 latency_ms=int((time.monotonic() - started) * 1000),
             ),
         )
+
+    def _retrieve(self, question: str) -> tuple[list[ChatSource], str]:
+        """Pack passages for the question: the sources for the wire and the
+        prompt block carrying their text. No pack, no hits, and any search
+        failure all mean a plain model answer (#185)."""
+        if self._content is None:
+            return [], ""
+        try:
+            hits = self._content.search_any(question, PASSAGE_LIMIT)
+            lines = []
+            for hit in hits:
+                block = self._content.block(hit["block_id"]) or {}
+                text = (block.get("text") or "")[:PASSAGE_CHARS]
+                section = self._content.section(hit["section_id"]) or {}
+                chapter = self._content.chapter(hit["chapter_id"]) or {}
+                label = f"chapter {chapter.get('fm_number', '?')}"
+                if section.get("title"):
+                    label += f", {section['title']}"
+                lines.append(f"- [{label}] {text}")
+        except sqlite3.Error as error:
+            logger.error("pack retrieval failed: %s", error)
+            return [], ""
+        if not lines:
+            return [], ""
+        sources = [
+            ChatSource(
+                block_id=hit["block_id"],
+                section_id=hit["section_id"],
+                chapter_id=hit["chapter_id"],
+                snippet=hit["snippet"],
+            )
+            for hit in hits
+        ]
+        return sources, PASSAGES_HEADER + "\n".join(lines)
 
     def _decide_tool(self, question: str, answer_text: str) -> ChatTool | None:
         """Classify the question and map the category onto a ChatTool.

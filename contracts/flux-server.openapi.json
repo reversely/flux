@@ -1824,6 +1824,30 @@
                 "type": "null"
               }
             ]
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ChatSource"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sources"
+          },
+          "trace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InferenceTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1832,7 +1856,7 @@
           "text"
         ],
         "title": "ChatAnswer",
-        "description": "Chapter mentions in text carry the reference links (no citations field)."
+        "description": "Chapter mentions in text carry the reference links.\n\nsources present means the answer quotes pack passages; absent means the\nmodel answered without pack coverage (or a config notice answered)."
       },
       "ChatRequest": {
         "properties": {
@@ -1846,6 +1870,35 @@
           "question"
         ],
         "title": "ChatRequest"
+      },
+      "ChatSource": {
+        "properties": {
+          "block_id": {
+            "type": "string",
+            "title": "Block Id"
+          },
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "chapter_id": {
+            "type": "string",
+            "title": "Chapter Id"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "block_id",
+          "section_id",
+          "chapter_id",
+          "snippet"
+        ],
+        "title": "ChatSource",
+        "description": "One pack passage the answer drew on; the ids anchor content deep links."
       },
       "ChatTool": {
         "properties": {
@@ -1935,6 +1988,16 @@
           "advanced": {
             "type": "boolean",
             "title": "Advanced"
+          },
+          "trace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InferenceTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2184,6 +2247,25 @@
         ],
         "title": "IdentificationRecord",
         "description": "One candidate from the box perception relay (#105): the model that\nproduced it, the candidate label, and its score."
+      },
+      "InferenceTrace": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "title": "Latency Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "latency_ms"
+        ],
+        "title": "InferenceTrace",
+        "description": "Which model produced a result and how long the call took, measured\nby the server around the model call; the traces tab renders these\nfields ahead of the payload."
       },
       "IngestEntry": {
         "properties": {

@@ -73,12 +73,16 @@ def retriever_from_env() -> Retriever:
     if nemotron_url:
         # Imported here so the plain no-pack server never pays for httpx
         # or the corpus read.
+        from flux_server.content import content_store_from_env
         from flux_server.nemotron import DEFAULT_CORPUS_PATH, NemotronRetriever
 
         return NemotronRetriever(
             base_url=nemotron_url,
             model=os.environ.get("FLUX_NEMOTRON_MODEL", DEFAULT_NEMOTRON_MODEL),
             corpus_path=Path(os.environ.get("FLUX_GUIDE_CORPUS", DEFAULT_CORPUS_PATH)),
+            # The retriever's own pack view for two-tier answers (#185);
+            # the content routes hold a separate read-only handle.
+            content=content_store_from_env(),
         )
     db = os.environ.get("FLUX_CONTENT_DB")
     if db and Path(db).is_file():
