@@ -12,6 +12,7 @@ control) after normalization, or the caller is told to ask again. A fuzzy
 match must never advance a node.
 """
 
+import asyncio
 import os
 import re
 import time
@@ -120,12 +121,17 @@ class BoxSpeechStream:
     def __init__(self, url: str) -> None:
         self._url = url
         self._ws = None
+        # The send pump and the event pump both trigger the lazy connect;
+        # without the lock they race and open two box connections, and the
+        # events arrive on the one that never received audio.
+        self._connect_lock = asyncio.Lock()
 
     async def _connect(self):
-        if self._ws is None:
-            import websockets
+        async with self._connect_lock:
+            if self._ws is None:
+                import websockets
 
-            self._ws = await websockets.connect(self._url)
+                self._ws = await websockets.connect(self._url)
         return self._ws
 
     async def send(self, chunk: bytes) -> None:
