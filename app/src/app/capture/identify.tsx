@@ -3,28 +3,35 @@ import * as Device from 'expo-device';
 import { useState } from 'react';
 import { FlatList, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { RecordStub } from '@/api/types';
+import type { IdentificationRecord } from '@/api/types';
+import { useNarration } from '@/api/voice';
 import { PageBackdrop } from '@/components/PageBackdrop';
-import { Tag, type TagTone } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { useSession } from '@/store/session';
 import { darkHome } from '@/theme/biome';
 import { dark } from '@/theme/dark';
 import { radius, sizes, spacing } from '@/theme/tokens';
 
-type ShotStatus = 'uploading' | 'answered' | 'failed';
+type ShotStatus = 'checking' | 'answered' | 'failed';
 
 interface Shot {
   id: string;
   uri: string;
   status: ShotStatus;
-  results: RecordStub[];
+  candidates: IdentificationRecord[];
 }
 
-const statusTone: Record<ShotStatus, TagTone> = {
-  uploading: 'blue',
-  answered: 'green',
-  failed: 'red',
+// Retrieval labels arrive as full taxonomy strings; the binomial at the end
+// is what a person reads. Everything shorter passes through unchanged.
+function shortLabel(record: IdentificationRecord): string {
+  const words = record.label.trim().split(/\s+/);
+  return words.length > 2 ? words.slice(-2).join(' ') : record.label;
+}
+
+const SOURCE_NAME: Record<IdentificationRecord['source'], string> = {
+  speciesnet: 'detector',
+  bioclip: 'retrieval',
+  fungitastic: 'fungi model',
 };
 
 let shotCounter = 0;
@@ -43,6 +50,7 @@ export default function Identify() {
   const [cameraReady, setCameraReady] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [camera, setCamera] = useState<CameraView | null>(null);
+  const narration = useNarration();
 
   const snap = async () => {
     setMessage(null);
@@ -58,16 +66,26 @@ export default function Identify() {
     }
     shotCounter += 1;
     const id = `shot-${shotCounter}`;
-    setShots((prev) => [{ id, uri: photo.uri, status: 'uploading', results: [] }, ...prev]);
+    setShots((prev) => [{ id, uri: photo.uri, status: 'checking', candidates: [] }, ...prev]);
     const sessionId = useSession.getState().captureSessionId;
     if (sessionId === null) {
       return;
     }
     try {
       const response = await client().uploadFrame(sessionId, photo.uri, new Date().toISOString());
+      const candidates = (response.identifications ?? []).slice(0, 3);
       setShots((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, status: 'answered', results: response.results } : s)),
+        prev.map((s) => (s.id === id ? { ...s, status: 'answered', candidates } : s)),
       );
+      const top = candidates[0];
+      if (top !== undefined) {
+        void narration.speak(
+          `Closest match: ${shortLabel(top)}, ${Math.round(top.score * 100)} percent. ` +
+            'Identification is never certain from a photo. Verify with the feature walk.',
+        );
+      } else {
+        void narration.speak('No confident match. Try closer, or run the feature walk.');
+      }
     } catch {
       setShots((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'failed' } : s)));
     }
@@ -136,9 +154,8 @@ export default function Identify() {
             disabled={!cameraReady}
             onPress={() => void snap()}
           >
-            <Text style={dark.primaryText}>Snap</Text>
+            <Text style={dark.primaryText}>Identify</Text>
           </Pressable>
-          {captureSessionId !== null && <Tag label="session live" tone="green" />}
         </View>
         {message !== null && <Text style={styles.helper}>{message}</Text>}
         {shots.length === 0 ? (
@@ -152,20 +169,23 @@ export default function Identify() {
               <View style={styles.shotRow}>
                 <Image source={{ uri: item.uri }} style={styles.thumb} />
                 <View style={styles.shotBody}>
-                  <Tag label={item.status} tone={statusTone[item.status]} />
-                  {item.status === 'answered' &&
-                    (item.results.length === 0 ? (
+                  {item.status === 'checking' && (
+                    <Text style={dark.note}>The box is looking</Text>
+                  )}
+                  {item.status === 'failed' && (
+                    <Text style={dark.note}>Identification needs the server</Text>
+                  )}
+                  {item.status === 'answered' && item.candidates.length === 0 && (
+                    <Text style={dark.note}>No confident match. Try closer.</Text>
+                  )}
+                  {item.candidates.map((candidate, index) => (
+                    <View key={`${candidate.source}-${index}`} style={styles.candidateRow}>
+                      <Text style={dark.listBody}>{shortLabel(candidate)}</Text>
                       <Text style={dark.note}>
-                        Received. Identification arrives when this server runs the perception
-                        relay.
+                        {Math.round(candidate.score * 100)}% · {SOURCE_NAME[candidate.source]}
                       </Text>
-                    ) : (
-                      item.results.map((r) => (
-                        <Text key={r.record_id} style={dark.listBody}>
-                          {r.record_id}
-                        </Text>
-                      ))
-                    ))}
+                    </View>
+                  ))}
                 </View>
               </View>
             )}
@@ -225,6 +245,12 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: radius.chip,
     backgroundColor: darkHome.line,
+  },
+  candidateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.s,
   },
   shotBody: {
     flex: 1,

@@ -101,9 +101,16 @@ export interface SessionResults {
   ingest?: IngestEntry[] | null;
 }
 
+export interface IdentificationRecord {
+  source: 'speciesnet' | 'bioclip' | 'fungitastic';
+  label: string;
+  score: number;
+}
+
 export interface FrameUploadResponse {
   frame_id: string;
   results: RecordStub[];
+  identifications?: IdentificationRecord[];
 }
 
 export type WalkEdibility = 'edible' | 'inedible' | 'caution' | 'danger' | 'unknown';
