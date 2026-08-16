@@ -87,6 +87,80 @@
         }
       }
     },
+    "/v1/features/nearest": {
+      "get": {
+        "summary": "Features Nearest",
+        "operationId": "features_nearest_v1_features_nearest_get",
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat"
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon"
+            }
+          },
+          {
+            "name": "cls",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "water,river,stream,canal,spring",
+              "title": "Cls"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10,
+              "minimum": 1,
+              "default": 3,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NearestFeatures"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/content/chapters": {
       "get": {
         "summary": "List Chapters",
@@ -2219,6 +2293,51 @@
         "title": "CoachStep",
         "description": "One coached step: the screen fragment and the spoken line."
       },
+      "FeatureHit": {
+        "properties": {
+          "feature_class": {
+            "type": "string",
+            "title": "Feature Class"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "distance_m": {
+            "type": "integer",
+            "title": "Distance M"
+          },
+          "bearing_deg": {
+            "type": "integer",
+            "title": "Bearing Deg"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "feature_class",
+          "distance_m",
+          "bearing_deg",
+          "lat",
+          "lon"
+        ],
+        "title": "FeatureHit",
+        "description": "One nearest-feature answer (#226); lat/lon is the feature's nearest\nsampled point, the straight-line route target until #148 lands."
+      },
       "Figure": {
         "properties": {
           "id": {
@@ -2511,6 +2630,28 @@
         ],
         "title": "NarrationRequest",
         "description": "Text to synthesize; voice picks a Kokoro voice, absent for default."
+      },
+      "NearestFeatures": {
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/FeatureHit"
+            },
+            "type": "array",
+            "title": "Hits"
+          },
+          "attribution": {
+            "type": "string",
+            "title": "Attribution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hits",
+          "attribution"
+        ],
+        "title": "NearestFeatures",
+        "description": "Hits ordered nearest first; attribution is the layer's ODbL line."
       },
       "RecordStub": {
         "properties": {
