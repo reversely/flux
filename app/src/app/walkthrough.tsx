@@ -4,19 +4,23 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { WalkSessionState } from '@/api/types';
+import type { WalkQuestion, WalkSessionState } from '@/api/types';
 import { MushroomDiagram } from '@/components/MushroomDiagram';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { useSession } from '@/store/session';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
+const SCOPE_BANNER_MS = 6000;
+
 /**
- * The mushroom survey: one visual form over the walk session, and only the
- * form. The emphasis is the per-part guides (diagram, question, states);
- * no species list renders here. The count row stays compact, and See
- * matches opens the catalog filtered by the current answers.
+ * One session over an identification walk (PRD 1.4, 1.5): the camera opens
+ * with the question and stays open until it resolves. The current node
+ * renders as a card over the feed with its reference diagram beside it, the
+ * match count holds a corner, and answered nodes collapse to a summary. The
+ * server's list is the authority; this screen only asks and reports.
  */
 export default function Walkthrough() {
   const { client } = useSession();
@@ -28,10 +32,13 @@ export default function Walkthrough() {
     answers?: string;
     camera?: string;
   }>();
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [walk, setWalk] = useState<WalkSessionState | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [showScope, setShowScope] = useState(true);
+  const [reviewing, setReviewing] = useState(false);
 
   const start = async () => {
     setMessage(null);
@@ -60,6 +67,11 @@ export default function Walkthrough() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replay]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setShowScope(false), SCOPE_BANNER_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
   const selected = new Map<string, string[]>(
     (walk?.answers ?? []).map((a) => [a.character, a.states ?? []]),
   );
@@ -86,100 +98,152 @@ export default function Walkthrough() {
   const wantCamera = camera === '1';
   const useCamera = wantCamera && Device.isDevice && permission?.granted === true;
 
-  // Camera mode narrates the next unanswered question so hands and eyes can
-  // stay on the specimen; the text-only flow stays silent.
-  const spokenCharacter = walk?.question?.character;
+  // The current node: the server's next question, or the first unanswered one
+  // when a replayed transcript leaves the pointer unset.
+  const current: WalkQuestion | undefined =
+    walk?.question ??
+    walk?.questions.find((q) => (selected.get(q.character) ?? []).length === 0);
+  const answered = (walk?.questions ?? []).filter(
+    (q) => (selected.get(q.character) ?? []).length > 0,
+  );
+
+  // Camera mode narrates the current question so hands and eyes can stay on
+  // the specimen; the text-only flow stays silent.
+  const spokenCharacter = current?.character;
   useEffect(() => {
-    if (!wantCamera || walk === null) {
+    if (!wantCamera || current === undefined) {
       return;
     }
-    const question = walk.questions.find((q) => q.character === spokenCharacter);
-    if (question) {
-      Speech.stop();
-      Speech.speak(`${question.question} Options: ${question.states.join(', ')}.`);
-    }
+    Speech.stop();
+    Speech.speak(`${current.question} Options: ${current.states.join(', ')}.`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spokenCharacter, wantCamera]);
   useEffect(() => () => void Speech.stop(), []);
 
+  const stateChips = (question: WalkQuestion) => (
+    <View style={styles.stateWrap}>
+      {question.states.map((state) => {
+        const active = (selected.get(question.character) ?? []).includes(state);
+        return (
+          <Pressable
+            key={state}
+            disabled={busy}
+            style={[styles.stateChip, active && styles.stateChipActive]}
+            onPress={() => void toggle(question.character, state)}
+          >
+            <Text style={[styles.stateChipText, active && styles.stateChipTextActive]}>
+              {state}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
   return (
-    <View style={styles.screen}>
-      <TopBar title="Mushrooms" back />
-      {useCamera && <CameraView style={styles.preview} mode="picture" facing="back" mute />}
+    <View style={[styles.screen, useCamera && styles.screenDark]}>
+      {useCamera && (
+        <CameraView style={StyleSheet.absoluteFill} mode="picture" facing="back" mute />
+      )}
+      <TopBar title="Mushrooms" back dark={useCamera} />
+
+      {showScope && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>
+            Answer what you can see. Each feature narrows the matches.
+          </Text>
+        </View>
+      )}
+
+      {anySelected && walk && (
+        <View style={[styles.countCorner, { top: insets.top + sizes.topBar + spacing.m }]}>
+          <Text style={styles.countText}>{walk.candidate_count} match</Text>
+          <Tag label={`${walk.danger_count} dangerous`} tone="red" />
+        </View>
+      )}
+
       {wantCamera && Device.isDevice && permission !== null && !permission.granted && (
         <Pressable style={styles.cameraAsk} onPress={() => void requestPermission()}>
-          <Text style={typography.annotation}>
-            Camera off. Tap to allow and keep the mushroom in view.
-          </Text>
+          <Text style={typography.annotation}>Camera off. Tap to allow.</Text>
         </Pressable>
       )}
-      <ScrollView style={styles.panel} contentContainerStyle={styles.panelContent}>
+
+      <View style={styles.spacer} />
+
+      {/* The node's reference figure sits beside the feed, so the user
+          compares the specimen against the manual's drawing in place. */}
+      {walk && current !== undefined && !reviewing && (
+        <View style={styles.figureCard}>
+          <MushroomDiagram character={current.character} />
+        </View>
+      )}
+
+      <View style={[styles.dock, useCamera && styles.dockOverCamera]}>
         {message !== null && <Text style={styles.helper}>{message}</Text>}
-        {walk && (
-          <>
-            {anySelected ? (
-              <View style={styles.countRow}>
-                <Text style={typography.surfaceTitle}>
-                  {walk.candidate_count} kinds match
-                </Text>
-                <Tag label={`${walk.danger_count} dangerous`} tone="red" />
-              </View>
-            ) : (
-              <Text style={typography.body}>
-                Select what you can see. The matches narrow with each feature.
-              </Text>
-            )}
-            {walk.questions.map((question) => (
-              <View key={question.character} style={styles.questionCard}>
-                <MushroomDiagram character={question.character} />
+
+        {walk && current !== undefined && !reviewing && (
+          <View style={styles.nodeCard}>
+            <Text style={typography.surfaceTitle}>{current.question}</Text>
+            {stateChips(current)}
+            <Text style={typography.annotation}>{current.citation}</Text>
+          </View>
+        )}
+
+        {walk && current === undefined && !reviewing && (
+          <View style={styles.nodeCard}>
+            <Text style={typography.surfaceTitle}>Every feature answered</Text>
+            <Text style={typography.annotation}>
+              {walk.candidate_count} match, {walk.danger_count} dangerous
+            </Text>
+          </View>
+        )}
+
+        {reviewing && walk && (
+          <ScrollView style={styles.review} contentContainerStyle={styles.reviewContent}>
+            {answered.map((question) => (
+              <View key={question.character} style={styles.nodeCard}>
                 <Text style={typography.surfaceTitle}>{question.question}</Text>
-                <View style={styles.stateWrap}>
-                  {question.states.map((state) => {
-                    const active = (selected.get(question.character) ?? []).includes(state);
-                    return (
-                      <Pressable
-                        key={state}
-                        disabled={busy}
-                        style={[styles.stateChip, active && styles.stateChipActive]}
-                        onPress={() => void toggle(question.character, state)}
-                      >
-                        <Text style={[styles.stateChipText, active && styles.stateChipTextActive]}>
-                          {state}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                <Text style={typography.annotation}>{question.citation}</Text>
+                {stateChips(question)}
               </View>
             ))}
-            <View style={styles.controlRow}>
-              {anySelected && (
-                <Pressable
-                  disabled={busy}
-                  style={styles.primaryButton}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/mushrooms',
-                      params: {
-                        answers: JSON.stringify(Object.fromEntries(selected)),
-                      },
-                    })
-                  }
-                >
-                  <Text style={typography.button}>See the matches</Text>
-                </Pressable>
-              )}
-              <Pressable disabled={busy} style={styles.secondaryButton} onPress={() => void start()}>
-                <Text style={styles.secondaryButtonText}>Start over</Text>
-              </Pressable>
-            </View>
-            <Text style={typography.annotation}>
-              Reference only. The decision stays with you.
-            </Text>
-          </>
+            {answered.length === 0 && (
+              <Text style={typography.annotation}>Nothing answered yet.</Text>
+            )}
+          </ScrollView>
         )}
-      </ScrollView>
+
+        <View style={styles.controlRow}>
+          {anySelected && (
+            <Pressable
+              disabled={busy}
+              style={styles.primaryButton}
+              onPress={() =>
+                router.push({
+                  pathname: '/mushrooms',
+                  params: { answers: JSON.stringify(Object.fromEntries(selected)) },
+                })
+              }
+            >
+              <Text style={typography.button}>See the matches</Text>
+            </Pressable>
+          )}
+          {answered.length > 0 && (
+            <Pressable
+              disabled={busy}
+              style={styles.secondaryButton}
+              onPress={() => setReviewing((v) => !v)}
+            >
+              <Text style={styles.secondaryButtonText}>
+                {reviewing ? 'Back to the question' : `Answered (${answered.length})`}
+              </Text>
+            </Pressable>
+          )}
+          <Pressable disabled={busy} style={styles.secondaryButton} onPress={() => void start()}>
+            <Text style={styles.secondaryButtonText}>Start over</Text>
+          </Pressable>
+        </View>
+        <Text style={typography.annotation}>Tool for reference only.</Text>
+      </View>
     </View>
   );
 }
@@ -189,31 +253,76 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.paper,
   },
-  preview: {
-    height: 200,
+  screenDark: {
+    backgroundColor: '#000000',
   },
-  cameraAsk: {
-    padding: spacing.m,
-    backgroundColor: colors.signatureSoft,
-  },
-  panel: {
+  spacer: {
     flex: 1,
   },
-  panelContent: {
+  banner: {
+    marginHorizontal: spacing.l,
+    marginTop: spacing.s,
+    backgroundColor: colors.panelNavy,
+    borderRadius: radius.control,
+    paddingVertical: spacing.s,
+    paddingHorizontal: spacing.m,
+  },
+  bannerText: {
+    ...typography.annotation,
+    color: colors.card,
+  },
+  countCorner: {
+    position: 'absolute',
+    right: spacing.l,
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+    backgroundColor: colors.card,
+    borderRadius: radius.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+    padding: spacing.s,
+  },
+  countText: {
+    ...typography.listBody,
+    color: colors.ink,
+  },
+  cameraAsk: {
+    margin: spacing.l,
+    padding: spacing.m,
+    borderRadius: radius.control,
+    backgroundColor: colors.signatureSoft,
+  },
+  dock: {
     padding: spacing.l,
     gap: spacing.m,
   },
-  countRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  dockOverCamera: {
+    backgroundColor: 'rgba(242, 244, 245, 0.94)',
+    borderTopLeftRadius: radius.surface,
+    borderTopRightRadius: radius.surface,
   },
-  questionCard: {
+  nodeCard: {
     backgroundColor: colors.card,
     borderRadius: radius.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
     padding: spacing.l,
+    gap: spacing.m,
+  },
+  figureCard: {
+    alignSelf: 'flex-start',
+    marginLeft: spacing.l,
+    marginBottom: spacing.s,
+    padding: spacing.s,
+    borderRadius: radius.control,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+  },
+  review: {
+    maxHeight: 280,
+  },
+  reviewContent: {
     gap: spacing.m,
   },
   stateWrap: {
