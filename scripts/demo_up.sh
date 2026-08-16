@@ -20,10 +20,33 @@ fi
 ssh -S "$SOCK" "$BOX" 'echo "  box: $(free -g | awk "NR==2{print \$3\"/\"\$2\" GB\"}")"'
 
 echo "== forwards"
-for spec in 30081:localhost:30081 30082:localhost:30082 \
+for spec in 30081:localhost:30081 30082:localhost:30082 30083:localhost:30083 \
             18000:localhost:8000 18100:localhost:8100 18110:localhost:8110; do
   ssh -S "$SOCK" -O forward -L "$spec" "$BOX" 2>/dev/null || true
 done
+
+echo "== tourniquet adapter"
+# The T3 adapter serves from its own process (the cosmos NIM carries no
+# adapter hooks). Start it when the trained adapter exists; export the
+# routing env vars only on a healthy probe, so a missing or broken adapter
+# leaves the tourniquet coach on the base model.
+ssh -S "$SOCK" "$BOX" '
+  if [ -d ~/flux-model/train/runs/r1/final ] && ! pgrep -f t3_serve.py >/dev/null; then
+    cd ~/flux-model/bench && nohup ~/flux-model/train/venv/bin/python \
+      t3_serve.py --adapter ~/flux-model/train/runs/r1/final --port 30083 \
+      > t3_serve.log 2>&1 &
+    echo "  t3_serve starting (model load takes ~2 min)"
+  fi' 2>/dev/null || true
+T3_ENV=()
+if curl -s -m 5 -o /dev/null -X POST -H Content-Type:application/json \
+    -d '{"messages":[{"role":"user","content":[{"type":"text","text":"ping"}]}],"max_tokens":1}' \
+    http://localhost:30083/v1/chat/completions; then
+  T3_ENV=(FLUX_COSMOS_MODEL_TOURNIQUET="cosmos-reason2-8b-t3"
+          FLUX_COSMOS_URL_TOURNIQUET="http://localhost:30083")
+  echo "  adapter healthy: tourniquet coach routes to cosmos-reason2-8b-t3"
+else
+  echo "  adapter not serving: tourniquet coach stays on the base model"
+fi
 
 echo "== pack"
 cd "$REPO"
@@ -47,7 +70,8 @@ FLUX_COSMOS_URL="http://localhost:30082" \
 VSS_BASE_URL="http://localhost:18000" \
 FLUX_PERCEPTION_URL="http://localhost:18100" \
 FLUX_SPEECH_URL="http://localhost:18110" \
-nohup uv run flux-server --host 0.0.0.0 --port 8000 > /tmp/flux-server.log 2>&1 &
+nohup env ${T3_ENV[@]:+"${T3_ENV[@]}"} \
+  uv run flux-server --host 0.0.0.0 --port 8000 > /tmp/flux-server.log 2>&1 &
 sleep 6
 
 echo "== expo (LAN, for the phone at exp://$(ipconfig getifaddr en0):8081)"
