@@ -158,3 +158,17 @@ export interface WalkSpeciesDetail extends WalkSpeciesCard {
   image_artist: string | null;
   image_license: string | null;
 }
+
+export interface SpeechTrace {
+  engine: string;
+  model: string;
+  latency_ms: number;
+}
+
+export interface NarrationCreated {
+  narration_id: string;
+  audio_url: string;
+  media_type: string;
+  voice: string;
+  trace: SpeechTrace;
+}

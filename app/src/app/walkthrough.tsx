@@ -1,11 +1,19 @@
+import { Feather } from '@expo/vector-icons';
+import {
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioStream,
+} from 'expo-audio';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { mapTranscript, openTranscriptionStream, type TranscriptionStream } from '@/api/speech';
 import type { WalkQuestion, WalkSessionState } from '@/api/types';
 import { MushroomDiagram } from '@/components/MushroomDiagram';
 import { Tag } from '@/components/Tag';
@@ -108,17 +116,127 @@ export default function Walkthrough() {
   );
 
   // Camera mode narrates the current question so hands and eyes can stay on
-  // the specimen; the text-only flow stays silent.
+  // the specimen; the text-only flow stays silent. Narration prefers the
+  // box's Kokoro voice through the server and falls back to on-device
+  // speech when the server has no speech backend (#155).
+  const player = useAudioPlayer();
+  const narrate = useCallback(
+    async (question: WalkQuestion) => {
+      const line = `${question.question} Options: ${question.states.join(', ')}.`;
+      Speech.stop();
+      player.pause();
+      try {
+        const narration = await client().createNarration(line);
+        player.replace({ uri: client().narrationUrl(narration.audio_url) });
+        player.play();
+      } catch {
+        Speech.speak(line);
+      }
+    },
+    [client, player],
+  );
   const spokenCharacter = current?.character;
   useEffect(() => {
     if (!wantCamera || current === undefined) {
       return;
     }
-    Speech.stop();
-    Speech.speak(`${current.question} Options: ${current.states.join(', ')}.`);
+    void narrate(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spokenCharacter, wantCamera]);
   useEffect(() => () => void Speech.stop(), []);
+
+  // Push-to-talk (#155): while the chip is held down, int16 PCM streams to
+  // WS /v1/speech/stream and partials land on screen; release ends the
+  // utterance and the final transcript passes the same exact gate as the
+  // server's mapping. Recording pauses narration, so the mic never hears
+  // the app's own voice (the #74 turn-taking rule).
+  const [listening, setListening] = useState(false);
+  const [heard, setHeard] = useState<string | null>(null);
+  const wsRef = useRef<TranscriptionStream | null>(null);
+  const { stream: mic } = useAudioStream({
+    sampleRate: 16000,
+    channels: 1,
+    encoding: 'int16',
+    onBuffer: (buffer) => wsRef.current?.feed(buffer.data, buffer.sampleRate),
+  });
+
+  const applyTranscript = async (text: string) => {
+    if (walk === null || current === undefined) {
+      return;
+    }
+    const mapped = mapTranscript(text, current.states);
+    if (mapped.action === 'answer') {
+      setHeard(null);
+      await toggle(current.character, mapped.state);
+    } else if (mapped.action === 'skip') {
+      setHeard(null);
+      setBusy(true);
+      try {
+        setWalk(await client().answerWalkthrough(walk.session_id, current.character, []));
+      } catch {
+        setMessage('The server did not answer. Please check the connection and try again.');
+      } finally {
+        setBusy(false);
+      }
+    } else if (mapped.action === 'undo') {
+      setHeard(null);
+      setBusy(true);
+      try {
+        setWalk(await client().undoWalkthrough(walk.session_id));
+      } catch {
+        setMessage('The server did not answer. Please check the connection and try again.');
+      } finally {
+        setBusy(false);
+      }
+    } else if (mapped.action === 'repeat') {
+      setHeard(null);
+      void narrate(current);
+    } else {
+      setHeard(`"${text}" — say a listed option`);
+    }
+  };
+
+  const startListening = async () => {
+    const permission = await requestRecordingPermissionsAsync();
+    if (!permission.granted) {
+      setHeard('Mic off. Allow the microphone.');
+      return;
+    }
+    Speech.stop();
+    player.pause();
+    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+    setHeard('Listening');
+    setListening(true);
+    wsRef.current = openTranscriptionStream({
+      baseUrl: client().baseUrl,
+      onPartial: (text) => setHeard(text),
+      onFinal: (final) => {
+        wsRef.current = null;
+        void applyTranscript(final.text);
+      },
+      onError: () => {
+        wsRef.current = null;
+        setHeard('Voice needs the server');
+      },
+    });
+    await mic.start();
+  };
+
+  const stopListening = () => {
+    setListening(false);
+    mic.stop();
+    void setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+    wsRef.current?.end();
+  };
+
+  useEffect(
+    () => () => {
+      mic.stop();
+      wsRef.current?.cancel();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const stateChips = (question: WalkQuestion) => (
     <View style={styles.stateWrap}>
@@ -186,6 +304,26 @@ export default function Walkthrough() {
             <Text style={typography.surfaceTitle}>{current.question}</Text>
             {stateChips(current)}
             <Text style={typography.annotation}>{current.citation}</Text>
+            {wantCamera && (
+              <View style={styles.voiceRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={listening ? 'Release to answer' : 'Hold to answer by voice'}
+                  onPressIn={() => void startListening()}
+                  onPressOut={stopListening}
+                  style={[styles.micButton, listening && styles.micButtonLive]}
+                >
+                  <Feather
+                    name="mic"
+                    size={18}
+                    color={listening ? colors.card : colors.ink}
+                  />
+                </Pressable>
+                <Text style={[typography.annotation, styles.heard]} numberOfLines={2}>
+                  {heard ?? 'Hold. Say an option.'}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -349,6 +487,28 @@ const styles = StyleSheet.create({
   },
   stateChipTextActive: {
     color: colors.card,
+  },
+  voiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.m,
+  },
+  micButton: {
+    width: sizes.control,
+    height: sizes.control,
+    borderRadius: radius.control,
+    borderWidth: 1,
+    borderColor: colors.steel[2],
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+  },
+  micButtonLive: {
+    backgroundColor: colors.signature,
+    borderColor: colors.signature,
+  },
+  heard: {
+    flex: 1,
   },
   controlRow: {
     flexDirection: 'row',

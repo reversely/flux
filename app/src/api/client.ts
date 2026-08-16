@@ -9,6 +9,7 @@ import type {
   CoachClipResult,
   CoachSessionState,
   FrameUploadResponse,
+  NarrationCreated,
   SectionDetail,
   SessionResults,
   WalkSessionState,
@@ -129,6 +130,17 @@ export class ApiClient {
 
   async undoWalkthrough(sessionId: string): Promise<WalkSessionState> {
     return this.postJson<WalkSessionState>(`/v1/walkthrough/sessions/${sessionId}/undo`);
+  }
+
+  // Narration is content-addressed on the server: the same node question
+  // returns the same id without a second synthesis, so this is cheap to
+  // call on every node.
+  async createNarration(text: string): Promise<NarrationCreated> {
+    return this.postJson<NarrationCreated>('/v1/speech/narrations', { text });
+  }
+
+  narrationUrl(audioPath: string): string {
+    return `${this.baseUrl}${audioPath}`;
   }
 
   async createCoachSession(knot: string): Promise<CoachSessionState> {
