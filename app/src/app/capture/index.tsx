@@ -1,7 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import type { WalkGuideCard } from '@/api/types';
 
 import { PageBackdrop } from '@/components/PageBackdrop';
 import { Tag } from '@/components/Tag';
@@ -49,10 +52,41 @@ function ModeCard({
  * never a bare recorder. Chat tool launches land here with prime/subject
  * params, which pass through to the trail recorder.
  */
+// The one guide every pack carries; shown while the guide list loads or
+// when the server is unreachable, so the walk entry never disappears.
+const FALLBACK_GUIDES: WalkGuideCard[] = [
+  {
+    id: 'fungi-edibility',
+    title: 'Mushrooms',
+    source: '',
+    species_count: 0,
+    danger_count: 0,
+  },
+];
+
 export default function CameraHub() {
   const { prime, subject } = useLocalSearchParams<{ prime?: string; subject?: string }>();
   const router = useRouter();
   const connection = useSession((s) => s.connection);
+  const client = useSession((s) => s.client);
+  const [guides, setGuides] = useState<WalkGuideCard[]>(FALLBACK_GUIDES);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await client().walkthroughGuides();
+        if (!cancelled && rows.length > 0) {
+          setGuides(rows);
+        }
+      } catch {
+        // The fallback entry stays; the walk screen reports the missing pack.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   return (
     <View style={dark.screen}>
@@ -77,9 +111,24 @@ export default function CameraHub() {
         <ModeCard
           icon="crosshair"
           title="Identify"
-          line="One photo. Species and lookalikes."
-          onPress={() => router.push('/capture/identify')}
-        />
+          line="One question at a time. The checklist decides, you confirm."
+        >
+          <View style={styles.chipRow}>
+            {guides.map((g) => (
+              <Pressable
+                key={g.id}
+                accessibilityRole="button"
+                accessibilityLabel={g.title}
+                onPress={() =>
+                  router.push({ pathname: '/walkthrough', params: { guide: g.id } })
+                }
+                style={({ pressed }) => [dark.chip, pressed && styles.chipPressed]}
+              >
+                <Text style={dark.chipText}>{g.title}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </ModeCard>
         <ModeCard
           icon="cloud"
           title="Read the sky"

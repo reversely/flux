@@ -14,6 +14,7 @@ import type {
   SessionResults,
   SkyOutlook,
   TranscriptionResult,
+  WalkGuideCard,
   WalkObservation,
   WalkSessionState,
   WalkSpeciesDetail,
@@ -108,8 +109,15 @@ export class ApiClient {
     return `${this.baseUrl}/v1/sessions/${sessionId}/frames/${frameId}`;
   }
 
-  async createWalkthrough(): Promise<WalkSessionState> {
-    return this.postJson<WalkSessionState>('/v1/walkthrough/sessions');
+  async createWalkthrough(guideId?: string): Promise<WalkSessionState> {
+    return this.postJson<WalkSessionState>(
+      '/v1/walkthrough/sessions',
+      guideId ? { guide_id: guideId } : undefined,
+    );
+  }
+
+  async walkthroughGuides(): Promise<WalkGuideCard[]> {
+    return this.getJson<WalkGuideCard[]>('/v1/walkthrough/guides');
   }
 
   async answerWalkthrough(
@@ -123,8 +131,9 @@ export class ApiClient {
     );
   }
 
-  async walkthroughSpecies(): Promise<WalkSpeciesDetail[]> {
-    return this.getJson<WalkSpeciesDetail[]>('/v1/walkthrough/species');
+  async walkthroughSpecies(guideId?: string): Promise<WalkSpeciesDetail[]> {
+    const query = guideId ? `?guide_id=${encodeURIComponent(guideId)}` : '';
+    return this.getJson<WalkSpeciesDetail[]>(`/v1/walkthrough/species${query}`);
   }
 
   speciesImageUrl(species: string): string {

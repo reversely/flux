@@ -94,7 +94,7 @@ export default function Traces() {
           <Text style={[dark.note, styles.hint]}>
             {showAll
               ? 'Every server call lands here'
-              : 'Chat, coach, identify, sky, and trail model calls land here'}
+              : 'Chat, coach, walk, sky, and trail model calls land here'}
           </Text>
         </View>
       ) : (

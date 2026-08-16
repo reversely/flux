@@ -28,12 +28,18 @@ export function launchTool(nav: Router, tool: ChatTool): void {
       });
       return;
     case 'catalog':
-      nav.push({ pathname: '/mushrooms' });
+      nav.push({
+        pathname: '/mushrooms',
+        params: tool.guide ? { guide: tool.guide, title: tool.label } : {},
+      });
       return;
     case 'walkthrough':
       nav.push({
         pathname: '/walkthrough',
-        params: { camera: tool.camera ? '1' : '0' },
+        params: {
+          camera: tool.camera ? '1' : '0',
+          ...(tool.guide ? { guide: tool.guide } : {}),
+        },
       });
       return;
   }

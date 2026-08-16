@@ -23,6 +23,8 @@ export interface ChatTool {
   chapter?: number;
   /** walkthrough only: open with the camera preview (false asks by text). */
   camera?: boolean;
+  /** walkthrough and catalog: which identification guide; absent means fungi. */
+  guide?: string;
 }
 
 export interface ChatAnswer {
@@ -121,6 +123,16 @@ export interface WalkSpeciesCard {
   edibility_raw: string;
   source_title: string;
   source_revid: string;
+  common_name?: string | null;
+}
+
+export interface WalkGuideCard {
+  id: string;
+  title: string;
+  source: string;
+  tile_id?: number | null;
+  species_count: number;
+  danger_count: number;
 }
 
 export interface WalkObservation {
@@ -159,6 +171,8 @@ export interface WalkSessionState {
   candidates?: WalkSpeciesCard[];
   complete: boolean;
   question?: WalkQuestion;
+  guide_id?: string;
+  guide_title?: string;
 }
 
 export interface CoachStep {

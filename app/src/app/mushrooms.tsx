@@ -18,20 +18,26 @@ const edibilityTone: Record<WalkEdibility, TagTone> = {
 
 /** Field-guide fragment of the traits a reader checks first. */
 function traitSummary(card: WalkSpeciesDetail): string {
-  const parts: string[] = [];
-  const underside = card.traits.hymeniumType?.join(' or ');
-  if (underside) {
-    parts.push(underside);
+  const fungi = [
+    card.traits.hymeniumType?.join(' or '),
+    (() => {
+      const stem = card.traits.stipeCharacter?.join(' or ');
+      return stem && stem !== 'bare' ? stem : undefined;
+    })(),
+    (() => {
+      const print = card.traits.sporePrintColor?.join(' or ');
+      return print ? `${print} print` : undefined;
+    })(),
+  ].filter((part): part is string => Boolean(part));
+  if (fungi.length > 0) {
+    return fungi.join(', ');
   }
-  const stem = card.traits.stipeCharacter?.join(' or ');
-  if (stem && stem !== 'bare') {
-    parts.push(stem);
-  }
-  const print = card.traits.sporePrintColor?.join(' or ');
-  if (print) {
-    parts.push(`${print} print`);
-  }
-  return parts.join(', ');
+  // A guide catalog without fungi characters reads its first few recorded
+  // traits instead, in the pack's character order.
+  return Object.values(card.traits)
+    .map((states) => states.join(' or '))
+    .slice(0, 3)
+    .join(', ');
 }
 
 /**
@@ -45,7 +51,11 @@ export default function Mushrooms() {
   // The survey hands over its selections; the same filter rule applies
   // client-side: any-of within a character, all-of across, missing data
   // never eliminates.
-  const { answers: answersParam } = useLocalSearchParams<{ answers?: string }>();
+  const { answers: answersParam, guide, title } = useLocalSearchParams<{
+    answers?: string;
+    guide?: string;
+    title?: string;
+  }>();
   const answers = useMemo<Record<string, string[]>>(() => {
     try {
       return answersParam ? JSON.parse(answersParam) : {};
@@ -61,7 +71,7 @@ export default function Mushrooms() {
     let cancelled = false;
     (async () => {
       try {
-        const rows = await client().walkthroughSpecies();
+        const rows = await client().walkthroughSpecies(guide || undefined);
         if (!cancelled) {
           setSpecies(rows);
         }
@@ -115,7 +125,10 @@ export default function Mushrooms() {
 
   return (
     <View style={styles.screen}>
-      <TopBar title={filtering ? 'Matches' : 'Mushroom catalog'} back />
+      <TopBar
+        title={filtering ? 'Matches' : title ? `${title} catalog` : 'Mushroom catalog'}
+        back
+      />
       {species === null ? (
         failed ? (
           <Text style={[typography.body, styles.message]}>
@@ -153,7 +166,9 @@ export default function Mushrooms() {
                 />
               )}
               <View style={styles.rowText}>
-                <Text style={typography.listBody}>{item.species}</Text>
+                <Text style={typography.listBody}>
+                  {item.common_name ? `${item.common_name} (${item.species})` : item.species}
+                </Text>
                 {traitSummary(item) !== '' && (
                   <Text style={typography.annotation}>{traitSummary(item)}</Text>
                 )}

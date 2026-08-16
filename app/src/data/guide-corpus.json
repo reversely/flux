@@ -378,6 +378,41 @@
               ]
             }
           ]
+        },
+        {
+          "id": "berries",
+          "title": "Berries",
+          "items": [
+            {
+              "id": "berry-id",
+              "title": "Berry identification",
+              "blurb": "Narrow which berry this is from the plant's habit, leaves, thorns, fruit form, color, and cluster, against the Washington species list.",
+              "tools": [
+                {
+                  "kind": "walkthrough",
+                  "label": "Ask about a berry",
+                  "camera": false,
+                  "guide": "berry-edibility"
+                },
+                {
+                  "kind": "walkthrough",
+                  "label": "Check one with the camera",
+                  "camera": true,
+                  "guide": "berry-edibility"
+                },
+                {
+                  "kind": "catalog",
+                  "label": "Browse the berries",
+                  "guide": "berry-edibility"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 10
+                }
+              ]
+            }
+          ]
         }
       ]
     }

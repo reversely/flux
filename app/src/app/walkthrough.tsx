@@ -31,9 +31,10 @@ export default function Walkthrough() {
   // A launch may carry a transcript to replay, `answers=char=state,...`:
   // sessions are deterministic, so a replayed link reopens the same walk.
   // `camera=1` opens the preview; the default is the text-only ask.
-  const { answers: replay, camera } = useLocalSearchParams<{
+  const { answers: replay, camera, guide } = useLocalSearchParams<{
     answers?: string;
     camera?: string;
+    guide?: string;
   }>();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
@@ -47,7 +48,7 @@ export default function Walkthrough() {
     setMessage(null);
     setBusy(true);
     try {
-      let state = await client().createWalkthrough();
+      let state = await client().createWalkthrough(guide || undefined);
       for (const pair of (replay ?? '').split(',')) {
         const [character, answer] = pair.split('=');
         if (character && answer) {
@@ -277,7 +278,7 @@ export default function Walkthrough() {
           mute
         />
       )}
-      <TopBar title="Mushrooms" back dark={useCamera} />
+      <TopBar title={walk?.guide_title ?? 'Mushrooms'} back dark={useCamera} />
 
       {showScope && (
         <View style={styles.banner}>
@@ -304,7 +305,9 @@ export default function Walkthrough() {
 
       {/* The node's reference figure sits beside the feed, so the user
           compares the specimen against the manual's drawing in place. */}
-      {walk && current !== undefined && !reviewing && (
+      {/* The hand-built diagram knows only fungi characters; a guide walk
+          shows no figure until its pack nodes carry reference images. */}
+      {walk && current !== undefined && !reviewing && !walk.guide_id && (
         <View style={styles.figureCard}>
           <MushroomDiagram character={current.character} />
         </View>
@@ -419,7 +422,12 @@ export default function Walkthrough() {
               onPress={() =>
                 router.push({
                   pathname: '/mushrooms',
-                  params: { answers: JSON.stringify(Object.fromEntries(selected)) },
+                  params: {
+                    answers: JSON.stringify(Object.fromEntries(selected)),
+                    ...(walk?.guide_id
+                      ? { guide: walk.guide_id, title: walk.guide_title ?? '' }
+                      : {}),
+                  },
                 })
               }
             >
