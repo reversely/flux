@@ -21,6 +21,17 @@ from pathlib import Path
 LIST_CANDIDATES_AT = 25
 
 
+def entry_states(entry: dict) -> set[str]:
+    """A transcript entry's selected states. Entries written before the
+    multiselect change carry a scalar `state`; both shapes stay readable
+    because sessions persist on disk across deploys."""
+    if entry.get("states") is not None:
+        return set(entry["states"])
+    if entry.get("state") is not None:
+        return {entry["state"]}
+    return set()
+
+
 class WalkthroughStore:
     """In-memory mirror of the walk_ tables plus on-disk session transcripts."""
 
@@ -77,7 +88,10 @@ class WalkthroughStore:
             self._path(session_id).write_text(json.dumps(transcript))
 
     def record(self, session_id: str, entry: dict) -> list[dict]:
+        """Replace semantics: re-answering a character supersedes the prior
+        entry, so a multiselect form can toggle states freely."""
         transcript = self.transcript(session_id) or []
+        transcript = [e for e in transcript if e["character"] != entry["character"]]
         transcript.append(entry)
         self._write(session_id, transcript)
         return transcript
@@ -92,15 +106,28 @@ class WalkthroughStore:
 
     def candidates(self, transcript: list[dict]) -> list[str]:
         answers = {
-            e["character"]: e["state"] for e in transcript if e["state"] is not None
+            e["character"]: states for e in transcript if (states := entry_states(e))
         }
         return [
             species
             for species, chars in self.traits.items()
             if all(
-                character not in chars or state in chars[character]
-                for character, state in answers.items()
+                character not in chars or not chars[character].isdisjoint(states)
+                for character, states in answers.items()
             )
+        ]
+
+    def catalog(self) -> list[dict]:
+        """Every species card with its trait states, for the static browser."""
+        return [
+            {
+                **card,
+                "traits": {
+                    character: sorted(states)
+                    for character, states in self.traits.get(name, {}).items()
+                },
+            }
+            for name, card in sorted(self.species.items())
         ]
 
     def next_question(self, transcript: list[dict]) -> dict | None:

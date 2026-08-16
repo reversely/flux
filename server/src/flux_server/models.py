@@ -176,11 +176,17 @@ class WalkQuestion(BaseModel):
 
 
 class WalkAnswer(BaseModel):
-    """A confirmed observation; a None state records a skipped question,
-    which filters nothing."""
+    """A confirmed observation. `states` selects any-of within the
+    character; empty or absent alongside a None `state` records a skip,
+    which filters nothing. `state` remains for single-answer clients."""
 
     character: str
     state: str | None = None
+    states: list[str] | None = None
+
+
+class WalkSpeciesDetail(WalkSpeciesCard):
+    traits: dict[str, list[str]]
 
 
 class WalkSessionState(BaseModel):

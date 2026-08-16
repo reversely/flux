@@ -185,6 +185,35 @@ def test_skip_filters_nothing_and_undo_restores(client):
     assert undone["question"]["character"] == "hymeniumType"
 
 
+def test_multiselect_filters_any_of_within_a_character(client):
+    session = client.post("/v1/walkthrough/sessions").json()
+    state = client.post(
+        f"/v1/walkthrough/sessions/{session['session_id']}/answer",
+        json={"character": "hymeniumType", "states": ["gills", "ridges"]},
+    ).json()
+    assert state["candidate_count"] == 5
+    state = client.post(
+        f"/v1/walkthrough/sessions/{session['session_id']}/answer",
+        json={"character": "sporePrintColor", "states": ["yellow", "white"]},
+    ).json()
+    survivors = {card["species"] for card in state["candidates"]}
+    # Cantharellus matches on either print color; the brown-print Agaricus
+    # pair drops; the sparse record has no print recorded and stays.
+    assert survivors == {
+        "Amanita phalloides",
+        "Cantharellus formosus",
+        "Sparse deadly",
+    }
+
+
+def test_species_catalog(client):
+    rows = client.get("/v1/walkthrough/species").json()
+    assert len(rows) == 5
+    amanita = next(r for r in rows if r["species"] == "Amanita phalloides")
+    assert amanita["edibility"] == "danger"
+    assert amanita["traits"]["stipeCharacter"] == ["ring and volva"]
+
+
 def test_validation_and_missing_pack(client, tmp_path):
     session = client.post("/v1/walkthrough/sessions").json()
     sid = session["session_id"]
@@ -199,13 +228,12 @@ def test_validation_and_missing_pack(client, tmp_path):
         f"/v1/walkthrough/sessions/{sid}/answer",
         json={"character": "hymeniumType", "state": "gills"},
     )
-    assert (
-        client.post(
-            f"/v1/walkthrough/sessions/{sid}/answer",
-            json={"character": "hymeniumType", "state": "gills"},
-        ).status_code
-        == 409
+    replaced = client.post(
+        f"/v1/walkthrough/sessions/{sid}/answer",
+        json={"character": "hymeniumType", "states": ["ridges"]},
     )
+    assert replaced.status_code == 200
+    assert [a["states"] for a in replaced.json()["answers"]] == [["ridges"]]
     assert client.get("/v1/walkthrough/sessions/nope").status_code == 404
     bare = TestClient(
         create_app(

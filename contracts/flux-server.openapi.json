@@ -717,6 +717,28 @@
         }
       }
     },
+    "/v1/walkthrough/species": {
+      "get": {
+        "summary": "Walkthrough Species",
+        "operationId": "walkthrough_species_v1_walkthrough_species_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WalkSpeciesDetail"
+                  },
+                  "type": "array",
+                  "title": "Response Walkthrough Species V1 Walkthrough Species Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/coach/sessions": {
       "post": {
         "summary": "Create Coach Session",
@@ -1783,6 +1805,20 @@
               }
             ],
             "title": "State"
+          },
+          "states": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "States"
           }
         },
         "type": "object",
@@ -1790,7 +1826,7 @@
           "character"
         ],
         "title": "WalkAnswer",
-        "description": "A confirmed observation; a None state records a skipped question,\nwhich filters nothing."
+        "description": "A confirmed observation. `states` selects any-of within the\ncharacter; empty or absent alongside a None `state` records a skip,\nwhich filters nothing. `state` remains for single-answer clients."
       },
       "WalkQuestion": {
         "properties": {
@@ -1942,6 +1978,57 @@
           "source_revid"
         ],
         "title": "WalkSpeciesCard"
+      },
+      "WalkSpeciesDetail": {
+        "properties": {
+          "species": {
+            "type": "string",
+            "title": "Species"
+          },
+          "edibility": {
+            "type": "string",
+            "enum": [
+              "edible",
+              "inedible",
+              "caution",
+              "danger",
+              "unknown"
+            ],
+            "title": "Edibility"
+          },
+          "edibility_raw": {
+            "type": "string",
+            "title": "Edibility Raw"
+          },
+          "source_title": {
+            "type": "string",
+            "title": "Source Title"
+          },
+          "source_revid": {
+            "type": "string",
+            "title": "Source Revid"
+          },
+          "traits": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Traits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "species",
+          "edibility",
+          "edibility_raw",
+          "source_title",
+          "source_revid",
+          "traits"
+        ],
+        "title": "WalkSpeciesDetail"
       }
     }
   }

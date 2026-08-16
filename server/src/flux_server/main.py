@@ -47,6 +47,7 @@ from flux_server.models import (
     VideoUploadResponse,
     WalkAnswer,
     WalkSessionState,
+    WalkSpeciesDetail,
 )
 from flux_server.retrieval import Retriever, retriever_from_env
 from flux_server.storage import SessionStore, UnplayableVideoError
@@ -325,19 +326,28 @@ def create_app(
     )
     def answer_walkthrough(session_id: str, answer: WalkAnswer) -> WalkSessionState:
         walk = require_walkthrough()
-        transcript = walk.transcript(session_id)
-        if transcript is None:
+        if walk.transcript(session_id) is None:
             raise HTTPException(status_code=404, detail="unknown walkthrough session")
-        answered = {entry["character"] for entry in transcript}
-        if answer.character in answered:
-            raise HTTPException(status_code=409, detail="character already answered")
-        states = walk.states.get(answer.character)
-        if states is None:
+        known = walk.states.get(answer.character)
+        if known is None:
             raise HTTPException(status_code=422, detail="unknown character")
-        if answer.state is not None and answer.state not in states:
-            raise HTTPException(status_code=422, detail="unknown state")
-        walk.record(session_id, {"character": answer.character, "state": answer.state})
+        selected = (
+            answer.states
+            if answer.states is not None
+            else ([answer.state] if answer.state is not None else [])
+        )
+        unknown = [s for s in selected if s not in known]
+        if unknown:
+            raise HTTPException(status_code=422, detail=f"unknown state: {unknown[0]}")
+        walk.record(session_id, {"character": answer.character, "states": selected})
         return walk_state(walk, session_id)
+
+    @app.get(
+        "/v1/walkthrough/species",
+        response_model=list[WalkSpeciesDetail],
+    )
+    def walkthrough_species() -> list[WalkSpeciesDetail]:
+        return [WalkSpeciesDetail(**row) for row in require_walkthrough().catalog()]
 
     def coach_state(session_id: str, session: dict) -> CoachSessionState:
         knot = KNOTS[session["knot"]]
