@@ -55,6 +55,16 @@ export function WidgetDirectory() {
 
   return (
     <View style={styles.wrap}>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel="How LifeKit works"
+        onPress={() => router.push('/about')}
+        style={styles.aboutRow}
+      >
+        <Feather name="compass" size={14} color={darkHome.ink2} />
+        <Text style={styles.aboutText}>How LifeKit works — Process, Identify, Find</Text>
+        <Feather name="chevron-right" size={14} color={darkHome.ink3} />
+      </Pressable>
       {groups.map((group) => (
         <View key={group.id} style={styles.group}>
           <View style={styles.groupHeader}>
@@ -93,6 +103,17 @@ const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: spacing.xl,
     gap: spacing.xl,
+  },
+  aboutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+    paddingVertical: spacing.s,
+  },
+  aboutText: {
+    ...typography.annotation,
+    color: darkHome.ink2,
+    flex: 1,
   },
   group: {
     gap: spacing.s,
