@@ -117,6 +117,12 @@ export default function ChatHome() {
           onPress={() => router.push('/map')}
         />
         <TopBarButton
+          icon="activity"
+          label="Conditions"
+          color={darkHome.ink2}
+          onPress={() => router.push('/conditions')}
+        />
+        <TopBarButton
           icon="server"
           label="Server"
           color={darkHome.ink2}
