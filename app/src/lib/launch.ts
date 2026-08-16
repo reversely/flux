@@ -27,6 +27,9 @@ export function launchTool(nav: Router, tool: ChatTool): void {
         params: tool.chapter ? { chapter: String(tool.chapter) } : {},
       });
       return;
+    case 'catalog':
+      nav.push({ pathname: '/mushrooms' });
+      return;
     case 'walkthrough':
       nav.push({
         pathname: '/walkthrough',

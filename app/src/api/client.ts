@@ -10,6 +10,7 @@ import type {
   SectionDetail,
   SessionResults,
   WalkSessionState,
+  WalkSpeciesDetail,
 } from './types';
 
 const HEALTH_TIMEOUT_MS = 4000;
@@ -126,6 +127,10 @@ export class ApiClient {
       `/v1/walkthrough/sessions/${sessionId}/answer`,
       { character, states },
     );
+  }
+
+  async walkthroughSpecies(): Promise<WalkSpeciesDetail[]> {
+    return this.getJson<WalkSpeciesDetail[]>('/v1/walkthrough/species');
   }
 
   async undoWalkthrough(sessionId: string): Promise<WalkSessionState> {

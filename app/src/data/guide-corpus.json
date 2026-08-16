@@ -367,6 +367,10 @@
                   "camera": true
                 },
                 {
+                  "kind": "catalog",
+                  "label": "Browse the mushrooms"
+                },
+                {
                   "kind": "reference",
                   "label": "Full text",
                   "chapter": 10

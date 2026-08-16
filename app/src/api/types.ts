@@ -15,7 +15,7 @@ export interface RecordStub {
  * names a widget the answer can launch preloaded (see data/guide.ts).
  */
 export interface ChatTool {
-  kind: 'camera' | 'chat' | 'reference' | 'walkthrough';
+  kind: 'camera' | 'chat' | 'reference' | 'walkthrough' | 'catalog';
   label: string;
   prime?: string;
   subject?: string;
@@ -150,4 +150,8 @@ export interface CoachClipResult {
   prediction?: number;
   step: number;
   advanced: boolean;
+}
+
+export interface WalkSpeciesDetail extends WalkSpeciesCard {
+  traits: Record<string, string[]>;
 }
