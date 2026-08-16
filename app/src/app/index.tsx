@@ -158,7 +158,9 @@ export default function ChatHome() {
     <View style={styles.screen}>
       <StatusBar style="light" />
       <HomeBackdrop scrollY={scrollY} />
-      <TopBar title="LifeKit" dark>
+      {/* The empty-state wordmark carries the name; a title here spills
+          against six buttons on narrow screens (#179). */}
+      <TopBar title="" dark>
         <TopBarButton
           icon="video"
           label="Video mode"
@@ -197,7 +199,7 @@ export default function ChatHome() {
         {messages.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.wordmark}>LifeKit</Text>
-            <Text style={[typography.body, styles.tagline]}>The offline AI field guide to the world around you.</Text>
+            <Text style={[typography.body, styles.tagline]}>your offline AI field guide to the world. </Text>
             <QuestionGallery onAsk={(question) => void send(question)} />
           </View>
         ) : (

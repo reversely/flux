@@ -73,9 +73,14 @@ export function TopBar({
           <Feather name="chevron-left" size={20} color={dark ? darkHome.ink2 : colors.ink2} />
         </Pressable>
       )}
-      <Text style={[typography.surfaceTitle, styles.title, dark && { color: darkHome.ink }]}>
-        {title}
-      </Text>
+      {title === '' ? (
+        // An empty title keeps the flex slot so the actions stay right-aligned.
+        <View style={styles.title} />
+      ) : (
+        <Text style={[typography.surfaceTitle, styles.title, dark && { color: darkHome.ink }]}>
+          {title}
+        </Text>
+      )}
       <View style={styles.actions}>
         {children}
         {traceButton && (
