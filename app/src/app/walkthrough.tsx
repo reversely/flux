@@ -158,9 +158,15 @@ export default function Walkthrough() {
 
   // The current node: the server's next question, or the first unanswered one
   // when a replayed transcript leaves the pointer unset.
+  // The server's pointer rules. The find() fallback covers a replayed
+  // transcript that leaves the pointer unset; it must not resurrect
+  // skipped questions once the server says complete, or the results
+  // card becomes unreachable after a hands-free run with skips.
   const current: WalkQuestion | undefined =
     walk?.question ??
-    walk?.questions.find((q) => (selected.get(q.character) ?? []).length === 0);
+    (walk && !walk.complete
+      ? walk.questions.find((q) => (selected.get(q.character) ?? []).length === 0)
+      : undefined);
   const answered = (walk?.questions ?? []).filter(
     (q) => (selected.get(q.character) ?? []).length > 0,
   );
@@ -336,11 +342,11 @@ export default function Walkthrough() {
 
   // A finished walk ends the loop; any narration stops with the screen.
   useEffect(() => {
-    if (watchLoop.cycle.skipReason === 'every feature answered') {
+    if (watchLoop.cycle.skipReason === 'every feature answered' || walk?.complete === true) {
       stopWatching();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchLoop.cycle.skipReason]);
+  }, [watchLoop.cycle.skipReason, walk?.complete]);
   useEffect(
     () => () => narration.stop(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -586,7 +592,7 @@ export default function Walkthrough() {
       {/* The camera-check status banner: filming, then the model reading,
           then the verdict with its actions. It sits over the feed just above
           the dock, so what is happening to the video is never a mystery. */}
-      {useCamera && (
+      {useCamera && walk !== null && walk.complete !== true && (
         <View style={styles.observeStatus}>
           {suggestion === null && (
             <>
