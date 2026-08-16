@@ -57,37 +57,99 @@ EDIBILITY_TIERS = {
     "unknown": "unknown",
 }
 
+# The mushroom walk's stable guide id; existing consumers that never name a
+# guide keep reading exactly these rows (#65 non-breaking rule).
+FUNGI_GUIDE_ID = "fungi-edibility"
+
 SCHEMA = """
-DROP TABLE IF EXISTS walk_trait;
-DROP TABLE IF EXISTS walk_state;
-DROP TABLE IF EXISTS walk_species;
-DROP TABLE IF EXISTS walk_question;
-CREATE TABLE walk_question (
-    character TEXT PRIMARY KEY,
-    ask_order INTEGER NOT NULL UNIQUE,
-    question  TEXT NOT NULL,
-    citation  TEXT NOT NULL
+CREATE TABLE IF NOT EXISTS guide (
+    id      TEXT PRIMARY KEY,
+    kind    TEXT NOT NULL CHECK (kind IN ('identification', 'process')),
+    title   TEXT NOT NULL,
+    tile_id INTEGER,
+    source  TEXT NOT NULL
 );
-CREATE TABLE walk_state (
-    character TEXT NOT NULL REFERENCES walk_question(character),
-    state     TEXT NOT NULL,
-    PRIMARY KEY (character, state)
+CREATE TABLE IF NOT EXISTS walk_question (
+    guide_id          TEXT NOT NULL DEFAULT 'fungi-edibility' REFERENCES guide(id),
+    character         TEXT NOT NULL,
+    ask_order         INTEGER NOT NULL,
+    question          TEXT NOT NULL,
+    citation          TEXT NOT NULL,
+    screen            TEXT,
+    voice             TEXT,
+    block_id          TEXT,
+    figure_id         TEXT,
+    anchor            TEXT,
+    answer_source     TEXT NOT NULL DEFAULT 'user'
+                      CHECK (answer_source IN ('user', 'camera', 'both')),
+    capture_condition TEXT,
+    evidence_kind     TEXT CHECK (evidence_kind IN ('frame', 'clip')),
+    reference_image   TEXT,
+    PRIMARY KEY (guide_id, character),
+    UNIQUE (guide_id, ask_order)
 );
-CREATE TABLE walk_species (
-    species       TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS walk_state (
+    guide_id    TEXT NOT NULL DEFAULT 'fungi-edibility',
+    character   TEXT NOT NULL,
+    state       TEXT NOT NULL,
+    implication TEXT,
+    PRIMARY KEY (guide_id, character, state)
+);
+CREATE TABLE IF NOT EXISTS walk_species (
+    guide_id      TEXT NOT NULL DEFAULT 'fungi-edibility',
+    species       TEXT NOT NULL,
     edibility     TEXT NOT NULL CHECK (edibility IN
                       ('edible', 'inedible', 'caution', 'danger', 'unknown')),
     edibility_raw TEXT NOT NULL,
     source_title  TEXT NOT NULL,
-    source_revid  TEXT NOT NULL
+    source_revid  TEXT NOT NULL,
+    implication   TEXT,
+    PRIMARY KEY (guide_id, species)
 );
-CREATE TABLE walk_trait (
-    species   TEXT NOT NULL REFERENCES walk_species(species),
-    character TEXT NOT NULL REFERENCES walk_question(character),
+CREATE TABLE IF NOT EXISTS walk_trait (
+    guide_id  TEXT NOT NULL DEFAULT 'fungi-edibility',
+    species   TEXT NOT NULL,
+    character TEXT NOT NULL,
     state     TEXT NOT NULL,
-    PRIMARY KEY (species, character, state)
+    PRIMARY KEY (guide_id, species, character, state)
 );
 """
+
+# A pre-#65 pack has walk_ tables without guide_id; a rebuild into one starts
+# clean so the new schema applies. Only the walk tables reset, never content.
+LEGACY_RESET = """
+DROP TABLE IF EXISTS walk_trait;
+DROP TABLE IF EXISTS walk_species;
+DROP TABLE IF EXISTS walk_state;
+DROP TABLE IF EXISTS walk_question;
+"""
+
+
+def _ensure_schema(conn: sqlite3.Connection) -> None:
+    columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(walk_question)").fetchall()
+    }
+    if columns and "guide_id" not in columns:
+        conn.executescript(LEGACY_RESET)
+    conn.executescript(SCHEMA)
+
+
+def _replace_guide(
+    conn: sqlite3.Connection,
+    guide_id: str,
+    kind: str,
+    title: str,
+    tile_id: int | None,
+    source: str,
+) -> None:
+    """Idempotent per-guide rebuild: this guide's rows go, others stay."""
+    for table in ("walk_trait", "walk_species", "walk_state", "walk_question"):
+        conn.execute(f"DELETE FROM {table} WHERE guide_id = ?", (guide_id,))
+    conn.execute("DELETE FROM guide WHERE id = ?", (guide_id,))
+    conn.execute(
+        "INSERT INTO guide (id, kind, title, tile_id, source) VALUES (?, ?, ?, ?, ?)",
+        (guide_id, kind, title, tile_id, source),
+    )
 
 
 def canonical_states(row: dict, character: str) -> list[str]:
@@ -150,25 +212,49 @@ def write_walkthrough(tsv: Path, db_path: Path) -> str:
             states_seen[character].update(states)
 
     with sqlite3.connect(db_path) as conn:
-        conn.executescript(SCHEMA)
+        _ensure_schema(conn)
+        _replace_guide(
+            conn,
+            FUNGI_GUIDE_ID,
+            "identification",
+            "Fungi edibility",
+            6,
+            "Wikipedia Template:Mycomorphbox (CC BY-SA)",
+        )
         for order, (character, question) in enumerate(QUESTIONS, start=1):
             conn.execute(
-                "INSERT INTO walk_question VALUES (?, ?, ?, ?)",
-                (character, order, question, QUESTION_CITATION.format(character)),
+                "INSERT INTO walk_question"
+                " (guide_id, character, ask_order, question, citation)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (
+                    FUNGI_GUIDE_ID,
+                    character,
+                    order,
+                    question,
+                    QUESTION_CITATION.format(character),
+                ),
             )
             for state in sorted(states_seen[character]):
-                conn.execute("INSERT INTO walk_state VALUES (?, ?)", (character, state))
+                conn.execute(
+                    "INSERT INTO walk_state (guide_id, character, state)"
+                    " VALUES (?, ?, ?)",
+                    (FUNGI_GUIDE_ID, character, state),
+                )
         for species, (tier, raw, title, revid) in meta.items():
             conn.execute(
-                "INSERT INTO walk_species VALUES (?, ?, ?, ?, ?)",
-                (species, tier, raw, title, revid),
+                "INSERT INTO walk_species"
+                " (guide_id, species, edibility, edibility_raw,"
+                "  source_title, source_revid)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (FUNGI_GUIDE_ID, species, tier, raw, title, revid),
             )
         for species, chars in traits.items():
             for character, states in chars.items():
                 for state in states:
                     conn.execute(
-                        "INSERT INTO walk_trait VALUES (?, ?, ?)",
-                        (species, character, state),
+                        "INSERT INTO walk_trait (guide_id, species, character, state)"
+                        " VALUES (?, ?, ?, ?)",
+                        (FUNGI_GUIDE_ID, species, character, state),
                     )
     n_danger = sum(1 for tier, *_ in meta.values() if tier == "danger")
     return (

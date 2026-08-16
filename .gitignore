@@ -260,4 +260,4 @@ FM21-76_SurvivalManual.pdf
 docs/training/knot-data/
 
 # local demo artifacts rebuilt by sessions, never committed
-data/
+/data/

@@ -1,0 +1,72 @@
+{
+  "id": "knot-bowline",
+  "kind": "process",
+  "title": "Bowline",
+  "tile_id": 8,
+  "source": "wikihow.com/Tie-a-Bowline · wikiHow · CC BY-NC-SA 3.0",
+  "nodes": [
+    {
+      "id": "loop",
+      "question": "Loop formed?",
+      "screen": "Small overhand loop in the standing part.",
+      "voice": "Form a small overhand loop in the standing part. Leave a long working end.",
+      "answers": [
+        { "state": "done" },
+        { "state": "not yet" },
+        { "state": "unsure" }
+      ],
+      "answer_source": "both",
+      "capture_condition": "the rope and a formed or forming loop are in frame",
+      "evidence_kind": "clip",
+      "reference_image": "coach/steps/bowline_1.jpg"
+    },
+    {
+      "id": "up-through",
+      "question": "Working end up through the loop?",
+      "screen": "Working end up through the loop.",
+      "voice": "Bring the working end up through the loop, from underneath.",
+      "answers": [
+        { "state": "done" },
+        { "state": "not yet" },
+        { "state": "unsure" }
+      ],
+      "answer_source": "both",
+      "capture_condition": "the working end and the loop are both visible",
+      "evidence_kind": "clip",
+      "reference_image": "coach/steps/bowline_2.jpg"
+    },
+    {
+      "id": "behind-standing",
+      "question": "Behind the standing part?",
+      "screen": "Behind the standing part.",
+      "voice": "Wrap the working end behind the standing part.",
+      "answers": [
+        { "state": "done" },
+        { "state": "not yet" },
+        { "state": "unsure" }
+      ],
+      "answer_source": "both",
+      "capture_condition": "the standing part is visible with the working end near it",
+      "evidence_kind": "clip",
+      "reference_image": "coach/steps/bowline_3.jpg"
+    },
+    {
+      "id": "finish",
+      "question": "Back down through, pulled tight?",
+      "screen": "Back down through the loop. Pull tight.",
+      "voice": "Pass the working end back down through the loop and pull tight. The loop stays open.",
+      "answers": [
+        {
+          "state": "done",
+          "implication": "This bowline will hold under load and still untie after it."
+        },
+        { "state": "not yet" },
+        { "state": "unsure" }
+      ],
+      "answer_source": "both",
+      "capture_condition": "a finished knot shape is in frame, hands mostly clear",
+      "evidence_kind": "clip",
+      "reference_image": "coach/steps/bowline_4.jpg"
+    }
+  ]
+}

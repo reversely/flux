@@ -23,7 +23,18 @@ def main() -> None:
     )
     walk_cmd.add_argument("trait_tsv", type=Path)
     walk_cmd.add_argument("db", type=Path)
+    guide_cmd = sub.add_parser(
+        "guide", help="compile an authored guide JSON into the node tables (#65)"
+    )
+    guide_cmd.add_argument("source", type=Path)
+    guide_cmd.add_argument("db", type=Path)
     args = top.parse_args()
+
+    if args.command == "guide":
+        from flux_pipeline.guide import write_guide
+
+        print(write_guide(args.source, args.db))
+        return
 
     if args.command == "walkthrough":
         from flux_pipeline.walkthrough import write_walkthrough

@@ -55,27 +55,40 @@ class WalkthroughStore:
         self._lock = threading.Lock()
         with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
             conn.row_factory = sqlite3.Row
+            # A #65 pack carries many guides in these tables; a pre-#65 pack
+            # has no guide_id column and exactly the mushroom walk. Both read
+            # identically: this store serves only the fungi-edibility guide.
+            columns = {
+                row["name"] for row in conn.execute("PRAGMA table_info(walk_question)")
+            }
+            walk = (
+                " WHERE guide_id = 'fungi-edibility'" if "guide_id" in columns else ""
+            )
             self.questions = [
                 dict(row)
                 for row in conn.execute(
                     "SELECT character, ask_order, question, citation"
-                    " FROM walk_question ORDER BY ask_order"
+                    " FROM walk_question" + walk + " ORDER BY ask_order"
                 )
             ]
             self.states: dict[str, list[str]] = {}
             for row in conn.execute(
-                "SELECT character, state FROM walk_state ORDER BY character, state"
+                "SELECT character, state FROM walk_state"
+                + walk
+                + " ORDER BY character, state"
             ):
                 self.states.setdefault(row["character"], []).append(row["state"])
             self.species = {
                 row["species"]: dict(row)
                 for row in conn.execute(
                     "SELECT species, edibility, edibility_raw,"
-                    " source_title, source_revid FROM walk_species"
+                    " source_title, source_revid FROM walk_species" + walk
                 )
             }
             self.traits: dict[str, dict[str, set[str]]] = {}
-            for row in conn.execute("SELECT species, character, state FROM walk_trait"):
+            for row in conn.execute(
+                "SELECT species, character, state FROM walk_trait" + walk
+            ):
                 self.traits.setdefault(row["species"], {}).setdefault(
                     row["character"], set()
                 ).add(row["state"])

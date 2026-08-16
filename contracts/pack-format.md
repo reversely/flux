@@ -110,15 +110,33 @@ assembly attaches the image.
 | source_manual | TEXT | The manual the image comes from; `FM 21-76` until a clearer printing substitutes a figure (PRD 4.1). |
 | license | TEXT | License of the image, `public-domain` for US Army manuals. |
 
-## Walkthrough tables
+## Guide tables
 
-`uv run flux-pipeline walkthrough <mycomorphbox.tsv> <content.db>` writes four `walk_` tables
-into the pack database from the mycomorphbox trait extraction. The fungi edibility walkthrough
-reads them: the server asks the questions in `ask_order`, the user answers with a state, and the
-candidate set narrows by the filter rule below. Rebuilding drops and recreates the four tables
-and leaves every other table alone.
+One node format serves both guide kinds (#65). An identification guide's answers eliminate
+candidates by the filter rule below; a process guide's answers advance an ordered node
+sequence. Many guides coexist in one pack; each compiler rebuilds only its own guide's rows.
 
-### The filter rule
+`uv run flux-pipeline walkthrough <mycomorphbox.tsv> <content.db>` compiles the fungi
+edibility identification guide (`guide_id` `fungi-edibility`) from the mycomorphbox trait
+extraction. `uv run flux-pipeline guide <guide.json> <content.db>` compiles an authored
+guide source of either kind; `pipeline/data/guides/bowline.json` is the first process guide.
+
+A pre-#65 pack has these tables without `guide_id` and carries exactly the mushroom walk;
+the server detects the column and reads both vintages identically.
+
+### Table: guide
+
+One row per guide in the pack.
+
+| column | type | notes |
+| --- | --- | --- |
+| id | TEXT, primary key | Guide id, such as `fungi-edibility` or `knot-bowline`. |
+| kind | TEXT | `identification` or `process`. |
+| title | TEXT | Display title. |
+| tile_id | INTEGER, nullable | Encyclopedia tile that owns the guide. |
+| source | TEXT | Attribution line for the guide's source. |
+
+### The filter rule (identification guides)
 
 A species survives an answered question when it either records a matching state for that
 character in `walk_trait` or records no state for that character at all. A species with no row
@@ -129,36 +147,56 @@ before any verdict.
 
 ### Table: walk_question
 
-One row per observable character, in the order a guide examines a specimen.
+One row per node. For an identification guide a node is an observable character; for a
+process guide it is a step. Columns beyond `citation` are #65 additions: nullable unless
+stated, and an existing row without them keeps its meaning.
 
 | column | type | notes |
 | --- | --- | --- |
-| character | TEXT, primary key | The mycomorphbox parameter name, such as `sporePrintColor`. |
-| ask_order | INTEGER, unique | Position in the walk, 1 upward. |
+| guide_id | TEXT, references guide(id) | Owning guide. Defaults to `fungi-edibility`. |
+| character | TEXT | Node id within the guide. Primary key with guide_id. |
+| ask_order | INTEGER | Position in the walk, 1 upward, unique per guide. |
 | question | TEXT | The question the app shows, field-guide minimal. |
-| citation | TEXT | Source of the character definition. |
+| citation | TEXT | Free-text source attribution (pre-#65 field, unchanged). |
+| screen | TEXT, nullable | Screen fragment for the overlay; a stressed user scans it. |
+| voice | TEXT, nullable | Narration line; carries the reason behind any glossed term. |
+| block_id | TEXT, nullable | `block` row that grounds the node. |
+| figure_id | TEXT, nullable | `figure` row that grounds the node. |
+| anchor | TEXT, nullable | Deep-link fragment into the cited source (page, section, record). |
+| answer_source | TEXT | `user`, `camera`, or `both`. Defaults to `user`. |
+| capture_condition | TEXT, nullable | Authored statement of when the frame plausibly holds the evidence. NULL means user-answered: a node without one can never cause a capture. |
+| evidence_kind | TEXT, nullable | `frame` or `clip`; NULL on user-answered nodes. |
+| reference_image | TEXT, nullable | Pack-relative image shown beside the live feed. |
+
+The compiler refuses a `camera` or `both` node without a `capture_condition`, so an
+unmigrated or under-authored row degrades to user-answered rather than over-capturing.
 
 ### Table: walk_state
 
-One row per answer state observed in the data for a character. The app offers these states as
-the answer choices.
+One row per acceptable answer per node: trait states for identification, `done` /
+`not yet` / `unsure` for process. These states are the tappable options the overlay
+renders, so no node depends on voice.
 
 | column | type | notes |
 | --- | --- | --- |
-| character | TEXT, references walk_question(character) | Owning question. |
-| state | TEXT | Canonical lowercase state, such as `ring and volva`. |
+| guide_id | TEXT | Owning guide. Defaults to `fungi-edibility`. |
+| character | TEXT | Owning node. |
+| state | TEXT | Canonical lowercase state. |
+| implication | TEXT, nullable | For an end state, the consequence the user acts on ("this will hold under load"); the step or taxon reached is evidence under it. |
 
 ### Table: walk_species
 
-One row per species page in the trait extraction.
+One row per species page in an identification guide's trait extraction.
 
 | column | type | notes |
 | --- | --- | --- |
-| species | TEXT, primary key | The Wikipedia page title; genus and group pages appear as themselves. |
+| guide_id | TEXT | Owning guide. Defaults to `fungi-edibility`. |
+| species | TEXT | The Wikipedia page title; genus and group pages appear as themselves. Primary key with guide_id. |
 | edibility | TEXT | One of `edible`, `inedible`, `caution`, `danger`, `unknown`; the worst raw value wins when the source records two. |
 | edibility_raw | TEXT | The raw template values joined with `\|`, such as `choice\|poisonous`. |
 | source_title | TEXT | Wikipedia page title for CC BY-SA attribution. |
 | source_revid | TEXT | Wikipedia revision id the traits were read from. |
+| implication | TEXT, nullable | The consequence carried by an end state naming this species. |
 
 ### Table: walk_trait
 
@@ -167,6 +205,7 @@ for it, which the filter rule treats as compatible with every answer.
 
 | column | type | notes |
 | --- | --- | --- |
-| species | TEXT, references walk_species(species) | The species. |
+| guide_id | TEXT | Owning guide. Defaults to `fungi-edibility`. |
+| species | TEXT | The species. |
 | character | TEXT, references walk_question(character) | The character. |
 | state | TEXT | A canonical state; the template's primary and secondary values each produce a row. |
