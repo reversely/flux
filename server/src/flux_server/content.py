@@ -22,6 +22,9 @@ class ContentStore:
     """Read-only view over one pack content database."""
 
     def __init__(self, db_path: Path) -> None:
+        # Pack-relative asset paths (figure images) resolve against the
+        # directory that holds the content database.
+        self.pack_root = db_path.parent
         self._conn = sqlite3.connect(
             f"file:{db_path}?mode=ro", uri=True, check_same_thread=False
         )

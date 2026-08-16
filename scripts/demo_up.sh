@@ -32,6 +32,9 @@ if [ ! -f data/demo/content.db ]; then
 fi
 uv run flux-pipeline walkthrough data/demo/mycomorphbox.tsv data/demo/content.db
 uv run flux-pipeline guide pipeline/data/guides/bowline.json data/demo/content.db
+if [ ! -d data/demo/figures ]; then
+  uv run flux-pipeline figures FM21-76_SurvivalManual.pdf data/demo/content.db data/demo
+fi
 
 echo "== flux server"
 pkill -f "flux-server --host" 2>/dev/null

@@ -207,6 +207,21 @@ def create_app(
             raise HTTPException(status_code=404, detail="unknown figure")
         return Figure(**row)
 
+    @app.get("/v1/content/figures/{figure_id}/image")
+    def figure_image(figure_id: str) -> FileResponse:
+        """The figure's extracted image, pack-relative; 404 until a pack
+        build attaches one (#137)."""
+        row = require_content().figure(figure_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="unknown figure")
+        image_path = row.get("image_path")
+        if not image_path:
+            raise HTTPException(status_code=404, detail="figure has no image")
+        path = require_content().pack_root / image_path
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="figure image missing")
+        return FileResponse(path, media_type="image/png")
+
     @app.get("/v1/content/search", response_model=SearchResults)
     def search_content(
         q: str = Query(min_length=1), limit: int = Query(default=20, ge=1, le=100)

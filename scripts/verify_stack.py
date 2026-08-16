@@ -134,6 +134,12 @@ def main() -> int:
         "hits"
     ]
     check("search finds lashing", len(hits) >= 1, f"{len(hits)} hits")
+    r = client.get(f"{SERVER}/v1/content/figures/fm21-76-fig-7-5/image")
+    check(
+        "figure image serves",
+        r.status_code == 200 and len(r.content) > 5000,
+        f"{len(r.content)} bytes",
+    )
     r = client.get(f"{SERVER}/v1/tiles/archive", headers={"Range": "bytes=0-99"})
     check("tiles range", r.status_code == 206 and len(r.content) == 100)
 

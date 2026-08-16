@@ -1,4 +1,4 @@
-"""Compile the mycomorphbox trait table into the pack's walkthrough tables.
+"""Compile an identification trait table into the pack's walkthrough tables.
 
 The walkthrough (#85) asks one observable-feature question per step and
 narrows a candidate set by filtering, so the pack stores the questions, the
@@ -8,13 +8,20 @@ species survives an answer when it either matches the answered state or
 records nothing for that character. Recording nothing keeps a species in
 every branch, so missing data can never eliminate a dangerous species; only
 a positively contradicting confirmed answer can.
+
+The compiler is spec-driven: a WalkSpec names the guide, its questions, and
+the trait-TSV columns. With no spec it compiles the fungi walk from the
+mycomorphbox TSV exactly as before, so pre-spec callers reproduce the same
+pack rows.
 """
 
 from __future__ import annotations
 
 import csv
+import json
 import sqlite3
 from collections import defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # Ask order runs from the coarsest character to the finest, the order the
@@ -80,6 +87,79 @@ EDIBILITY_TIERS = {
 # guide keep reading exactly these rows (#65 non-breaking rule).
 FUNGI_GUIDE_ID = "fungi-edibility"
 
+
+@dataclass(frozen=True)
+class WalkQuestionSpec:
+    character: str
+    question: str
+    answer_source: str
+    capture_condition: str | None
+    citation: str
+
+
+@dataclass(frozen=True)
+class WalkSpec:
+    """Everything guide-specific about compiling one identification walk."""
+
+    guide_id: str
+    title: str
+    tile_id: int | None
+    source: str
+    questions: list[WalkQuestionSpec]
+    tiers: dict[str, str]
+    key_column: str = "page_title"
+    revid_column: str = "revid"
+    verdict_column: str = "howEdible"
+    # The per-species source citation; None means the key column doubles as
+    # the source title, the way a mycomorphbox page title does.
+    source_title_column: str | None = None
+    common_name_column: str | None = None
+    state_aliases: dict[str, str] = field(default_factory=lambda: dict(STATE_ALIASES))
+    unknown_values: frozenset[str] = frozenset(UNKNOWN_VALUES)
+
+
+def fungi_spec() -> WalkSpec:
+    return WalkSpec(
+        guide_id=FUNGI_GUIDE_ID,
+        title="Fungi edibility",
+        tile_id=6,
+        source="Wikipedia Template:Mycomorphbox (CC BY-SA)",
+        questions=[
+            WalkQuestionSpec(c, q, s, cond, QUESTION_CITATION.format(c))
+            for c, q, s, cond in QUESTIONS
+        ],
+        tiers=EDIBILITY_TIERS,
+    )
+
+
+def load_spec(path: Path) -> WalkSpec:
+    raw = json.loads(path.read_text())
+    return WalkSpec(
+        guide_id=raw["guide_id"],
+        title=raw["title"],
+        tile_id=raw.get("tile_id"),
+        source=raw["source"],
+        questions=[
+            WalkQuestionSpec(
+                q["character"],
+                q["question"],
+                q.get("answer_source", "user"),
+                q.get("capture_condition"),
+                q["citation"],
+            )
+            for q in raw["questions"]
+        ],
+        tiers=raw["tiers"],
+        key_column=raw.get("key_column", "page_title"),
+        revid_column=raw.get("revid_column", "revid"),
+        verdict_column=raw.get("verdict_column", "howEdible"),
+        source_title_column=raw.get("source_title_column"),
+        common_name_column=raw.get("common_name_column"),
+        state_aliases=raw.get("state_aliases", {}),
+        unknown_values=frozenset(raw.get("unknown_values", sorted(UNKNOWN_VALUES))),
+    )
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS guide (
     id      TEXT PRIMARY KEY,
@@ -123,6 +203,7 @@ CREATE TABLE IF NOT EXISTS walk_species (
     source_title  TEXT NOT NULL,
     source_revid  TEXT NOT NULL,
     implication   TEXT,
+    common_name   TEXT,
     PRIMARY KEY (guide_id, species)
 );
 CREATE TABLE IF NOT EXISTS walk_trait (
@@ -151,6 +232,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     if columns and "guide_id" not in columns:
         conn.executescript(LEGACY_RESET)
     conn.executescript(SCHEMA)
+    species_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(walk_species)").fetchall()
+    }
+    if "common_name" not in species_cols:
+        conn.execute("ALTER TABLE walk_species ADD COLUMN common_name TEXT")
 
 
 def _replace_guide(
@@ -171,40 +257,61 @@ def _replace_guide(
     )
 
 
-def canonical_states(row: dict, character: str) -> list[str]:
+def canonical_states(
+    row: dict, character: str, spec: WalkSpec | None = None
+) -> list[str]:
+    spec = spec or fungi_spec()
     states = []
     for key in (character, character + "2"):
         value = (row.get(key) or "").strip().lower()
-        value = STATE_ALIASES.get(value, value)
-        if value not in UNKNOWN_VALUES and value not in states:
+        value = spec.state_aliases.get(value, value)
+        if value not in spec.unknown_values and value not in states:
             states.append(value)
     return states
 
 
-def edibility_tier(row: dict) -> tuple[str, str]:
+def edibility_tier(row: dict, spec: WalkSpec | None = None) -> tuple[str, str]:
     """The worse of the two edibility values wins, so a 'choice, but deadly
     lookalike-prone' pairing can never read as plain edible."""
+    spec = spec or fungi_spec()
     severity = ["danger", "caution", "inedible", "edible", "unknown"]
-    raws = canonical_states(row, "howEdible")
-    tiers = [EDIBILITY_TIERS.get(r, "unknown") for r in raws]
+    raws = canonical_states(row, spec.verdict_column, spec)
+    tiers = [spec.tiers.get(r, "unknown") for r in raws]
     tier = min(tiers, key=severity.index) if tiers else "unknown"
     return tier, "|".join(raws)
 
 
-def load_traits(tsv: Path) -> tuple[dict[str, dict[str, list[str]]], dict[str, tuple]]:
+def load_traits(
+    tsv: Path, spec: WalkSpec | None = None
+) -> tuple[dict[str, dict[str, list[str]]], dict[str, tuple]]:
     """Returns (traits[species][character] -> states, meta[species])."""
+    spec = spec or fungi_spec()
     traits: dict[str, dict[str, list[str]]] = {}
     meta: dict[str, tuple] = {}
     with tsv.open(newline="") as f:
         for row in csv.DictReader(f, delimiter="\t"):
-            species = row["page_title"]
+            species = row[spec.key_column]
             traits[species] = {
-                character: states
-                for character, *_ in QUESTIONS
-                if (states := canonical_states(row, character))
+                q.character: states
+                for q in spec.questions
+                if (states := canonical_states(row, q.character, spec))
             }
-            tier, raw = edibility_tier(row)
-            meta[species] = (tier, raw, row["page_title"], row["revid"])
+            tier, raw = edibility_tier(row, spec)
+            common = (
+                row.get(spec.common_name_column) if spec.common_name_column else None
+            )
+            title = (
+                row[spec.source_title_column]
+                if spec.source_title_column
+                else row[spec.key_column]
+            )
+            meta[species] = (
+                tier,
+                raw,
+                title,
+                row[spec.revid_column],
+                (common or "").strip() or None,
+            )
     return traits, meta
 
 
@@ -223,8 +330,9 @@ def filter_candidates(
     ]
 
 
-def write_walkthrough(tsv: Path, db_path: Path) -> str:
-    traits, meta = load_traits(tsv)
+def write_walkthrough(tsv: Path, db_path: Path, spec: WalkSpec | None = None) -> str:
+    spec = spec or fungi_spec()
+    traits, meta = load_traits(tsv, spec)
     states_seen = defaultdict(set)
     for chars in traits.values():
         for character, states in chars.items():
@@ -234,44 +342,42 @@ def write_walkthrough(tsv: Path, db_path: Path) -> str:
         _ensure_schema(conn)
         _replace_guide(
             conn,
-            FUNGI_GUIDE_ID,
+            spec.guide_id,
             "identification",
-            "Fungi edibility",
-            6,
-            "Wikipedia Template:Mycomorphbox (CC BY-SA)",
+            spec.title,
+            spec.tile_id,
+            spec.source,
         )
-        for order, (character, question, source, condition) in enumerate(
-            QUESTIONS, start=1
-        ):
+        for order, q in enumerate(spec.questions, start=1):
             conn.execute(
                 "INSERT INTO walk_question"
                 " (guide_id, character, ask_order, question, citation,"
                 "  answer_source, capture_condition, evidence_kind)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    FUNGI_GUIDE_ID,
-                    character,
+                    spec.guide_id,
+                    q.character,
                     order,
-                    question,
-                    QUESTION_CITATION.format(character),
-                    source,
-                    condition,
-                    "clip" if source != "user" else None,
+                    q.question,
+                    q.citation,
+                    q.answer_source,
+                    q.capture_condition,
+                    "clip" if q.answer_source != "user" else None,
                 ),
             )
-            for state in sorted(states_seen[character]):
+            for state in sorted(states_seen[q.character]):
                 conn.execute(
                     "INSERT INTO walk_state (guide_id, character, state)"
                     " VALUES (?, ?, ?)",
-                    (FUNGI_GUIDE_ID, character, state),
+                    (spec.guide_id, q.character, state),
                 )
-        for species, (tier, raw, title, revid) in meta.items():
+        for species, (tier, raw, title, revid, common) in meta.items():
             conn.execute(
                 "INSERT INTO walk_species"
                 " (guide_id, species, edibility, edibility_raw,"
-                "  source_title, source_revid)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
-                (FUNGI_GUIDE_ID, species, tier, raw, title, revid),
+                "  source_title, source_revid, common_name)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (spec.guide_id, species, tier, raw, title, revid, common),
             )
         for species, chars in traits.items():
             for character, states in chars.items():
@@ -279,11 +385,11 @@ def write_walkthrough(tsv: Path, db_path: Path) -> str:
                     conn.execute(
                         "INSERT INTO walk_trait (guide_id, species, character, state)"
                         " VALUES (?, ?, ?, ?)",
-                        (FUNGI_GUIDE_ID, species, character, state),
+                        (spec.guide_id, species, character, state),
                     )
     n_danger = sum(1 for tier, *_ in meta.values() if tier == "danger")
     return (
-        f"walkthrough: {len(meta)} species ({n_danger} danger tier), "
+        f"walkthrough[{spec.guide_id}]: {len(meta)} species ({n_danger} danger tier), "
         f"{sum(len(c) for c in traits.values())} trait rows, "
-        f"{len(QUESTIONS)} questions -> {db_path}"
+        f"{len(spec.questions)} questions -> {db_path}"
     )

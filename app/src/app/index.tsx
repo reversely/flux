@@ -197,7 +197,7 @@ export default function ChatHome() {
         {messages.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.wordmark}>LifeKit</Text>
-            <Text style={[typography.body, styles.tagline]}>A field guide you can ask.</Text>
+            <Text style={[typography.body, styles.tagline]}>The offline AI field guide to the world around you.</Text>
             <QuestionGallery onAsk={(question) => void send(question)} />
           </View>
         ) : (

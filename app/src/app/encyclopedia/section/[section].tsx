@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -45,9 +46,29 @@ function BulletList({ lines }: { lines: string[] }) {
  * warnings stay visible).
  */
 function BlockView({ block }: { block: Block }) {
+  const serverUrl = useSession((st) => st.serverUrl).trim();
+  const [figureFailed, setFigureFailed] = useState(false);
+  // The manual's own figure, extracted into the pack (#137): the image
+  // renders in place with its public-domain line, and a missing image
+  // falls back to the bare figure reference rather than a broken frame.
   const annotations = (
     <>
-      {block.figure_ref !== null && (
+      {block.figure_ref !== null && !figureFailed && serverUrl !== '' && (
+        <View style={styles.figureCard}>
+          <Image
+            source={{
+              uri: `${serverUrl}/v1/content/figures/fm21-76-fig-${block.figure_ref}/image`,
+            }}
+            style={styles.figureImage}
+            contentFit="contain"
+            onError={() => setFigureFailed(true)}
+          />
+          <Text style={typography.annotation}>
+            Figure {block.figure_ref} · FM 21-76 · public domain
+          </Text>
+        </View>
+      )}
+      {block.figure_ref !== null && (figureFailed || serverUrl === '') && (
         <Text style={typography.annotation}>Figure {block.figure_ref}</Text>
       )}
     </>
@@ -180,6 +201,16 @@ export default function SectionReader() {
 }
 
 const styles = StyleSheet.create({
+  figureCard: {
+    gap: 4,
+    marginTop: 8,
+  },
+  figureImage: {
+    width: '100%',
+    aspectRatio: 1.3,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.paper,

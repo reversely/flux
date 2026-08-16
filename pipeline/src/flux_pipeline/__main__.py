@@ -23,12 +23,31 @@ def main() -> None:
     )
     walk_cmd.add_argument("trait_tsv", type=Path)
     walk_cmd.add_argument("db", type=Path)
+    walk_cmd.add_argument(
+        "--spec",
+        type=Path,
+        default=None,
+        help="walk spec JSON naming the guide, questions, and TSV columns"
+        " (default: the fungi mycomorphbox walk)",
+    )
+    figures_cmd = sub.add_parser(
+        "figures", help="extract figure images from the PDF into the pack (#137)"
+    )
+    figures_cmd.add_argument("pdf", type=Path)
+    figures_cmd.add_argument("db", type=Path)
+    figures_cmd.add_argument("out_dir", type=Path)
     guide_cmd = sub.add_parser(
         "guide", help="compile an authored guide JSON into the node tables (#65)"
     )
     guide_cmd.add_argument("source", type=Path)
     guide_cmd.add_argument("db", type=Path)
     args = top.parse_args()
+
+    if args.command == "figures":
+        from flux_pipeline.figures import write_figures
+
+        print(write_figures(args.pdf, args.db, args.out_dir))
+        return
 
     if args.command == "guide":
         from flux_pipeline.guide import write_guide
@@ -37,9 +56,10 @@ def main() -> None:
         return
 
     if args.command == "walkthrough":
-        from flux_pipeline.walkthrough import write_walkthrough
+        from flux_pipeline.walkthrough import load_spec, write_walkthrough
 
-        print(write_walkthrough(args.trait_tsv, args.db))
+        spec = load_spec(args.spec) if args.spec else None
+        print(write_walkthrough(args.trait_tsv, args.db, spec))
         return
 
     from flux_pipeline.civilian import DEFAULT_EDITS_PATH, apply_civilian_edits
