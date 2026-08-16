@@ -18,9 +18,16 @@ import { useSession } from '@/store/session';
  * start the mic, so the app never hears its own voice.
  */
 
+// Rough speech pacing for the speaking window: the open mic mutes itself
+// while the app talks, and the player exposes no reliable finished event
+// across the server and device voices, so duration is estimated.
+const SPEAK_BASE_MS = 1000;
+const SPEAK_MS_PER_CHAR = 70;
+
 export function useNarration() {
   const client = useSession((s) => s.client);
   const player = useAudioPlayer();
+  const speakingUntilRef = useRef(0);
 
   // The player's native object dies with the owning screen; a narration
   // resolving after unmount must not crash the app, so every player call
@@ -28,6 +35,7 @@ export function useNarration() {
   const speak = useCallback(
     async (line: string) => {
       Speech.stop();
+      speakingUntilRef.current = Date.now() + SPEAK_BASE_MS + line.length * SPEAK_MS_PER_CHAR;
       try {
         player.pause();
       } catch {
@@ -49,6 +57,7 @@ export function useNarration() {
 
   const stop = useCallback(() => {
     Speech.stop();
+    speakingUntilRef.current = 0;
     try {
       player.pause();
     } catch {
@@ -56,9 +65,145 @@ export function useNarration() {
     }
   }, [player]);
 
+  const isSpeaking = useCallback(() => Date.now() < speakingUntilRef.current, []);
+
   useEffect(() => () => void Speech.stop(), []);
 
-  return { speak, stop };
+  return { speak, stop, isSpeaking };
+}
+
+// Open-mic tuning: int16 RMS above VOICE_RMS reads as speech; an utterance
+// ends after UTTERANCE_SILENCE_MS without it. The stream opens on voice
+// onset, so silence costs no bandwidth and no server work.
+const VOICE_RMS = 600;
+const UTTERANCE_SILENCE_MS = 900;
+
+/**
+ * The always-on half of the one-mode surfaces (#208): the mic runs for the
+ * whole session, an utterance starts when the user starts talking and ends
+ * on silence, and the final transcript lands in onFinal exactly as a
+ * hold-to-talk release would. isMuted gates the listener while the app
+ * itself is speaking, so the loop never transcribes its own narration.
+ */
+export function useOpenMic(options: {
+  enabled: boolean;
+  isMuted: () => boolean;
+  onPartial: (text: string) => void;
+  onFinal: (text: string) => void;
+  onProblem: (kind: 'denied' | 'server') => void;
+}) {
+  const client = useSession((s) => s.client);
+  const [listening, setListening] = useState(false);
+  const wsRef = useRef<TranscriptionStream | null>(null);
+  const lastVoiceAtRef = useRef(0);
+  const enabledRef = useRef(false);
+  const handlers = useRef(options);
+  handlers.current = options;
+
+  const closeUtterance = (send: boolean) => {
+    const stream = wsRef.current;
+    wsRef.current = null;
+    setListening(false);
+    if (stream !== null) {
+      if (send) {
+        stream.end();
+      } else {
+        stream.cancel();
+      }
+    }
+  };
+
+  const { stream: mic } = useAudioStream({
+    sampleRate: 16000,
+    channels: 1,
+    encoding: 'int16',
+    onBuffer: (buffer) => {
+      if (!enabledRef.current) {
+        return;
+      }
+      if (handlers.current.isMuted()) {
+        // The app is talking; whatever was mid-utterance is abandoned so
+        // the transcript never contains the app's own voice.
+        closeUtterance(false);
+        return;
+      }
+      const samples = new Int16Array(buffer.data);
+      let sum = 0;
+      let counted = 0;
+      for (let i = 0; i < samples.length; i += 4) {
+        sum += samples[i] * samples[i];
+        counted += 1;
+      }
+      const rms = Math.sqrt(sum / Math.max(1, counted));
+      const now = Date.now();
+      if (rms > VOICE_RMS) {
+        lastVoiceAtRef.current = now;
+      }
+      if (wsRef.current === null) {
+        if (rms <= VOICE_RMS) {
+          return;
+        }
+        wsRef.current = openTranscriptionStream({
+          baseUrl: client().baseUrl,
+          onPartial: (text) => handlers.current.onPartial(text),
+          onFinal: (final) => {
+            wsRef.current = null;
+            setListening(false);
+            if (final.text.trim() !== '') {
+              handlers.current.onFinal(final.text);
+            }
+          },
+          onError: () => {
+            wsRef.current = null;
+            setListening(false);
+          },
+        });
+        setListening(true);
+      }
+      wsRef.current.feed(buffer.data, buffer.sampleRate);
+      if (now - lastVoiceAtRef.current > UTTERANCE_SILENCE_MS) {
+        closeUtterance(true);
+      }
+    },
+  });
+
+  useEffect(() => {
+    enabledRef.current = options.enabled;
+    if (!options.enabled) {
+      return;
+    }
+    let alive = true;
+    void (async () => {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        handlers.current.onProblem('denied');
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      if (!alive) {
+        return;
+      }
+      try {
+        await mic.start();
+      } catch {
+        handlers.current.onProblem('denied');
+      }
+    })();
+    return () => {
+      alive = false;
+      enabledRef.current = false;
+      try {
+        mic.stop();
+      } catch {
+        // Released stream; nothing left to stop.
+      }
+      wsRef.current?.cancel();
+      wsRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options.enabled]);
+
+  return { listening };
 }
 
 export function useHoldToTalk(options: {

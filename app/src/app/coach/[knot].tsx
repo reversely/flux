@@ -9,7 +9,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { mapTranscript } from '@/api/speech';
-import { useHoldToTalk, useNarration } from '@/api/voice';
+import { useNarration, useOpenMic } from '@/api/voice';
+import { cycleLines, useWatchLoop } from '@/live/watch';
 import { procedureById } from '@/data/coach';
 import { useSession } from '@/store/session';
 import { darkHome, HOME_BIOME } from '@/theme/biome';
@@ -19,6 +20,9 @@ import { radius, spacing, typography } from '@/theme/tokens';
 // bitrate matches capture.tsx's reasoning (the server samples ~8 frames).
 const COACH_CLIP_SECONDS = 8;
 const COACH_VIDEO_BITRATE = 1_000_000;
+// Classification on the box typically answers within this; the cycle
+// readout sets the expectation and flags a slow answer past double.
+const EXPECTED_READ_S = 8;
 
 type WatchState = 'off' | 'starting' | 'watching' | 'failed';
 
@@ -56,11 +60,7 @@ export default function KnotCoach() {
       setStep(wanted);
     }
   }, [stepParam]);
-  const [voiceOn, setVoiceOn] = useState(true);
   const [watch, setWatch] = useState<WatchState>('off');
-  // True while a recorded clip is uploading and the box classifies it: the
-  // camera dims and the chip flips to Checking, so a model call is visible.
-  const [checking, setChecking] = useState(false);
   // Why the last watch attempt failed, small under the fragment; the same
   // failure lands in the traces tab with the full response.
   const [watchNote, setWatchNote] = useState<string | null>(null);
@@ -71,20 +71,21 @@ export default function KnotCoach() {
   const [seen, setSeen] = useState<string | null>(null);
   const [inFrame, setInFrame] = useState<boolean | null>(null);
   const cameraRef = useRef<CameraView>(null);
-  const watchingRef = useRef(false);
   const wasOutOfFrameRef = useRef(false);
+  const sessionIdRef = useRef<string | null>(null);
+  const pointerRef = useRef(0);
 
   // Narration goes through the box's Kokoro voice with the on-device
   // fallback (#180); the coach was the last screen on raw device speech.
   const narration = useNarration();
   const speak = useCallback(
     (index: number) => {
-      if (!voiceOn || knot === undefined) {
+      if (knot === undefined) {
         return;
       }
       void narration.speak(knot.steps[index].voice);
     },
-    [voiceOn, knot, narration],
+    [knot, narration],
   );
 
   const goTo = (index: number) => {
@@ -92,78 +93,71 @@ export default function KnotCoach() {
     speak(index);
   };
 
-  const stopWatch = useCallback(() => {
-    watchingRef.current = false;
-    try {
-        cameraRef.current?.stopRecording();
-      } catch {
-        // Recorder already torn down.
+  // One chunk through the box: the server pointer decides the step, the
+  // transparency fields say what the model saw, and off-subject clips get
+  // one spoken nudge per lapse, not one every eight seconds.
+  const sendChunk = async (uri: string) => {
+    const sessionId = sessionIdRef.current;
+    if (sessionId === null) {
+      return;
+    }
+    const result = await client().coachClip(sessionId, uri);
+    setSeen(result.seen ?? null);
+    setInFrame(result.subject_present ?? null);
+    if (result.subject_present === false) {
+      if (!wasOutOfFrameRef.current) {
+        void narration.speak('Camera cannot see your work. Bring it into the frame.');
       }
+      wasOutOfFrameRef.current = true;
+    } else {
+      wasOutOfFrameRef.current = false;
+    }
+    if (result.step > pointerRef.current) {
+      pointerRef.current = result.step;
+      goTo(result.step);
+    }
+  };
+
+  // The shared skeleton (#213) runs the chunk loop; the coach has no gates
+  // of its own beyond the standard ones (one in flight, steadiness).
+  const watchLoop = useWatchLoop({
+    cameraRef,
+    chunkSeconds: COACH_CLIP_SECONDS,
+    decide: () => null,
+    send: sendChunk,
+  });
+  const checking = watchLoop.cycle.reading;
+
+  const stopWatch = useCallback(() => {
+    watchLoop.stop();
     setWatch('off');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The watch loop: record a short clip, post it, apply the server pointer,
-  // repeat. Each advance narrates the step it landed on.
   const startWatch = async () => {
-    if (knot === undefined) {
+    if (knot === undefined || watchLoop.isWatching()) {
       return;
     }
     setWatch('starting');
     setWatchNote(null);
-    let sessionId: string;
     try {
-      sessionId = (await client().createCoachSession(knot.id)).session_id;
+      sessionIdRef.current = (await client().createCoachSession(knot.id)).session_id;
     } catch (error) {
       setWatch('failed');
       setWatchNote(error instanceof Error ? error.message : String(error));
       return;
     }
-    watchingRef.current = true;
+    pointerRef.current = 0;
     setWatch('watching');
-    let pointer = 0;
-    while (watchingRef.current) {
-      try {
-        const video = await cameraRef.current?.recordAsync({
-          codec: 'avc1',
-          maxDuration: COACH_CLIP_SECONDS,
-        });
-        if (video === undefined) {
-          break;
-        }
-        setChecking(true);
-        const result = await client().coachClip(sessionId, video.uri);
-        setChecking(false);
-        setSeen(result.seen ?? null);
-        setInFrame(result.subject_present ?? null);
-        // Off-subject clips reject with a spoken nudge, once per lapse, not
-        // every eight seconds.
-        if (result.subject_present === false) {
-          if (!wasOutOfFrameRef.current && watchingRef.current) {
-            void narration.speak('Camera cannot see your work. Bring it into the frame.');
-          }
-          wasOutOfFrameRef.current = true;
-        } else {
-          wasOutOfFrameRef.current = false;
-        }
-        if (watchingRef.current && result.step > pointer) {
-          pointer = result.step;
-          goTo(result.step);
-        }
-      } catch (error) {
-        setChecking(false);
-        setWatch('failed');
-        setWatchNote(error instanceof Error ? error.message : String(error));
-        watchingRef.current = false;
-        return;
-      }
-    }
-    setChecking(false);
-    setWatch('off');
+    void watchLoop.start();
   };
 
-  // Voice control over the steps (#180): the same exact gate as the walk,
-  // with next and done as the answer set and back/repeat as controls.
-  const talk = useHoldToTalk({
+  // Voice control over the steps (#180), now always listening: one mode,
+  // the mic open for the whole session, utterances processed as spoken.
+  // The mic mutes itself while the coach narrates (#74 turn-taking).
+  const talk = useOpenMic({
+    enabled: knot !== undefined,
+    isMuted: narration.isSpeaking,
     onPartial: setHeard,
     onFinal: (text) => {
       setHeard(null);
@@ -185,17 +179,9 @@ export default function KnotCoach() {
       setHeard(kind === 'denied' ? 'Mic off. Allow the microphone.' : 'Voice needs the server'),
   });
 
-  // Leaving the screen stops the recorder and any narration mid-sentence.
+  // Leaving the screen stops any narration; the loop stops itself.
   useEffect(
-    () => () => {
-      watchingRef.current = false;
-      try {
-        cameraRef.current?.stopRecording();
-      } catch {
-        // Recorder already torn down.
-      }
-      narration.stop();
-    },
+    () => () => narration.stop(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -233,6 +219,12 @@ export default function KnotCoach() {
           mute
           videoQuality="4:3"
           videoBitrate={COACH_VIDEO_BITRATE}
+          onCameraReady={() => {
+            // One mode: watching starts when the camera does. No button.
+            if (knot?.watchable && !watchLoop.isWatching()) {
+              void startWatch();
+            }
+          }}
         />
       )}
       {checking && <View style={styles.freeze} pointerEvents="none" />}
@@ -250,10 +242,12 @@ export default function KnotCoach() {
             {knot.name} · {step + 1}/{knot.steps.length}
           </Text>
         </View>
+        {/* One mode, but always stoppable: the status chip is the stop.
+            Tap Watching to pause the loop; tap Paused to resume. */}
         {showCamera && knot.watchable && (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={watch === 'off' || watch === 'failed' ? 'Watch my tying' : 'Stop watching'}
+            accessibilityLabel={watch === 'watching' ? 'Stop watching' : 'Resume watching'}
             onPress={() => {
               if (watch === 'watching' || watch === 'starting') {
                 stopWatch();
@@ -271,36 +265,13 @@ export default function KnotCoach() {
                 watch === 'failed' && { color: darkHome.ink3 },
               ]}
             >
-              {checking ? 'Checking' : watch === 'watching' ? 'Watching' : watch === 'starting' ? 'Starting' : watch === 'failed' ? 'Watch (no server)' : 'Watch'}
+              {checking ? 'Reading · stop' : watch === 'watching' ? 'Watching · stop' : watch === 'starting' ? 'Starting' : watch === 'failed' ? 'No server · retry' : 'Paused · start'}
             </Text>
           </Pressable>
         )}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={voiceOn ? 'Turn voice off' : 'Turn voice on'}
-          onPress={() => {
-            if (voiceOn) {
-              narration.stop();
-            }
-            setVoiceOn(!voiceOn);
-          }}
-          style={[styles.chip, voiceOn && styles.chipActive]}
-        >
-          <Feather name={voiceOn ? 'volume-2' : 'volume-x'} size={16} color={voiceOn ? HOME_BIOME.glow : darkHome.ink3} />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={talk.listening ? 'Release' : 'Hold to say next, back, or repeat'}
-          onPressIn={() => {
-            narration.stop();
-            setHeard('Listening');
-            void talk.start();
-          }}
-          onPressOut={talk.stop}
-          style={[styles.chip, talk.listening && styles.chipActive]}
-        >
+        <View style={[styles.chip, talk.listening && styles.chipActive]}>
           <Feather name="mic" size={16} color={talk.listening ? HOME_BIOME.glow : darkHome.ink3} />
-        </Pressable>
+        </View>
       </View>
       {figure !== undefined && (
         <View style={[styles.referenceWrap, { top: insets.top + 120 }]} pointerEvents="none">
@@ -309,17 +280,35 @@ export default function KnotCoach() {
       )}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.m }]}>
         <Text style={styles.fragment}>{active.screen}</Text>
-        {(watch === 'watching' || checking) && (
-          <Text style={[typography.annotation, styles.voiceLine]} numberOfLines={2}>
-            {checking
-              ? `${COACH_CLIP_SECONDS} s clip → cosmos on the box`
-              : inFrame === false
-                ? `Not in frame — seeing: ${seen ?? 'something else'}`
-                : seen !== null
-                  ? `Sees: ${seen}`
-                  : 'Watching for your next move'}
-          </Text>
-        )}
+        {(watch === 'watching' || checking) &&
+          (() => {
+            const lines = cycleLines(watchLoop.cycle, {
+              chunkSeconds: COACH_CLIP_SECONDS,
+              expectedReadSeconds: EXPECTED_READ_S,
+              verdict:
+                seen !== null && watchLoop.cycle.lastResultAt !== null
+                  ? {
+                      text:
+                        inFrame === false
+                          ? `Not in frame — seeing: ${seen}`
+                          : `Sees: ${seen}`,
+                      at: watchLoop.cycle.lastResultAt,
+                    }
+                  : null,
+            });
+            return (
+              <>
+                <Text style={[typography.annotation, styles.voiceLine]} numberOfLines={1}>
+                  {lines.primary}
+                </Text>
+                {lines.secondary !== null && (
+                  <Text style={[typography.annotation, styles.voiceLine]} numberOfLines={2}>
+                    {lines.secondary}
+                  </Text>
+                )}
+              </>
+            );
+          })()}
         {heard !== null && (
           <Text style={[typography.annotation, styles.voiceLine]} numberOfLines={2}>
             {heard}

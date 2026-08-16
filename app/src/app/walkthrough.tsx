@@ -2,7 +2,6 @@ import { Feather } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef } from 'react';
 import * as Device from 'expo-device';
-import { Accelerometer } from 'expo-sensors';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import type { ImageSourcePropType } from 'react-native';
@@ -19,7 +18,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { mapTranscript } from '@/api/speech';
 import type { WalkObservation, WalkQuestion, WalkSessionState } from '@/api/types';
-import { useHoldToTalk, useNarration } from '@/api/voice';
+import { useNarration, useOpenMic } from '@/api/voice';
+import { cycleLines, useWatchLoop } from '@/live/watch';
 // One labeled anatomy diagram per fungi node, the asked region shaded.
 // A character with no entry (spore print, every berry node) shows no
 // figure rather than a wrong drawing.
@@ -40,9 +40,9 @@ const SCOPE_BANNER_MS = 6000;
 // Continuous watch (#208): the camera records chunks of this length the
 // whole session; the decision layer chooses which chunks are worth the box.
 const WATCH_CHUNK_S = 3;
-// Mean deviation from 1 g above this reads as a moving camera: the user is
-// repositioning, not showing, and the chunk is not worth inference.
-const STEADY_THRESHOLD_G = 0.12;
+// Observe on the box typically answers within this; the cycle readout sets
+// the expectation and flags a slow answer past double.
+const EXPECTED_READ_S = 8;
 // The same verdict kind is spoken at most once per this window, so a
 // continuous loop stays a conversation rather than a nag.
 const SPEAK_REPEAT_MS = 12000;
@@ -195,14 +195,10 @@ export default function Walkthrough() {
   const [observePhase, setObservePhase] = useState<'idle' | 'filming' | 'checking'>('idle');
   const [suggestion, setSuggestion] = useState<WalkObservation | null>(null);
 
-  // Continuous watch (#208): the camera records chunk after chunk; each
-  // chunk passes the decision layer before any bytes leave the phone. The
-  // refs mirror render state for the loop, which outlives any one render.
-  const [watching, setWatching] = useState(false);
-  const [watchLine, setWatchLine] = useState('watching');
-  const watchRef = useRef(false);
-  const inFlightRef = useRef(false);
-  const motionRef = useRef<number[]>([]);
+  // Continuous watch on the shared skeleton (#208, #213): the loop, the
+  // standard gates, and the cycle readout live in useWatchLoop; this
+  // surface supplies only its own gates and its upload handler. The refs
+  // mirror render state for the loop, which outlives any one render.
   const walkRef = useRef<WalkSessionState | null>(null);
   const currentRef = useRef<WalkQuestion | undefined>(undefined);
   const suggestionRef = useRef<WalkObservation | null>(null);
@@ -220,28 +216,19 @@ export default function Walkthrough() {
     void narration.speak(line);
   };
 
-  // The decision layer: the reason this chunk is not worth sending, or
-  // null to send. Every skip reason is shown, so the camera being on and
-  // inference happening stay two visibly separate facts.
-  const decide = (question: WalkQuestion | undefined): string | null => {
+  // This surface's own gates; the standard gates (one in flight,
+  // steadiness) belong to the skeleton.
+  const decide = (): string | null => {
+    const question = currentRef.current;
     if (question === undefined) {
       return 'every feature answered';
     }
     if (question.answer_source !== 'both' && question.answer_source !== 'camera') {
       return 'this one needs your answer — say it or tap';
     }
-    if (inFlightRef.current) {
-      return 'model still reading the last chunk';
-    }
     const pending = suggestionRef.current;
     if (pending?.state != null && pending.off_subject !== true) {
       return 'waiting — say yes, or dismiss';
-    }
-    const samples = motionRef.current;
-    const avg =
-      samples.length > 3 ? samples.reduce((a, b) => a + b, 0) / samples.length : 0;
-    if (avg > STEADY_THRESHOLD_G) {
-      return 'moving — hold steady on the specimen';
     }
     return null;
   };
@@ -266,78 +253,29 @@ export default function Walkthrough() {
     }
   };
 
-  const stopWatching = () => {
-    watchRef.current = false;
-    try {
-      cameraRef.current?.stopRecording();
-    } catch {
-      // Recorder already torn down.
-    }
-  };
-
-  const startWatching = async () => {
-    if (watchRef.current || cameraRef.current === null) {
+  const sendChunk = async (uri: string) => {
+    const question = currentRef.current;
+    const sessionId = walkRef.current?.session_id;
+    if (question === undefined || sessionId === undefined) {
       return;
     }
-    watchRef.current = true;
-    setWatching(true);
-    setWatchLine('watching');
-    let sub: { remove: () => void } | null = null;
-    try {
-      Accelerometer.setUpdateInterval(100);
-      sub = Accelerometer.addListener(({ x, y, z }) => {
-        motionRef.current.push(Math.abs(Math.hypot(x, y, z) - 1));
-        if (motionRef.current.length > 40) {
-          motionRef.current.shift();
-        }
-      });
-    } catch {
-      // No motion sensor: the steadiness gate simply always passes.
-    }
-    while (watchRef.current && cameraRef.current !== null) {
-      motionRef.current = [];
-      let video;
-      try {
-        video = await cameraRef.current.recordAsync({ maxDuration: WATCH_CHUNK_S });
-      } catch {
-        break;
-      }
-      if (!watchRef.current || video === undefined) {
-        break;
-      }
-      const question = currentRef.current;
-      const skip = decide(question);
-      if (skip !== null) {
-        setWatchLine(skip);
-        if (skip === 'every feature answered') {
-          break;
-        }
-        continue;
-      }
-      const sessionId = walkRef.current?.session_id;
-      if (sessionId === undefined || question === undefined) {
-        continue;
-      }
-      // Send without blocking the next chunk; one in flight at a time.
-      inFlightRef.current = true;
-      setWatchLine('chunk → cosmos on the box');
-      void client()
-        .observeWalkthrough(sessionId, question.character, video.uri)
-        .then((observed) => {
-          handleVerdict(observed, question);
-          setWatchLine('watching');
-        })
-        .catch(() => setWatchLine('the camera check needs the server'))
-        .finally(() => {
-          inFlightRef.current = false;
-        });
-    }
-    if (sub !== null) {
-      sub.remove();
-    }
-    watchRef.current = false;
-    setWatching(false);
+    const observed = await client().observeWalkthrough(
+      sessionId,
+      question.character,
+      uri,
+    );
+    handleVerdict(observed, question);
   };
+
+  const watchLoop = useWatchLoop({
+    cameraRef,
+    chunkSeconds: WATCH_CHUNK_S,
+    decide,
+    send: sendChunk,
+  });
+  const watching = watchLoop.cycle.watching;
+  const startWatching = watchLoop.start;
+  const stopWatching = watchLoop.stop;
 
   // Watching starts by itself in camera mode: the session is hands-free by
   // default, and the toggle in the card pauses it.
@@ -348,17 +286,15 @@ export default function Walkthrough() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useCamera, walk === null]);
 
-  // Leaving the screen ends the loop, the recorder, and any narration.
+  // A finished walk ends the loop; any narration stops with the screen.
+  useEffect(() => {
+    if (watchLoop.cycle.skipReason === 'every feature answered') {
+      stopWatching();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchLoop.cycle.skipReason]);
   useEffect(
-    () => () => {
-      watchRef.current = false;
-      try {
-        cameraRef.current?.stopRecording();
-      } catch {
-        // Recorder already torn down.
-      }
-      narration.stop();
-    },
+    () => () => narration.stop(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -367,7 +303,7 @@ export default function Walkthrough() {
     if (walk === null || current === undefined || cameraRef.current === null) {
       return;
     }
-    if (watchRef.current) {
+    if (watchLoop.isWatching()) {
       // The loop owns the camera; clearing the verdict lets it resume.
       setSuggestion(null);
       return;
@@ -469,18 +405,17 @@ export default function Walkthrough() {
     }
   };
 
-  const talk = useHoldToTalk({
+  // One mode (#213): in camera mode the mic is open for the whole session
+  // and utterances are processed as spoken; it mutes itself while the walk
+  // narrates, so the loop never hears its own voice.
+  const talk = useOpenMic({
+    enabled: useCamera,
+    isMuted: narration.isSpeaking,
     onPartial: setHeard,
     onFinal: (text) => void applyTranscript(text),
     onProblem: (kind) =>
       setHeard(kind === 'denied' ? 'Mic off. Allow the microphone.' : 'Voice needs the server'),
   });
-
-  const startListening = async () => {
-    narration.stop();
-    setHeard('Listening');
-    await talk.start();
-  };
 
   const stateChips = (question: WalkQuestion) => (
     <View style={styles.stateWrap}>
@@ -558,26 +493,41 @@ export default function Walkthrough() {
       {/* The camera-check status banner: filming, then the model reading,
           then the verdict with its actions. It sits over the feed just above
           the dock, so what is happening to the video is never a mystery. */}
-      {useCamera && (watching || observePhase !== 'idle' || suggestion !== null) && (
+      {useCamera && (
         <View style={styles.observeStatus}>
           {suggestion === null && (
             <>
-              <View style={styles.observeStatusRow}>
-                {watchLine === 'chunk → cosmos on the box' || observePhase === 'checking' ? (
+              {/* Always stoppable: the status row is the stop. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={watching ? 'Stop watching' : 'Resume watching'}
+                onPress={() => (watching ? stopWatching() : void startWatching())}
+                style={styles.observeStatusRow}
+              >
+                {watchLoop.cycle.reading || observePhase === 'checking' ? (
                   <ActivityIndicator size="small" color="#B5E3DC" />
                 ) : (
-                  <View style={styles.recordDot} />
+                  <View style={[styles.recordDot, !watching && styles.recordDotOff]} />
                 )}
                 <Text style={styles.observeStatusTitle}>
                   {observePhase === 'filming'
                     ? 'Filming · 3 s clip'
                     : observePhase === 'checking'
                       ? 'Clip → cosmos on the box'
-                      : 'Watching'}
+                      : watching
+                        ? 'Watching · tap to stop'
+                        : 'Paused · tap to watch'}
                 </Text>
-              </View>
+              </Pressable>
               {watching && observePhase === 'idle' && (
-                <Text style={styles.observeStatusBody}>{watchLine}</Text>
+                <Text style={styles.observeStatusBody}>
+                  {
+                    cycleLines(watchLoop.cycle, {
+                      chunkSeconds: WATCH_CHUNK_S,
+                      expectedReadSeconds: EXPECTED_READ_S,
+                    }).primary
+                  }
+                </Text>
               )}
             </>
           )}
@@ -671,42 +621,22 @@ export default function Walkthrough() {
             <Text style={typography.surfaceTitle}>{current.question}</Text>
             {stateChips(current)}
             <Text style={typography.annotation}>{current.citation}</Text>
-            {useCamera && (
-              <View style={styles.observeRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={watching ? 'Pause the camera watch' : 'Watch with the camera'}
-                  disabled={observing}
-                  onPress={() => (watching ? stopWatching() : void startWatching())}
-                  style={[styles.observeButton, observing && styles.observeButtonBusy]}
-                >
-                  <Feather name={watching ? 'pause' : 'camera'} size={16} color={colors.card} />
-                  <Text style={styles.observeButtonText}>
-                    {watching ? 'Pause' : 'Watch'}
-                  </Text>
-                </Pressable>
-                <Text style={[typography.annotation, styles.heard]} numberOfLines={2}>
-                  {watching ? watchLine : (current.capture_condition ?? 'Camera paused.')}
-                </Text>
-              </View>
+            {useCamera && current.capture_condition != null && (
+              <Text style={typography.annotation}>{current.capture_condition}</Text>
             )}
             {wantCamera && (
               <View style={styles.voiceRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={talk.listening ? 'Release to answer' : 'Hold to answer by voice'}
-                  onPressIn={() => void startListening()}
-                  onPressOut={talk.stop}
-                  style={[styles.micButton, talk.listening && styles.micButtonLive]}
-                >
+                {/* Passive: the mic is always open; the icon lights while an
+                    utterance streams. No button to hold. */}
+                <View style={[styles.micButton, talk.listening && styles.micButtonLive]}>
                   <Feather
                     name="mic"
                     size={18}
                     color={talk.listening ? colors.card : colors.ink}
                   />
-                </Pressable>
+                </View>
                 <Text style={[typography.annotation, styles.heard]} numberOfLines={2}>
-                  {heard ?? 'Hold. Say an option.'}
+                  {heard ?? 'Just talk. Say an option, or yes.'}
                 </Text>
               </View>
             )}
@@ -955,6 +885,9 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: '#E4574A',
+  },
+  recordDotOff: {
+    backgroundColor: '#6B7680',
   },
   observeStatusTitle: {
     ...typography.listBody,

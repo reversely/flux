@@ -71,6 +71,11 @@ export default function Capture() {
   const { clips, ensureCaptureSession, submitClip, captureSessionId, client } = useSession();
   const [recording, setRecording] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  // Signs of life (#213): elapsed clocks for recording and for the box
+  // watching, so neither ever looks stalled.
+  const [recordStartedAt, setRecordStartedAt] = useState<number | null>(null);
+  const [summarizeStartedAt, setSummarizeStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
   const [message, setMessage] = useState<string | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const recordingRef = useRef(false);
@@ -90,6 +95,12 @@ export default function Capture() {
     }
     setSummarizing(true);
     setMessage(null);
+    setSummarizeStartedAt(Date.now());
+    // The box takes a while per clip; saying so up front is the sign of
+    // life the wait needs.
+    void narration.speak(
+      'The box is watching your clips now. This takes about half a minute per clip.',
+    );
     // Poll results while finish runs, so the per-clip ingest states show.
     const poll = setInterval(() => {
       void client()
@@ -129,6 +140,21 @@ export default function Capture() {
     }
   };
 
+  // One-second ticker while anything is running, so elapsed readouts move.
+  useEffect(() => {
+    if (!recording && !summarizing) {
+      return;
+    }
+    const ticker = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(ticker);
+  }, [recording, summarizing]);
+
+  const clock = (since: number | null) => {
+    const total = since === null ? 0 : Math.max(0, Math.floor((now - since) / 1000));
+    const minutes = Math.floor(total / 60);
+    return `${minutes}:${String(total % 60).padStart(2, '0')}`;
+  };
+
   // Leaving the screen stops the recorder; the queue keeps uploading.
   useEffect(
     () => () => {
@@ -152,6 +178,7 @@ export default function Capture() {
     }
     recordingRef.current = true;
     setRecording(true);
+    setRecordStartedAt(Date.now());
     // Chunked recording: each clip auto-stops at CLIP_SECONDS and enqueues,
     // then the next starts, so uploads begin while recording continues.
     while (recordingRef.current) {
@@ -175,12 +202,21 @@ export default function Capture() {
   };
 
   const stop = () => {
+    // The flag flips first so the UI stops instantly; stopRecording fires
+    // twice because a tap landing between chunks would otherwise let the
+    // next chunk record to its full length (stopRecording only halts a
+    // recording already in progress).
     recordingRef.current = false;
-    try {
+    setRecording(false);
+    const halt = () => {
+      try {
         cameraRef.current?.stopRecording();
       } catch {
         // Recorder already torn down.
       }
+    };
+    halt();
+    setTimeout(halt, 350);
   };
 
   const primeRow = (prime || subject) && (
@@ -262,9 +298,13 @@ export default function Capture() {
             disabled={!cameraReady}
             onPress={recording ? stop : () => void record()}
           >
-            <Text style={dark.primaryText}>{recording ? 'Stop' : 'Record'}</Text>
+            <Text style={dark.primaryText}>{recording ? 'Stop recording' : 'Record'}</Text>
           </Pressable>
-          {recording && <Tag label="recording" tone="red" />}
+          {recording && (
+            <Text style={styles.helper}>
+              {`● ${clock(recordStartedAt)} · clip ${clips.length + 1} · ${clips.filter((c) => c.status === 'done').length} sent`}
+            </Text>
+          )}
         </View>
         {message !== null && <Text style={styles.helper}>{message}</Text>}
         {clips.some((c) => c.status === 'done') && !recording && (
@@ -274,7 +314,9 @@ export default function Capture() {
             onPress={() => void summarize()}
           >
             <Text style={dark.primaryText}>
-              {summarizing ? 'The box is watching your clips' : 'Summarize the trail'}
+              {summarizing
+                ? `Box watching · ${clock(summarizeStartedAt)} · ~30 s per clip`
+                : 'Summarize the trail'}
             </Text>
           </Pressable>
         )}

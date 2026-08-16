@@ -2,30 +2,39 @@ import { Feather } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { SkyOutlook } from '@/api/types';
 import { useNarration } from '@/api/voice';
+import { cycleLines, SKIP_MOVING, useWatchLoop } from '@/live/watch';
 import { useSession } from '@/store/session';
 import { darkHome, HOME_BIOME } from '@/theme/biome';
 import { radius, spacing, typography } from '@/theme/tokens';
 
+const CHUNK_S = 3;
+// Cosmos describes, then nemotron writes: the pair typically answers
+// within this; the cycle readout flags a slow answer past double.
+const EXPECTED_READ_S = 20;
+
 /**
- * Pitch scene three: point the camera at the sky, and the box reads the
- * clouds against this month's climate memory. The answer arrives
- * implication first and is narrated; the source line names the NOAA
- * normals it leans on. An outlook from observation, and it says so.
+ * Pitch scene three on the shared skeleton (#213): point the camera up and
+ * the sky reads itself. The loop films chunks, the standard gates hold
+ * while the phone moves or a read is in flight, and once an outlook lands
+ * the loop rests until the camera is re-aimed — sustained motion clears
+ * the outlook and the next steady chunk reads again. No buttons; the
+ * status row is the stop.
  */
 export default function Sky() {
   const client = useSession((s) => s.client);
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
-  const [reading, setReading] = useState(false);
   const [outlook, setOutlook] = useState<SkyOutlook | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const narration = useNarration();
+  const outlookRef = useRef<SkyOutlook | null>(null);
+  outlookRef.current = outlook;
 
   useEffect(() => {
     if (Device.isDevice && permission !== null && !permission.granted && permission.canAskAgain) {
@@ -35,42 +44,79 @@ export default function Sky() {
 
   const showCamera = Device.isDevice && permission?.granted === true;
 
-  const read = async () => {
-    if (cameraRef.current === null) {
-      setMessage('Sky reading needs the camera, so it needs the phone.');
-      return;
-    }
-    setMessage(null);
-    setOutlook(null);
-    setReading(true);
-    try {
-      const video = await cameraRef.current.recordAsync({ maxDuration: 3 });
-      if (video === undefined) {
-        return;
-      }
-      const result = await client().readSky(video.uri, new Date().getMonth() + 1);
-      setOutlook(result);
-      void narration.speak(result.outlook.replace(/\*+/g, ''));
-    } catch {
-      setMessage('The sky model did not answer. Please check the server connection.');
-    } finally {
-      setReading(false);
-    }
+  const sendChunk = async (uri: string) => {
+    const result = await client().readSky(uri, new Date().getMonth() + 1);
+    setOutlook(result);
+    void narration.speak(result.outlook.replace(/\*+/g, ''));
   };
+
+  const watchLoop = useWatchLoop({
+    cameraRef,
+    chunkSeconds: CHUNK_S,
+    // An outlook on screen rests the loop; re-aiming clears it below.
+    decide: () =>
+      outlookRef.current !== null ? 'outlook read — re-aim to read again' : null,
+    send: sendChunk,
+  });
+  const watching = watchLoop.cycle.watching;
+
+  // Sustained motion while an outlook is up reads as re-aiming: clear the
+  // outlook, and the next steady chunk reads the new sky.
+  useEffect(() => {
+    if (watchLoop.cycle.skipReason === SKIP_MOVING && outlookRef.current !== null) {
+      setOutlook(null);
+    }
+  }, [watchLoop.cycle.skipReason]);
+
+  useEffect(
+    () => () => narration.stop(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const lines = cycleLines(watchLoop.cycle, {
+    chunkSeconds: CHUNK_S,
+    expectedReadSeconds: EXPECTED_READ_S,
+  });
 
   return (
     <View style={styles.screen}>
       {showCamera && (
-        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" mode="video" mute />
+        <CameraView
+          ref={cameraRef}
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          mode="video"
+          mute
+          onCameraReady={() => void watchLoop.start()}
+        />
       )}
       <View style={[styles.top, { top: insets.top + spacing.s }]}>
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>Read the sky</Text>
-        </View>
+        {/* Always stoppable: the status chip is the stop. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={watching ? 'Stop reading the sky' : 'Resume reading the sky'}
+          onPress={() => (watching ? watchLoop.stop() : void watchLoop.start())}
+          style={styles.chip}
+        >
+          {watchLoop.cycle.reading ? (
+            <ActivityIndicator size="small" color="#B5E3DC" />
+          ) : (
+            <Feather name="cloud" size={14} color={darkHome.ink} />
+          )}
+          <Text style={styles.chipText}>
+            {watching ? 'Reading the sky · tap to stop' : 'Paused · tap to read'}
+          </Text>
+        </Pressable>
       </View>
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.m }]}>
         {message !== null && <Text style={styles.helper}>{message}</Text>}
-        {reading && <Text style={styles.helper}>3 s clip → box models</Text>}
+        {(watching || watchLoop.cycle.reading) && (
+          <Text style={styles.helper}>{lines.primary}</Text>
+        )}
+        {!showCamera && (
+          <Text style={styles.helper}>Sky reading needs the camera, so it needs the phone.</Text>
+        )}
         {outlook !== null && (
           <ScrollView style={styles.outlookScroll}>
             <Text style={styles.outlookText}>{outlook.outlook.replace(/\*+/g, '')}</Text>
@@ -86,20 +132,9 @@ export default function Sky() {
                 <Text style={styles.sourceLine}>{outlook.source}</Text>
               </>
             )}
+            <Text style={styles.detail}>Re-aim at a new sky to read again.</Text>
           </ScrollView>
         )}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Read the sky"
-          disabled={reading}
-          onPress={() => void read()}
-          style={[styles.readButton, reading && styles.readButtonBusy]}
-        >
-          <Feather name="cloud" size={18} color={darkHome.field} />
-          <Text style={styles.readButtonText}>
-            {reading ? 'Reading the sky' : 'Point up. Read the sky.'}
-          </Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -119,6 +154,9 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
     paddingHorizontal: spacing.m,
     paddingVertical: spacing.xs,
     borderRadius: radius.control,
@@ -160,21 +198,5 @@ const styles = StyleSheet.create({
   helper: {
     ...typography.annotation,
     color: darkHome.ink2,
-  },
-  readButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.s,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: HOME_BIOME.glow,
-  },
-  readButtonBusy: {
-    opacity: 0.6,
-  },
-  readButtonText: {
-    ...typography.button,
-    color: darkHome.field,
   },
 });
