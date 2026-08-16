@@ -2,11 +2,14 @@ import { Feather } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { PageBackdrop } from '@/components/PageBackdrop';
 import { Tag, type TagTone } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { localBaseline } from '@/data/vss';
 import { cardinal, useConditions } from '@/store/conditions';
-import { colors, radius, spacing, typography } from '@/theme/tokens';
+import { darkHome } from '@/theme/biome';
+import { dark } from '@/theme/dark';
+import { spacing } from '@/theme/tokens';
 
 type FeatherName = ComponentProps<typeof Feather>['name'];
 
@@ -22,14 +25,14 @@ interface Reading {
 
 function Row({ reading }: { reading: Reading }) {
   return (
-    <View style={styles.row}>
-      <Feather name={reading.icon} size={18} color={colors.signature} style={styles.icon} />
+    <View style={[dark.card, styles.row]}>
+      <Feather name={reading.icon} size={18} color={darkHome.link} style={styles.icon} />
       <View style={styles.rowBody}>
         <View style={styles.rowHead}>
-          <Text style={typography.surfaceTitle}>{reading.value}</Text>
-          <Text style={typography.annotation}>{reading.label}</Text>
+          <Text style={dark.title}>{reading.value}</Text>
+          <Text style={dark.note}>{reading.label}</Text>
         </View>
-        <Text style={typography.annotation}>{reading.means}</Text>
+        <Text style={dark.note}>{reading.means}</Text>
       </View>
       {reading.tone !== undefined && <Tag label="watch" tone={reading.tone} />}
     </View>
@@ -145,14 +148,15 @@ export default function ConditionsScreen() {
   });
 
   return (
-    <View style={styles.screen}>
-      <TopBar title="Conditions" back />
+    <View style={dark.screen}>
+      <PageBackdrop />
+      <TopBar title="Conditions" back dark />
       <ScrollView contentContainerStyle={styles.body}>
         {readings.map((r) => (
           <Row key={r.label} reading={r} />
         ))}
         {c.pressure === undefined && (
-          <Text style={typography.annotation}>
+          <Text style={dark.note}>
             No barometer on this device, so pressure trend is missing. The weather session asks you
             instead.
           </Text>
@@ -163,17 +167,10 @@ export default function ConditionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.paper },
   body: { padding: spacing.l, gap: spacing.m },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.m,
-    backgroundColor: colors.card,
-    borderRadius: radius.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line,
-    padding: spacing.l,
   },
   icon: { marginTop: 2 },
   rowBody: { flex: 1, gap: spacing.xs },

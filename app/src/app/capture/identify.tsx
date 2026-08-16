@@ -4,10 +4,13 @@ import { useState } from 'react';
 import { FlatList, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { RecordStub } from '@/api/types';
+import { PageBackdrop } from '@/components/PageBackdrop';
 import { Tag, type TagTone } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { useSession } from '@/store/session';
-import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
+import { darkHome } from '@/theme/biome';
+import { dark } from '@/theme/dark';
+import { radius, sizes, spacing } from '@/theme/tokens';
 
 type ShotStatus = 'uploading' | 'answered' | 'failed';
 
@@ -72,10 +75,10 @@ export default function Identify() {
 
   if (!Device.isDevice) {
     return (
-      <View style={styles.screen}>
-        <TopBar title="Identify" back />
+      <View style={dark.screen}>
+        <TopBar title="Identify" back dark />
         <View style={styles.centered}>
-          <Text style={[typography.body, styles.centeredText]}>No camera on the simulator</Text>
+          <Text style={[dark.body, styles.centeredText]}>No camera on the simulator</Text>
         </View>
       </View>
     );
@@ -83,20 +86,20 @@ export default function Identify() {
 
   if (permission === null) {
     return (
-      <View style={styles.screen}>
-        <TopBar title="Identify" back />
+      <View style={dark.screen}>
+        <TopBar title="Identify" back dark />
       </View>
     );
   }
 
   if (!permission.granted) {
     return (
-      <View style={styles.screen}>
-        <TopBar title="Identify" back />
+      <View style={dark.screen}>
+        <TopBar title="Identify" back dark />
         <View style={styles.centered}>
-          <Text style={[typography.body, styles.centeredText]}>Camera access needed</Text>
+          <Text style={[dark.body, styles.centeredText]}>Camera access needed</Text>
           <Pressable
-            style={styles.button}
+            style={dark.primary}
             onPress={() => {
               if (permission.canAskAgain) {
                 void requestPermission();
@@ -105,7 +108,7 @@ export default function Identify() {
               }
             }}
           >
-            <Text style={typography.button}>
+            <Text style={dark.primaryText}>
               {permission.canAskAgain ? 'Allow camera' : 'Open Settings'}
             </Text>
           </Pressable>
@@ -115,8 +118,9 @@ export default function Identify() {
   }
 
   return (
-    <View style={styles.screen}>
-      <TopBar title="Identify" back />
+    <View style={dark.screen}>
+      <TopBar title="Identify" back dark />
+      <PageBackdrop />
       <CameraView
         ref={setCamera}
         style={styles.preview}
@@ -128,11 +132,11 @@ export default function Identify() {
       <View style={styles.panel}>
         <View style={styles.controlRow}>
           <Pressable
-            style={[styles.button, !cameraReady && styles.buttonDisabled]}
+            style={[dark.primary, !cameraReady && styles.buttonDisabled]}
             disabled={!cameraReady}
             onPress={() => void snap()}
           >
-            <Text style={typography.button}>Snap</Text>
+            <Text style={dark.primaryText}>Snap</Text>
           </Pressable>
           {captureSessionId !== null && <Tag label="session live" tone="green" />}
         </View>
@@ -151,13 +155,13 @@ export default function Identify() {
                   <Tag label={item.status} tone={statusTone[item.status]} />
                   {item.status === 'answered' &&
                     (item.results.length === 0 ? (
-                      <Text style={typography.annotation}>
+                      <Text style={dark.note}>
                         Received. Identification arrives when this server runs the perception
                         relay.
                       </Text>
                     ) : (
                       item.results.map((r) => (
-                        <Text key={r.record_id} style={typography.listBody}>
+                        <Text key={r.record_id} style={dark.listBody}>
                           {r.record_id}
                         </Text>
                       ))
@@ -173,10 +177,6 @@ export default function Identify() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.paper,
-  },
   centered: {
     flex: 1,
     justifyContent: 'center',
@@ -191,9 +191,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   panel: {
-    backgroundColor: colors.card,
+    backgroundColor: darkHome.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line,
+    borderTopColor: darkHome.line,
     padding: spacing.l,
     gap: spacing.m,
   },
@@ -202,20 +202,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.m,
   },
-  button: {
-    height: sizes.control,
-    minWidth: 104,
-    borderRadius: radius.control,
-    backgroundColor: colors.signature,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.l,
-  },
   buttonDisabled: {
     opacity: 0.5,
   },
   helper: {
-    ...typography.body,
+    ...dark.body,
     fontSize: 14,
     lineHeight: 21,
   },
@@ -227,13 +218,13 @@ const styles = StyleSheet.create({
     gap: spacing.m,
     paddingVertical: spacing.s,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.line,
+    borderBottomColor: darkHome.line,
   },
   thumb: {
     width: 48,
     height: 48,
     borderRadius: radius.chip,
-    backgroundColor: colors.line,
+    backgroundColor: darkHome.line,
   },
   shotBody: {
     flex: 1,

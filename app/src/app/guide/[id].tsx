@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Tag } from '@/components/Tag';
+import { PageBackdrop } from '@/components/PageBackdrop';
 import { TopBar } from '@/components/TopBar';
 import { type Guide, type GuideCandidate, guideById, narrow } from '@/data/synoptic';
+import { dark } from '@/theme/dark';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
 /**
@@ -22,8 +24,8 @@ export default function GuideScreen() {
 
   if (guide === undefined) {
     return (
-      <View style={styles.screen}>
-        <TopBar title="Guide" back />
+      <View style={dark.screen}>
+        <TopBar title="Guide" back dark />
         <Text style={styles.pad}>No guide by that name</Text>
       </View>
     );
@@ -34,10 +36,11 @@ export default function GuideScreen() {
   const matches = guide.form === 'identification' ? narrow(guide, answers) : [];
 
   return (
-    <View style={styles.screen}>
-      <TopBar title={guide.title} back />
+    <View style={dark.screen}>
+      <TopBar title={guide.title} back dark />
+      <PageBackdrop />
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={typography.annotation}>{guide.scope}</Text>
+        <Text style={dark.note}>{guide.scope}</Text>
 
         <View style={styles.dots}>
           {guide.nodes.map((n, i) => (
@@ -46,30 +49,30 @@ export default function GuideScreen() {
         </View>
 
         {done ? (
-          <View style={styles.card}>
-            <Text style={typography.surfaceTitle}>
+          <View style={dark.card}>
+            <Text style={dark.title}>
               {guide.form === 'process' ? 'Done' : `${matches.length} match`}
             </Text>
-            <Pressable style={styles.secondary} onPress={() => { setStep(0); setAnswers({}); }}>
-              <Text style={styles.secondaryText}>Start over</Text>
+            <Pressable style={dark.secondary} onPress={() => { setStep(0); setAnswers({}); }}>
+              <Text style={dark.secondaryText}>Start over</Text>
             </Pressable>
           </View>
         ) : (
-          <View style={styles.card}>
+          <View style={dark.card}>
             {node.image !== undefined && <Image source={node.image} style={styles.figure} />}
-            <Text style={typography.surfaceTitle}>{node.ask}</Text>
-            {node.cue !== undefined && <Text style={typography.annotation}>{node.cue}</Text>}
+            <Text style={dark.title}>{node.ask}</Text>
+            {node.cue !== undefined && <Text style={dark.note}>{node.cue}</Text>}
 
             {node.wait !== undefined && <Countdown seconds={node.wait} />}
 
             {node.states === undefined ? (
               <View style={styles.row}>
-                <Pressable style={styles.primary} onPress={() => setStep(step + 1)}>
-                  <Text style={typography.button}>Done</Text>
+                <Pressable style={dark.primary} onPress={() => setStep(step + 1)}>
+                  <Text style={dark.primaryText}>Done</Text>
                 </Pressable>
                 {step > 0 && (
-                  <Pressable style={styles.secondary} onPress={() => setStep(step - 1)}>
-                    <Text style={styles.secondaryText}>Back</Text>
+                  <Pressable style={dark.secondary} onPress={() => setStep(step - 1)}>
+                    <Text style={dark.secondaryText}>Back</Text>
                   </Pressable>
                 )}
               </View>
@@ -78,19 +81,19 @@ export default function GuideScreen() {
                 {node.states.map((state) => (
                   <Pressable
                     key={state}
-                    style={styles.chip}
+                    style={dark.chip}
                     onPress={() => {
                       setAnswers({ ...answers, [node.trait ?? node.id]: state });
                       setStep(step + 1);
                     }}
                   >
-                    <Text style={styles.chipText}>{state}</Text>
+                    <Text style={dark.chipText}>{state}</Text>
                   </Pressable>
                 ))}
               </View>
             )}
 
-            <Text style={typography.annotation}>{node.cite}</Text>
+            <Text style={dark.note}>{node.cite}</Text>
           </View>
         )}
 
@@ -138,13 +141,13 @@ function Countdown({ seconds }: { seconds: number }) {
 function MatchList({ matches }: { matches: GuideCandidate[] }) {
   return (
     <View style={styles.matches}>
-      <Text style={typography.annotation}>{matches.length} match</Text>
+      <Text style={dark.note}>{matches.length} match</Text>
       {matches.slice(0, 4).map((m) => (
-        <View key={m.name} style={styles.matchCard}>
+        <View key={m.name} style={[dark.card, styles.matchCard]}>
           {m.image !== undefined && <Image source={m.image} style={styles.matchImage} />}
           <View style={styles.matchBody}>
-            <Text style={typography.surfaceTitle}>{m.name}</Text>
-            <Text style={typography.annotation}>{m.means}</Text>
+            <Text style={dark.title}>{m.name}</Text>
+            <Text style={dark.note}>{m.means}</Text>
           </View>
         </View>
       ))}
@@ -158,10 +161,10 @@ function Sources({ guide }: { guide: Guide }) {
       <Text style={styles.sourcesHead}>Sources</Text>
       {guide.sources.map((s, i) => (
         <Pressable key={s.id} onPress={() => void Linking.openURL(s.url)}>
-          <Text style={styles.sourceLine}>
+          <Text style={dark.link}>
             [{i + 1}] {s.title}
           </Text>
-          <Text style={typography.annotation}>{s.licence}</Text>
+          <Text style={dark.note}>{s.licence}</Text>
         </Pressable>
       ))}
       <Tag label="Reference only. The decision stays with you." tone="gray" />
@@ -212,7 +215,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.l,
     justifyContent: 'center',
   },
-  secondaryText: { ...typography.listBody, color: colors.ink },
+  secondaryText: { ...dark.listBody, color: colors.ink },
   chip: {
     height: sizes.chip,
     borderRadius: radius.chip,
@@ -221,7 +224,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.m,
     justifyContent: 'center',
   },
-  chipText: { ...typography.listBody, color: colors.ink },
+  chipText: { ...dark.listBody, color: colors.ink },
   timer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -233,7 +236,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.m,
     height: sizes.chip,
   },
-  timerText: { ...typography.listBody, color: colors.signature },
+  timerText: { ...dark.listBody, color: colors.signature },
   matches: { gap: spacing.s },
   matchCard: {
     flexDirection: 'row',
@@ -248,9 +251,9 @@ const styles = StyleSheet.create({
   matchBody: { flex: 1, gap: spacing.xs },
   sources: { gap: spacing.xs, marginTop: spacing.l },
   sourcesHead: {
-    ...typography.annotation,
+    ...dark.note,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  sourceLine: { ...typography.listBody, color: colors.signature },
+  sourceLine: { ...dark.listBody, color: colors.signature },
 });

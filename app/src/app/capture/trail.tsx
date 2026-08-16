@@ -4,10 +4,13 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { PageBackdrop } from '@/components/PageBackdrop';
 import { Tag, type TagTone } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { type ClipEntry, type ClipStatus, useSession } from '@/store/session';
-import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
+import { darkHome } from '@/theme/biome';
+import { dark } from '@/theme/dark';
+import { radius, sizes, spacing } from '@/theme/tokens';
 
 // Small files over quality, per the expo-camera SDK 57 docs and what iOS
 // actually honors:
@@ -38,7 +41,7 @@ const statusTone: Record<ClipStatus, TagTone> = {
 function ClipRow({ clip }: { clip: ClipEntry }) {
   return (
     <View style={styles.clipRow}>
-      <Text style={typography.annotation}>
+      <Text style={dark.note}>
         {new Date(clip.capturedAt).toLocaleTimeString()}
       </Text>
       <Tag label={clip.status} tone={statusTone[clip.status]} />
@@ -117,10 +120,10 @@ export default function Capture() {
   // The simulator has no camera; recording requires a phone.
   if (!Device.isDevice) {
     return (
-      <View style={styles.screen}>
-        <TopBar title="Record trail" back />
+      <View style={dark.screen}>
+        <TopBar title="Record trail" back dark />
         <View style={styles.centered}>
-          <Text style={[typography.body, styles.centeredText]}>
+          <Text style={[dark.body, styles.centeredText]}>
             No camera on the simulator
           </Text>
         </View>
@@ -130,22 +133,22 @@ export default function Capture() {
 
   if (permission === null) {
     return (
-      <View style={styles.screen}>
-        <TopBar title="Record trail" back />
+      <View style={dark.screen}>
+        <TopBar title="Record trail" back dark />
       </View>
     );
   }
 
   if (!permission.granted) {
     return (
-      <View style={styles.screen}>
-        <TopBar title="Record trail" back />
+      <View style={dark.screen}>
+        <TopBar title="Record trail" back dark />
         <View style={styles.centered}>
-          <Text style={[typography.body, styles.centeredText]}>
+          <Text style={[dark.body, styles.centeredText]}>
             Camera access needed
           </Text>
           <Pressable
-            style={styles.button}
+            style={dark.primary}
             onPress={() => {
               if (permission.canAskAgain) {
                 void requestPermission();
@@ -154,7 +157,7 @@ export default function Capture() {
               }
             }}
           >
-            <Text style={typography.button}>
+            <Text style={dark.primaryText}>
               {permission.canAskAgain ? 'Allow camera' : 'Open Settings'}
             </Text>
           </Pressable>
@@ -164,8 +167,9 @@ export default function Capture() {
   }
 
   return (
-    <View style={styles.screen}>
-      <TopBar title="Record trail" back />
+    <View style={dark.screen}>
+      <TopBar title="Record trail" back dark />
+      <PageBackdrop />
       <CameraView
         ref={cameraRef}
         style={styles.preview}
@@ -181,11 +185,11 @@ export default function Capture() {
         {primeRow}
         <View style={styles.controlRow}>
           <Pressable
-            style={[styles.button, recording && styles.stopButton, !cameraReady && styles.buttonDisabled]}
+            style={[dark.primary, recording && styles.stopButton, !cameraReady && styles.buttonDisabled]}
             disabled={!cameraReady}
             onPress={recording ? stop : () => void record()}
           >
-            <Text style={typography.button}>{recording ? 'Stop' : 'Record'}</Text>
+            <Text style={dark.primaryText}>{recording ? 'Stop' : 'Record'}</Text>
           </Pressable>
           {recording && <Tag label="recording" tone="red" />}
         </View>
@@ -208,10 +212,6 @@ export default function Capture() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.paper,
-  },
   centered: {
     flex: 1,
     justifyContent: 'center',
@@ -226,9 +226,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   panel: {
-    backgroundColor: colors.card,
+    backgroundColor: darkHome.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line,
+    borderTopColor: darkHome.line,
     padding: spacing.l,
     gap: spacing.m,
   },
@@ -242,23 +242,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.m,
   },
-  button: {
-    height: sizes.control,
-    minWidth: 104,
-    borderRadius: radius.control,
-    backgroundColor: colors.signature,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.l,
-  },
   stopButton: {
-    backgroundColor: colors.panelNavy,
+    backgroundColor: 'rgba(230, 237, 242, 0.16)',
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   helper: {
-    ...typography.body,
+    ...dark.body,
     fontSize: 14,
     lineHeight: 21,
   },
@@ -271,6 +262,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     height: sizes.rowHeight,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.line,
+    borderBottomColor: darkHome.line,
   },
 });
