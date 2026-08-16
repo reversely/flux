@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PageBackdrop } from '@/components/PageBackdrop';
 import { Tag, type TagTone } from '@/components/Tag';
@@ -147,11 +148,22 @@ export default function ConditionsScreen() {
         : 'Everything on this screen still works. Source links wait for a connection.',
   });
 
+  const router = useRouter();
   return (
     <View style={dark.screen}>
       <PageBackdrop />
       <TopBar title="Conditions" back dark />
       <ScrollView contentContainerStyle={styles.body}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Read the sky for the outlook"
+          onPress={() => router.push('/sky')}
+          style={styles.skyRow}
+        >
+          <Feather name="cloud" size={18} color={darkHome.ink} />
+          <Text style={styles.skyRowText}>What's coming? Read the sky.</Text>
+          <Feather name="chevron-right" size={18} color={darkHome.ink3} />
+        </Pressable>
         {readings.map((r) => (
           <Row key={r.label} reading={r} />
         ))}
@@ -167,6 +179,21 @@ export default function ConditionsScreen() {
 }
 
 const styles = StyleSheet.create({
+  skyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+    padding: spacing.m,
+    borderRadius: 12,
+    backgroundColor: 'rgba(20, 32, 48, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(140, 163, 184, 0.3)',
+  },
+  skyRowText: {
+    flex: 1,
+    color: darkHome.ink,
+    fontSize: 16,
+  },
   body: { padding: spacing.l, gap: spacing.m },
   row: {
     flexDirection: 'row',

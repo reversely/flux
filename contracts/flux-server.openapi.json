@@ -952,6 +952,45 @@
         }
       }
     },
+    "/v1/weather/read": {
+      "post": {
+        "summary": "Read Sky",
+        "description": "A sky clip plus this month's climate normals become an outlook.\n\nHonest gating like every model seam: unconfigured means 503, and an\nunusable model reply is a 502, never an invented forecast.",
+        "operationId": "read_sky_v1_weather_read_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_read_sky_v1_weather_read_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkyOutlook"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/walkthrough/sessions/{session_id}/observe": {
       "post": {
         "summary": "Observe Walkthrough",
@@ -1328,22 +1367,43 @@
       },
       "Body_observe_walkthrough_v1_walkthrough_sessions__session_id__observe_post": {
         "properties": {
-          "character": {
-            "type": "string",
-            "title": "Character"
-          },
           "video": {
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "Video"
+          },
+          "character": {
+            "type": "string",
+            "title": "Character"
           }
         },
         "type": "object",
         "required": [
-          "character",
-          "video"
+          "video",
+          "character"
         ],
         "title": "Body_observe_walkthrough_v1_walkthrough_sessions__session_id__observe_post"
+      },
+      "Body_read_sky_v1_weather_read_post": {
+        "properties": {
+          "video": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Video"
+          },
+          "month": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video",
+          "month"
+        ],
+        "title": "Body_read_sky_v1_weather_read_post"
       },
       "Body_transcribe_utterance_v1_speech_transcriptions_post": {
         "properties": {
@@ -2269,6 +2329,45 @@
           "records"
         ],
         "title": "SessionResults"
+      },
+      "SkyOutlook": {
+        "properties": {
+          "outlook": {
+            "type": "string",
+            "title": "Outlook"
+          },
+          "clouds": {
+            "type": "string",
+            "title": "Clouds"
+          },
+          "month": {
+            "type": "integer",
+            "title": "Month"
+          },
+          "rain_days": {
+            "type": "integer",
+            "title": "Rain Days"
+          },
+          "high_f": {
+            "type": "integer",
+            "title": "High F"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "outlook",
+          "clouds",
+          "month",
+          "rain_days",
+          "high_f",
+          "source"
+        ],
+        "title": "SkyOutlook",
+        "description": "A sky reading joined with climate memory (pitch scene three)."
       },
       "SpeechTrace": {
         "properties": {

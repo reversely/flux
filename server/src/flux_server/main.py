@@ -59,6 +59,7 @@ from flux_server.models import (
     SessionCreateRequest,
     SessionFinished,
     SessionResults,
+    SkyOutlook,
     SpeechTrace,
     TrailAnswer,
     TrailQuestion,
@@ -77,6 +78,7 @@ from flux_server.speech import SpeechService, map_utterance, speech_from_env
 from flux_server.storage import SessionStore, UnplayableVideoError
 from flux_server.vss import VideoHandoff, handoff_from_env
 from flux_server.walkthrough import WalkthroughStore, walkthrough_store_from_env
+from flux_server.weather import SkyReader, sky_reader_from_env
 
 DEFAULT_DATA_DIR = Path("data/sessions")
 
@@ -96,6 +98,7 @@ def create_app(
     speech: SpeechService | None | object = _FROM_ENV,
     perception: PerceptionClient | None = None,
     walk_observer: ObserveClassifier | None | object = _FROM_ENV,
+    sky_reader: SkyReader | None | object = _FROM_ENV,
 ) -> FastAPI:
     """Build the app around one on-disk session store and one retriever."""
     if data_dir is None:
@@ -118,6 +121,12 @@ def create_app(
         speech = speech_from_env()
     if perception is None:
         perception = perception_from_env()
+    if sky_reader is _FROM_ENV:
+        sky_reader = sky_reader_from_env(
+            os.environ.get("FLUX_COSMOS_URL"),
+            os.environ.get("FLUX_COSMOS_MODEL", "nvidia/cosmos-reason2-8b"),
+            os.environ.get("FLUX_NEMOTRON_URL"),
+        )
     if walk_observer is _FROM_ENV:
         walk_observer = observer_from_env(
             os.environ.get("FLUX_COSMOS_URL"),
@@ -532,6 +541,37 @@ def create_app(
         after = advance_pointer(session["predictions"], len(knot.steps))
         return CoachClipResult(
             prediction=prediction, step=after, advanced=after > before
+        )
+
+    @app.post(
+        "/v1/weather/read",
+        response_model=SkyOutlook,
+    )
+    async def read_sky(video: UploadFile, month: int = Form(ge=1, le=12)) -> SkyOutlook:
+        """A sky clip plus this month's climate normals become an outlook.
+
+        Honest gating like every model seam: unconfigured means 503, and an
+        unusable model reply is a 502, never an invented forecast.
+        """
+        if sky_reader is None or sky_reader is _FROM_ENV:
+            raise HTTPException(status_code=503, detail="sky model not configured")
+        data = await video.read()
+        try:
+            frames = extract_frames(data)
+        except ClipUnreadableError as error:
+            raise HTTPException(
+                status_code=422, detail=f"unreadable clip: {error}"
+            ) from error
+        reading = sky_reader.read(frames, month)
+        if reading is None:
+            raise HTTPException(status_code=502, detail="sky reading unusable")
+        return SkyOutlook(
+            outlook=reading.outlook,
+            clouds=reading.clouds,
+            month=reading.month,
+            rain_days=reading.rain_days,
+            high_f=reading.high_f,
+            source="NOAA 1991-2020 Climate Normals, Seattle-Tacoma Intl (USW00024233)",
         )
 
     @app.post(

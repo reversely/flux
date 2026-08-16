@@ -189,3 +189,12 @@ export interface TranscriptionResult {
   text: string;
   trace: SpeechTrace;
 }
+
+export interface SkyOutlook {
+  outlook: string;
+  clouds: string;
+  month: number;
+  rain_days: number;
+  high_f: number;
+  source: string;
+}

@@ -12,6 +12,7 @@ import type {
   NarrationCreated,
   SectionDetail,
   SessionResults,
+  SkyOutlook,
   TranscriptionResult,
   WalkObservation,
   WalkSessionState,
@@ -167,6 +168,20 @@ export class ApiClient {
       }
       return JSON.parse(result.body) as TranscriptionResult;
     });
+  }
+
+  async readSky(fileUri: string, month: number): Promise<SkyOutlook> {
+    const result = await FileSystem.uploadAsync(`${this.baseUrl}/v1/weather/read`, fileUri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: 'video',
+      mimeType: 'video/quicktime',
+      parameters: { month: String(month) },
+    });
+    if (result.status !== 200) {
+      throw new Error(`sky read failed: ${result.status}`);
+    }
+    return JSON.parse(result.body) as SkyOutlook;
   }
 
   async observeWalkthrough(

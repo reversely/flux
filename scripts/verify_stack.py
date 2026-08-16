@@ -241,6 +241,44 @@ def main() -> int:
         f"{len(ids)} records, top={ids[0]['label'][:30] if ids else '-'}",
     )
 
+    print("== sky (weather scene)")
+    sky = DEMO / "sky.mp4"
+    if not sky.exists():
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-loglevel",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "gradients=s=640x480:c0=skyblue:c1=white:duration=3:speed=0.02",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                str(sky),
+            ],
+            check=True,
+        )
+    with sky.open("rb") as f:
+        r = client.post(
+            f"{SERVER}/v1/weather/read",
+            data={"month": "8"},
+            files={"video": ("sky.mp4", f, "video/mp4")},
+            timeout=300,
+        )
+    ok = r.status_code == 200
+    body = r.json() if ok else {}
+    check(
+        "sky read yields outlook",
+        ok and len(body.get("outlook", "")) > 40 and body.get("rain_days") == 5,
+        body.get("outlook", r.text)[:70],
+    )
+
     print("== speech")
     audio = wav_bytes("The gills are free of the stem.")
     check("narration synthesizes", audio is not None and len(audio or b"") > 10000)

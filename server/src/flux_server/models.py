@@ -343,3 +343,14 @@ class WalkObservation(BaseModel):
     confidence: float
     observation: str
     citation: str
+
+
+class SkyOutlook(BaseModel):
+    """A sky reading joined with climate memory (pitch scene three)."""
+
+    outlook: str
+    clouds: str
+    month: int
+    rain_days: int
+    high_f: int
+    source: str
