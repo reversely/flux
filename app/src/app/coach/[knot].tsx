@@ -4,11 +4,12 @@ import * as Device from 'expo-device';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { setAudioModeAsync } from 'expo-audio';
-import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { mapTranscript } from '@/api/speech';
+import { useHoldToTalk, useNarration } from '@/api/voice';
 import { procedureById } from '@/data/coach';
 import { useSession } from '@/store/session';
 import { darkHome, HOME_BIOME } from '@/theme/biome';
@@ -60,18 +61,24 @@ export default function KnotCoach() {
   // True while a recorded clip is uploading and the box classifies it: the
   // camera dims and the chip flips to Checking, so a model call is visible.
   const [checking, setChecking] = useState(false);
+  // Why the last watch attempt failed, small under the fragment; the same
+  // failure lands in the traces tab with the full response.
+  const [watchNote, setWatchNote] = useState<string | null>(null);
+  const [heard, setHeard] = useState<string | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const watchingRef = useRef(false);
 
+  // Narration goes through the box's Kokoro voice with the on-device
+  // fallback (#180); the coach was the last screen on raw device speech.
+  const narration = useNarration();
   const speak = useCallback(
     (index: number) => {
       if (!voiceOn || knot === undefined) {
         return;
       }
-      Speech.stop();
-      Speech.speak(knot.steps[index].voice);
+      void narration.speak(knot.steps[index].voice);
     },
-    [voiceOn, knot],
+    [voiceOn, knot, narration],
   );
 
   const goTo = (index: number) => {
@@ -92,11 +99,13 @@ export default function KnotCoach() {
       return;
     }
     setWatch('starting');
+    setWatchNote(null);
     let sessionId: string;
     try {
       sessionId = (await client().createCoachSession(knot.id)).session_id;
-    } catch {
+    } catch (error) {
       setWatch('failed');
+      setWatchNote(error instanceof Error ? error.message : String(error));
       return;
     }
     watchingRef.current = true;
@@ -118,9 +127,10 @@ export default function KnotCoach() {
           pointer = result.step;
           goTo(result.step);
         }
-      } catch {
+      } catch (error) {
         setChecking(false);
         setWatch('failed');
+        setWatchNote(error instanceof Error ? error.message : String(error));
         watchingRef.current = false;
         return;
       }
@@ -129,13 +139,38 @@ export default function KnotCoach() {
     setWatch('off');
   };
 
+  // Voice control over the steps (#180): the same exact gate as the walk,
+  // with next and done as the answer set and back/repeat as controls.
+  const talk = useHoldToTalk({
+    onPartial: setHeard,
+    onFinal: (text) => {
+      setHeard(null);
+      if (knot === undefined) {
+        return;
+      }
+      const mapped = mapTranscript(text, ['next', 'done']);
+      if (mapped.action === 'answer') {
+        goTo(Math.min(step + 1, knot.steps.length - 1));
+      } else if (mapped.action === 'undo') {
+        goTo(Math.max(step - 1, 0));
+      } else if (mapped.action === 'repeat') {
+        speak(step);
+      } else {
+        setHeard(`"${text}" — say next, back, or repeat`);
+      }
+    },
+    onProblem: (kind) =>
+      setHeard(kind === 'denied' ? 'Mic off. Allow the microphone.' : 'Voice needs the server'),
+  });
+
   // Leaving the screen stops the recorder and any narration mid-sentence.
   useEffect(
     () => () => {
       watchingRef.current = false;
       cameraRef.current?.stopRecording();
-      void Speech.stop();
+      narration.stop();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -219,13 +254,26 @@ export default function KnotCoach() {
           accessibilityLabel={voiceOn ? 'Turn voice off' : 'Turn voice on'}
           onPress={() => {
             if (voiceOn) {
-              Speech.stop();
+              narration.stop();
             }
             setVoiceOn(!voiceOn);
           }}
           style={[styles.chip, voiceOn && styles.chipActive]}
         >
           <Feather name={voiceOn ? 'volume-2' : 'volume-x'} size={16} color={voiceOn ? HOME_BIOME.glow : darkHome.ink3} />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={talk.listening ? 'Release' : 'Hold to say next, back, or repeat'}
+          onPressIn={() => {
+            narration.stop();
+            setHeard('Listening');
+            void talk.start();
+          }}
+          onPressOut={talk.stop}
+          style={[styles.chip, talk.listening && styles.chipActive]}
+        >
+          <Feather name="mic" size={16} color={talk.listening ? HOME_BIOME.glow : darkHome.ink3} />
         </Pressable>
       </View>
       {figure !== undefined && (
@@ -235,6 +283,16 @@ export default function KnotCoach() {
       )}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.m }]}>
         <Text style={styles.fragment}>{active.screen}</Text>
+        {heard !== null && (
+          <Text style={[typography.annotation, styles.voiceLine]} numberOfLines={2}>
+            {heard}
+          </Text>
+        )}
+        {watch === 'failed' && watchNote !== null && (
+          <Text style={[typography.annotation, styles.voiceLine]} numberOfLines={2}>
+            Watch failed: {watchNote}
+          </Text>
+        )}
         {active.manual !== undefined && (
           <Text style={styles.manual} numberOfLines={4}>
             {active.manual}
@@ -343,6 +401,10 @@ const styles = StyleSheet.create({
     gap: spacing.m,
     alignItems: 'center',
     backgroundColor: 'rgba(6, 10, 13, 0.78)',
+  },
+  voiceLine: {
+    color: darkHome.ink3,
+    textAlign: 'center',
   },
   fragment: {
     ...typography.surfaceTitle,
