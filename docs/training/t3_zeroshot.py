@@ -254,11 +254,31 @@ MAP_JIT = {
     "verify hemostasis": 5,
 }
 
+# Phase grain: the knot bench's Run 5 lesson applied here. Merging the
+# confusable adjacent steps (band placed with band tied; rod twisted with
+# rod secured) removes the dominant confusion T2->P1 and gives the pointer
+# fewer, cleaner states. STEP_TO_PHASE folds the six-step mapping down.
+STEP_TO_PHASE = {0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3}
+PHASES_REGULAR = [
+    "the bleeding site found and exposed on the limb",
+    "the tourniquet band placed around the limb and the strap pulled tight",
+    "the windlass rod or ratchet turned until bleeding stops, then locked",
+    "the wound and pulse checked after tightening",
+]
+PHASES_JIT = [
+    "the bleeding site found and exposed on the limb",
+    "a belt or strip of clothing wrapped around the limb and tied tight above the wound",
+    "a screwdriver or rod in the band, twisted until bleeding stops and secured",
+    "the wound checked for stopped bleeding",
+]
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--set", choices=["regular", "jit"], required=True)
-    parser.add_argument("--grain", choices=["action", "step"], default="action")
+    parser.add_argument(
+        "--grain", choices=["action", "step", "phase"], default="action"
+    )
     parser.add_argument("--out", required=True)
     parser.add_argument("--url", default=COSMOS_URL)
     parser.add_argument("--model", default=MODEL)
@@ -271,13 +291,19 @@ def main() -> None:
     )
     vids = eval_videos(rows, take_all=args.set == "jit")
     segments = [r for r in rows if r["video_id"] in vids]
-    if args.grain == "step":
+    if args.grain in ("step", "phase"):
         mapping = MAP_REGULAR if args.set == "regular" else MAP_JIT
         segments = [r for r in segments if r["action"] in mapping]
-        actions = STEPS_REGULAR if args.set == "regular" else STEPS_JIT
+        if args.grain == "phase":
+            actions = PHASES_REGULAR if args.set == "regular" else PHASES_JIT
 
-        def truth_of(r: dict) -> int:
-            return mapping[r["action"]]
+            def truth_of(r: dict) -> int:
+                return STEP_TO_PHASE[mapping[r["action"]]]
+        else:
+            actions = STEPS_REGULAR if args.set == "regular" else STEPS_JIT
+
+            def truth_of(r: dict) -> int:
+                return mapping[r["action"]]
     else:
         # Classes span the set's full P05 vocabulary, not just the eval
         # videos', so the candidate list matches what deployment would offer.
