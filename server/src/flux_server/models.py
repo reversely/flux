@@ -202,6 +202,10 @@ class WalkQuestion(BaseModel):
     question: str
     citation: str
     states: list[str]
+    # 65 node fields; absent on pre-#65 packs and user-only nodes.
+    answer_source: Literal["user", "camera", "both"] | None = None
+    capture_condition: str | None = None
+    evidence_kind: Literal["frame", "clip"] | None = None
 
 
 class WalkAnswer(BaseModel):
@@ -327,3 +331,15 @@ class TrailAnswer(BaseModel):
 
     session_id: str
     answer: str
+
+
+class WalkObservation(BaseModel):
+    """A camera suggestion for one node (#130): never written to the
+    transcript; the user confirms through the answer route."""
+
+    character: str
+    cause: str
+    state: str | None = None
+    confidence: float
+    observation: str
+    citation: str

@@ -3,6 +3,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { setAudioModeAsync } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -39,9 +40,11 @@ export default function KnotCoach() {
   const [permission, requestPermission] = useCameraPermissions();
   const [step, setStep] = useState(() => Number(stepParam) || 0);
 
-  // Entering the screen narrates the current instruction once.
+  // Entering the screen narrates the current instruction once. The audio
+  // mode must allow playback in silent mode first, or an iPhone with the
+  // mute switch on narrates into nothing.
   useEffect(() => {
-    speak(step);
+    void setAudioModeAsync({ playsInSilentMode: true }).then(() => speak(step));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

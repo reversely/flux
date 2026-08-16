@@ -64,11 +64,19 @@ class WalkthroughStore:
             walk = (
                 " WHERE guide_id = 'fungi-edibility'" if "guide_id" in columns else ""
             )
+            node_cols = (
+                ", answer_source, capture_condition, evidence_kind"
+                if "answer_source" in columns
+                else ""
+            )
             self.questions = [
                 dict(row)
                 for row in conn.execute(
                     "SELECT character, ask_order, question, citation"
-                    " FROM walk_question" + walk + " ORDER BY ask_order"
+                    + node_cols
+                    + " FROM walk_question"
+                    + walk
+                    + " ORDER BY ask_order"
                 )
             ]
             self.states: dict[str, list[str]] = {}

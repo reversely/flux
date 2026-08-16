@@ -19,21 +19,40 @@ from pathlib import Path
 
 # Ask order runs from the coarsest character to the finest, the order the
 # guides themselves examine a specimen: underside first, stem, print, shape.
+# (character, question, answer_source, capture_condition). Visual characters
+# accept a camera suggestion (#130); spore print and ecology stay user-only,
+# because neither shows in a handheld clip.
 QUESTIONS = [
-    ("hymeniumType", "Under the cap: gills, pores, ridges, teeth, or smooth?"),
+    (
+        "hymeniumType",
+        "Under the cap: gills, pores, ridges, teeth, or smooth?",
+        "both",
+        "the cap underside faces the camera",
+    ),
     (
         "whichGills",
         "Gills at the stem: free, attached (adnate), or running down (decurrent)?",
+        "both",
+        "the gill-to-stem junction is visible up close",
     ),
     (
         "stipeCharacter",
         "On the stem: a ring, a sack at the base (volva), both, cobwebby veil (cortina), or bare?",
+        "both",
+        "the full stem from cap to base is in frame",
     ),
-    ("sporePrintColor", "Spore print color?"),
-    ("capShape", "Cap shape?"),
+    ("sporePrintColor", "Spore print color?", "user", None),
+    (
+        "capShape",
+        "Cap shape?",
+        "both",
+        "the cap is seen from the side",
+    ),
     (
         "ecologicalType",
         "Growing on wood or dung (saprotrophic), from soil near trees (mycorrhizal), or on a living host (parasitic)?",
+        "user",
+        None,
     ),
 ]
 QUESTION_CITATION = "Wikipedia Template:Mycomorphbox parameter '{}' (CC BY-SA)"
@@ -181,7 +200,7 @@ def load_traits(tsv: Path) -> tuple[dict[str, dict[str, list[str]]], dict[str, t
             species = row["page_title"]
             traits[species] = {
                 character: states
-                for character, _ in QUESTIONS
+                for character, *_ in QUESTIONS
                 if (states := canonical_states(row, character))
             }
             tier, raw = edibility_tier(row)
@@ -221,17 +240,23 @@ def write_walkthrough(tsv: Path, db_path: Path) -> str:
             6,
             "Wikipedia Template:Mycomorphbox (CC BY-SA)",
         )
-        for order, (character, question) in enumerate(QUESTIONS, start=1):
+        for order, (character, question, source, condition) in enumerate(
+            QUESTIONS, start=1
+        ):
             conn.execute(
                 "INSERT INTO walk_question"
-                " (guide_id, character, ask_order, question, citation)"
-                " VALUES (?, ?, ?, ?, ?)",
+                " (guide_id, character, ask_order, question, citation,"
+                "  answer_source, capture_condition, evidence_kind)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     FUNGI_GUIDE_ID,
                     character,
                     order,
                     question,
                     QUESTION_CITATION.format(character),
+                    source,
+                    condition,
+                    "clip" if source != "user" else None,
                 ),
             )
             for state in sorted(states_seen[character]):

@@ -13,6 +13,7 @@ import type {
   SectionDetail,
   SessionResults,
   TranscriptionResult,
+  WalkObservation,
   WalkSessionState,
   WalkSpeciesDetail,
 } from './types';
@@ -166,6 +167,28 @@ export class ApiClient {
       }
       return JSON.parse(result.body) as TranscriptionResult;
     });
+  }
+
+  async observeWalkthrough(
+    sessionId: string,
+    character: string,
+    fileUri: string,
+  ): Promise<WalkObservation> {
+    const result = await FileSystem.uploadAsync(
+      `${this.baseUrl}/v1/walkthrough/sessions/${sessionId}/observe`,
+      fileUri,
+      {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'video',
+        mimeType: 'video/quicktime',
+        parameters: { character },
+      },
+    );
+    if (result.status !== 200) {
+      throw new Error(`observe failed: ${result.status}`);
+    }
+    return JSON.parse(result.body) as WalkObservation;
   }
 
   async createCoachSession(knot: string): Promise<CoachSessionState> {

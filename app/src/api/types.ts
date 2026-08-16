@@ -107,12 +107,24 @@ export interface WalkSpeciesCard {
   source_revid: string;
 }
 
+export interface WalkObservation {
+  character: string;
+  cause: string;
+  state?: string;
+  confidence: number;
+  observation: string;
+  citation: string;
+}
+
 export interface WalkQuestion {
   character: string;
   ask_order: number;
   question: string;
   citation: string;
   states: string[];
+  answer_source?: 'user' | 'camera' | 'both';
+  capture_condition?: string;
+  evidence_kind?: 'frame' | 'clip';
 }
 
 export interface WalkAnswer {

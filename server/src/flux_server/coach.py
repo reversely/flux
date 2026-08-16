@@ -265,6 +265,21 @@ def extract_frames(data: bytes, max_frames: int = MAX_FRAMES_PER_CLIP) -> list[b
         return [f.read_bytes() for f in frames]
 
 
+def frames_to_content(prompt: str, frames: list[bytes]) -> list[dict]:
+    """One user message: the prompt then each frame as a data-URI image."""
+    content: list[dict] = [{"type": "text", "text": prompt}]
+    content.extend(
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": "data:image/jpeg;base64," + base64.b64encode(f).decode()
+            },
+        }
+        for f in frames
+    )
+    return content
+
+
 class StepClassifier(Protocol):
     def classify(self, knot: CoachKnot, frames: list[bytes]) -> int | None:
         """Index of the step the frames show, or None when unreadable."""
@@ -279,16 +294,7 @@ class CosmosStepClassifier:
 
     def classify(self, knot: CoachKnot, frames: list[bytes]) -> int | None:
         prompt = coach_step_prompt(knot.name, [s.cue for s in knot.steps])
-        content: list[dict] = [{"type": "text", "text": prompt}]
-        content.extend(
-            {
-                "type": "image_url",
-                "image_url": {
-                    "url": "data:image/jpeg;base64," + base64.b64encode(f).decode()
-                },
-            }
-            for f in frames
-        )
+        content = frames_to_content(prompt, frames)
         try:
             response = httpx.post(
                 self._url,

@@ -952,6 +952,56 @@
         }
       }
     },
+    "/v1/walkthrough/sessions/{session_id}/observe": {
+      "post": {
+        "summary": "Observe Walkthrough",
+        "description": "A condition clip answers the current node's one question (#130).\n\nThe reply is a suggestion the screen prefills; nothing writes to the\ntranscript until the user confirms through the answer route. A node\nwhose answer source is user-only refuses rather than answers.",
+        "operationId": "observe_walkthrough_v1_walkthrough_sessions__session_id__observe_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_observe_walkthrough_v1_walkthrough_sessions__session_id__observe_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalkObservation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/walkthrough/sessions/{session_id}/undo": {
       "post": {
         "summary": "Undo Walkthrough",
@@ -1275,6 +1325,25 @@
           "video"
         ],
         "title": "Body_coach_clip_v1_coach_sessions__session_id__clip_post"
+      },
+      "Body_observe_walkthrough_v1_walkthrough_sessions__session_id__observe_post": {
+        "properties": {
+          "character": {
+            "type": "string",
+            "title": "Character"
+          },
+          "video": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Video"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character",
+          "video"
+        ],
+        "title": "Body_observe_walkthrough_v1_walkthrough_sessions__session_id__observe_post"
       },
       "Body_transcribe_utterance_v1_speech_transcriptions_post": {
         "properties": {
@@ -2368,6 +2437,51 @@
         "title": "WalkAnswer",
         "description": "A confirmed observation. `states` selects any-of within the\ncharacter; empty or absent alongside a None `state` records a skip,\nwhich filters nothing. `state` remains for single-answer clients."
       },
+      "WalkObservation": {
+        "properties": {
+          "character": {
+            "type": "string",
+            "title": "Character"
+          },
+          "cause": {
+            "type": "string",
+            "title": "Cause"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "observation": {
+            "type": "string",
+            "title": "Observation"
+          },
+          "citation": {
+            "type": "string",
+            "title": "Citation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character",
+          "cause",
+          "confidence",
+          "observation",
+          "citation"
+        ],
+        "title": "WalkObservation",
+        "description": "A camera suggestion for one node (#130): never written to the\ntranscript; the user confirms through the answer route."
+      },
       "WalkQuestion": {
         "properties": {
           "character": {
@@ -2392,6 +2506,48 @@
             },
             "type": "array",
             "title": "States"
+          },
+          "answer_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "camera",
+                  "both"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Source"
+          },
+          "capture_condition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capture Condition"
+          },
+          "evidence_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "frame",
+                  "clip"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Kind"
           }
         },
         "type": "object",

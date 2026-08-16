@@ -65,10 +65,12 @@ from flux_server.models import (
     TranscriptionResult,
     VideoUploadResponse,
     WalkAnswer,
+    WalkObservation,
     WalkSessionState,
     WalkSpeciesDetail,
     WalkUtteranceResult,
 )
+from flux_server.observe import ObserveClassifier, observer_from_env
 from flux_server.perception import PerceptionClient, perception_from_env
 from flux_server.retrieval import Retriever, retriever_from_env
 from flux_server.speech import SpeechService, map_utterance, speech_from_env
@@ -93,6 +95,7 @@ def create_app(
     coach_classifier: StepClassifier | None | object = _FROM_ENV,
     speech: SpeechService | None | object = _FROM_ENV,
     perception: PerceptionClient | None = None,
+    walk_observer: ObserveClassifier | None | object = _FROM_ENV,
 ) -> FastAPI:
     """Build the app around one on-disk session store and one retriever."""
     if data_dir is None:
@@ -115,6 +118,11 @@ def create_app(
         speech = speech_from_env()
     if perception is None:
         perception = perception_from_env()
+    if walk_observer is _FROM_ENV:
+        walk_observer = observer_from_env(
+            os.environ.get("FLUX_COSMOS_URL"),
+            os.environ.get("FLUX_COSMOS_MODEL", "nvidia/cosmos-reason2-8b"),
+        )
     coach_store = CoachStore(data_dir / "coach")
     app = FastAPI(title="flux stub inference server")
     app.add_middleware(
@@ -524,6 +532,53 @@ def create_app(
         after = advance_pointer(session["predictions"], len(knot.steps))
         return CoachClipResult(
             prediction=prediction, step=after, advanced=after > before
+        )
+
+    @app.post(
+        "/v1/walkthrough/sessions/{session_id}/observe",
+        response_model=WalkObservation,
+        response_model_exclude_none=True,
+    )
+    async def observe_walkthrough(
+        session_id: str, video: UploadFile, character: str = Form()
+    ) -> WalkObservation:
+        """A condition clip answers the current node's one question (#130).
+
+        The reply is a suggestion the screen prefills; nothing writes to the
+        transcript until the user confirms through the answer route. A node
+        whose answer source is user-only refuses rather than answers.
+        """
+        walk = require_walkthrough()
+        if walk.transcript(session_id) is None:
+            raise HTTPException(status_code=404, detail="unknown walkthrough session")
+        node = next((q for q in walk.questions if q["character"] == character), None)
+        if node is None:
+            raise HTTPException(status_code=422, detail="unknown character")
+        if node.get("answer_source", "user") == "user":
+            raise HTTPException(
+                status_code=422,
+                detail="this node is user-answered; the camera cannot answer it",
+            )
+        if walk_observer is None or walk_observer is _FROM_ENV:
+            raise HTTPException(status_code=503, detail="observe model not configured")
+        data = await video.read()
+        try:
+            frames = extract_frames(data)
+        except ClipUnreadableError as error:
+            raise HTTPException(
+                status_code=422, detail=f"unreadable clip: {error}"
+            ) from error
+        states = walk.states.get(character, [])
+        observation = walk_observer.observe(node["question"], states, frames)
+        if observation is None:
+            raise HTTPException(status_code=502, detail="observe answer unusable")
+        return WalkObservation(
+            character=character,
+            cause="checking " + node["question"].rstrip("?").lower(),
+            state=observation.state,
+            confidence=observation.confidence,
+            observation=observation.observation,
+            citation=node["citation"],
         )
 
     @app.post(

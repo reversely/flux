@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useRef } from 'react';
 import * as Device from 'expo-device';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -7,7 +8,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { mapTranscript } from '@/api/speech';
-import type { WalkQuestion, WalkSessionState } from '@/api/types';
+import type { WalkObservation, WalkQuestion, WalkSessionState } from '@/api/types';
 import { useHoldToTalk, useNarration } from '@/api/voice';
 import { MushroomDiagram } from '@/components/MushroomDiagram';
 import { Tag } from '@/components/Tag';
@@ -135,6 +136,47 @@ export default function Walkthrough() {
   // the app's own voice (the #74 turn-taking rule).
   const [heard, setHeard] = useState<string | null>(null);
 
+  // The camera answer (#130): a three-second condition clip goes to the
+  // box VLM, which suggests one of the node's own states. The suggestion
+  // prefills; only a confirming tap writes the transcript.
+  const cameraRef = useRef<CameraView>(null);
+  const [observing, setObserving] = useState(false);
+  const [suggestion, setSuggestion] = useState<WalkObservation | null>(null);
+
+  const observe = async () => {
+    if (walk === null || current === undefined || cameraRef.current === null) {
+      return;
+    }
+    setSuggestion(null);
+    setObserving(true);
+    narration.stop();
+    try {
+      const recording = cameraRef.current.recordAsync({ maxDuration: 3 });
+      const video = await recording;
+      if (video === undefined) {
+        setObserving(false);
+        return;
+      }
+      const observed = await client().observeWalkthrough(
+        walk.session_id,
+        current.character,
+        video.uri,
+      );
+      setSuggestion(observed);
+      if (observed.state !== undefined && observed.state !== null) {
+        void narration.speak(
+          `Looks ${observed.state}. ${observed.observation} Confirm?`,
+        );
+      } else {
+        void narration.speak('Not clearly visible. ' + (current.capture_condition ?? ''));
+      }
+    } catch {
+      setHeard('The camera check needs the server.');
+    } finally {
+      setObserving(false);
+    }
+  };
+
   const applyTranscript = async (text: string) => {
     if (walk === null || current === undefined) {
       return;
@@ -207,7 +249,13 @@ export default function Walkthrough() {
   return (
     <View style={[styles.screen, useCamera && styles.screenDark]}>
       {useCamera && (
-        <CameraView style={StyleSheet.absoluteFill} mode="picture" facing="back" mute />
+        <CameraView
+          ref={cameraRef}
+          style={StyleSheet.absoluteFill}
+          mode="video"
+          facing="back"
+          mute
+        />
       )}
       <TopBar title="Mushrooms" back dark={useCamera} />
 
@@ -250,6 +298,53 @@ export default function Walkthrough() {
             <Text style={typography.surfaceTitle}>{current.question}</Text>
             {stateChips(current)}
             <Text style={typography.annotation}>{current.citation}</Text>
+            {useCamera &&
+              (current.answer_source === 'both' || current.answer_source === 'camera') && (
+                <View style={styles.observeRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Check with the camera"
+                    disabled={observing}
+                    onPress={() => void observe()}
+                    style={[styles.observeButton, observing && styles.observeButtonBusy]}
+                  >
+                    <Feather name="camera" size={16} color={colors.card} />
+                    <Text style={styles.observeButtonText}>
+                      {observing ? 'Checking' : 'Check with camera'}
+                    </Text>
+                  </Pressable>
+                  <Text style={[typography.annotation, styles.heard]} numberOfLines={2}>
+                    {observing
+                      ? (suggestion?.cause ?? 'checking')
+                      : (current.capture_condition ?? '')}
+                  </Text>
+                </View>
+              )}
+            {suggestion !== null && (
+              <View style={styles.suggestionRow}>
+                {suggestion.state != null ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Confirm ${suggestion.state}`}
+                    disabled={busy}
+                    onPress={() => {
+                      setSuggestion(null);
+                      void toggle(suggestion.character, suggestion.state!);
+                    }}
+                    style={styles.suggestionChip}
+                  >
+                    <Text style={styles.suggestionChipText}>
+                      {suggestion.state} · {Math.round(suggestion.confidence * 100)}% — confirm
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Text style={typography.annotation}>Not clearly visible. Adjust and retry.</Text>
+                )}
+                <Text style={typography.annotation} numberOfLines={2}>
+                  {suggestion.observation}
+                </Text>
+              </View>
+            )}
             {wantCamera && (
               <View style={styles.voiceRow}>
                 <Pressable
@@ -433,6 +528,44 @@ const styles = StyleSheet.create({
   },
   stateChipTextActive: {
     color: colors.card,
+  },
+  observeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.m,
+  },
+  observeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    height: sizes.chip,
+    borderRadius: radius.chip,
+    backgroundColor: colors.signature,
+    paddingHorizontal: spacing.m,
+  },
+  observeButtonBusy: {
+    opacity: 0.6,
+  },
+  observeButtonText: {
+    ...typography.listBody,
+    color: colors.card,
+  },
+  suggestionRow: {
+    gap: spacing.xs,
+  },
+  suggestionChip: {
+    alignSelf: 'flex-start',
+    height: sizes.chip,
+    borderRadius: radius.chip,
+    borderWidth: 1,
+    borderColor: colors.signature,
+    backgroundColor: colors.signatureSoft,
+    paddingHorizontal: spacing.m,
+    justifyContent: 'center',
+  },
+  suggestionChipText: {
+    ...typography.listBody,
+    color: colors.ink,
   },
   voiceRow: {
     flexDirection: 'row',

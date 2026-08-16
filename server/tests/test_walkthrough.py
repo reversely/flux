@@ -252,3 +252,143 @@ def test_validation_and_missing_pack(client, tmp_path):
         )
     )
     assert bare.post("/v1/walkthrough/sessions").status_code == 503
+
+
+class StubObserver:
+    def __init__(self, observation):
+        self.observation = observation
+        self.calls = []
+
+    def observe(self, question, states, frames):
+        self.calls.append((question, tuple(states), len(frames)))
+        return self.observation
+
+
+def make_clip_bytes():
+    import shutil
+    import subprocess
+
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not installed")
+    return subprocess.run(
+        [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=duration=1:size=64x64:rate=2",
+            "-f",
+            "mp4",
+            "-movflags",
+            "frag_keyframe+empty_moov",
+            "-",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout
+
+
+@pytest.fixture
+def observe_client(tmp_path):
+    """A #65-vintage pack: node columns present, gill node camera-capable."""
+    db = tmp_path / "content65.db"
+    with sqlite3.connect(db) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE walk_question (
+                guide_id TEXT NOT NULL DEFAULT 'fungi-edibility',
+                character TEXT NOT NULL, ask_order INTEGER NOT NULL,
+                question TEXT NOT NULL, citation TEXT NOT NULL,
+                answer_source TEXT NOT NULL DEFAULT 'user',
+                capture_condition TEXT, evidence_kind TEXT,
+                PRIMARY KEY (guide_id, character));
+            CREATE TABLE walk_state (
+                guide_id TEXT NOT NULL DEFAULT 'fungi-edibility',
+                character TEXT NOT NULL, state TEXT NOT NULL,
+                PRIMARY KEY (guide_id, character, state));
+            CREATE TABLE walk_species (
+                guide_id TEXT NOT NULL DEFAULT 'fungi-edibility',
+                species TEXT NOT NULL, edibility TEXT NOT NULL,
+                edibility_raw TEXT NOT NULL, source_title TEXT NOT NULL,
+                source_revid TEXT NOT NULL,
+                PRIMARY KEY (guide_id, species));
+            CREATE TABLE walk_trait (
+                guide_id TEXT NOT NULL DEFAULT 'fungi-edibility',
+                species TEXT NOT NULL, character TEXT NOT NULL,
+                state TEXT NOT NULL,
+                PRIMARY KEY (guide_id, species, character, state));
+            INSERT INTO walk_question
+                (character, ask_order, question, citation, answer_source,
+                 capture_condition, evidence_kind)
+             VALUES
+                ('whichGills', 1,
+                 'Gills at the stem: free, attached (adnate), or running down (decurrent)?',
+                 'test citation', 'both', 'gill junction visible', 'clip'),
+                ('sporePrintColor', 2, 'Spore print color?', 'test citation',
+                 'user', NULL, NULL);
+            INSERT INTO walk_state (character, state) VALUES
+                ('whichGills', 'free'), ('whichGills', 'adnate'),
+                ('sporePrintColor', 'white');
+            INSERT INTO walk_species
+                (species, edibility, edibility_raw, source_title, source_revid)
+             VALUES ('Agaricus bisporus', 'edible', 'edible', 'Agaricus bisporus', '1');
+            INSERT INTO walk_trait (species, character, state)
+             VALUES ('Agaricus bisporus', 'whichGills', 'free');
+            """
+        )
+    store = WalkthroughStore(db, tmp_path / "walkthroughs")
+
+    def build(observer):
+        app = create_app(
+            data_dir=tmp_path / "sessions",
+            content=None,
+            tile_archive=None,
+            walkthrough=store,
+            walk_observer=observer,
+        )
+        return TestClient(app)
+
+    return build
+
+
+def test_observe_suggests_without_writing_transcript(observe_client):
+    from flux_server.observe import Observation
+
+    observer = StubObserver(
+        Observation(state="free", confidence=0.8, observation="Gills clear of stem.")
+    )
+    client = observe_client(observer)
+    session_id = client.post("/v1/walkthrough/sessions").json()["session_id"]
+    response = client.post(
+        f"/v1/walkthrough/sessions/{session_id}/observe",
+        data={"character": "whichGills"},
+        files={"video": ("clip.mp4", make_clip_bytes(), "video/mp4")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "free"
+    assert body["cause"].startswith("checking gills at the stem")
+    assert observer.calls[0][1] == ("adnate", "free")
+    state = client.get(f"/v1/walkthrough/sessions/{session_id}").json()
+    assert state["answers"] == []
+    camera_nodes = [
+        q for q in state["questions"] if q.get("answer_source") in ("camera", "both")
+    ]
+    assert [q["character"] for q in camera_nodes] == ["whichGills"]
+
+
+def test_observe_refuses_user_answered_node(observe_client):
+    from flux_server.observe import Observation
+
+    observer = StubObserver(Observation(state=None, confidence=0, observation=""))
+    client = observe_client(observer)
+    session_id = client.post("/v1/walkthrough/sessions").json()["session_id"]
+    response = client.post(
+        f"/v1/walkthrough/sessions/{session_id}/observe",
+        data={"character": "sporePrintColor"},
+        files={"video": ("clip.mp4", b"x", "video/mp4")},
+    )
+    assert response.status_code == 422
+    assert observer.calls == []
