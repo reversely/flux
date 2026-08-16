@@ -43,7 +43,7 @@ carries current guidance and names the divergence (PRD 6.5.7).
 | 11 Environments | Desert water discipline, sea raft and immersion, cold layering | FM 21-76 ch 13, 15, 16 | steps only | mixed; the current NWS wind chill chart is on Commons as public domain and replaces figure 15-1 | partial |
 | 11 Environments | Tropical, ch 14 | under research | | | open |
 | 12 Man-Made Hazards | Personal decontamination | STP 031-COM-1006 | sequenced measures with a time budget | Commons decontamination category, 154 public-domain files | ready, #142 |
-| 12 Man-Made Hazards | Expedient fallout shelter, safe water after a release | FM 21-76 ch 23 | steps only | one figure, no procedural art | blocked on figures |
+| 12 Man-Made Hazards | Expedient fallout shelter, safe water after a release | FM 21-76 ch 23 | steps only | Nuclear War Survival Skills (ORNL-5037) is built on expedient shelter construction drawings; two Internet Archive copies carry a public domain mark, which is uploader-asserted and needs confirming against the edition | partial, lead to verify |
 | 5 Food | Snares, deadfall, fishing, game preparation, preserving | under research | | | open |
 
 ## Not yet sourced
@@ -60,6 +60,6 @@ Figures block fewer items than first thought. Forty Commons files cite FM 21-76 
 public domain, covering the shelter, fire, water, and direction-finding procedures; the audit is on
 #137. What remains true is that most plates show a finished result rather than one step, so a plate
 usually grounds a whole procedure while individual nodes still need their own art, and four items
-(the fallout shelter most sharply) still lack usable art. Steps, by contrast, exist for every process item; what most of them lack is a
+still need art at the level of a single step, though every one now has at least a candidate source. Steps, by contrast, exist for every process item; what most of them lack is a
 statement of what completion looks like, which only the mountaineering and task-checklist manuals
 provide.
