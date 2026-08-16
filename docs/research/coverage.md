@@ -34,7 +34,7 @@ carries current guidance and names the divergence (PRD 6.5.7).
 | 1 Survival Medicine | Heat injuries | STP 21-1-SMCT | too coarse to drive a walk | text | partial |
 | 2 Shelter | Poncho lean-to, debris hut, tree-pit | FM 21-76 ch 5 | steps only, no criteria | 9 public-domain Commons crops verified | partial, figures available |
 | 3 Fire | Site prep and Dakota hole, fire lays, bow and drill | FM 21-76 ch 7 | steps only | 8 public-domain Commons crops verified | partial, figures available |
-| 4 Water | Solar still, making water safe, stream fording | FM 21-76 ch 6 and 17 | steps only; contact times need a current source | 11 public-domain Commons crops verified, and figure 17-3 is per-step | partial, figures available |
+| 4 Water | Solar still, making water safe, stream fording | FM 21-76 ch 6 and 17; EPA emergency disinfection supplies the current boiling and bleach numbers | steps only, but the EPA doses and contact time are checkable values | 11 public-domain Commons crops verified, and figure 17-3 is per-step | partial, figures available |
 | 8 Tools and Cordage | Bowline, prusik | TC 3-97.61 ch 8 | explicit checkpoint blocks | 247 born-digital figures | ready, #142 |
 | 8 Tools and Cordage | Square and shear lashing | FM 5-125 | steps only | Knotting and Splicing Ropes and Cordage (1907, public domain) has chapters on Ties and Lashings and on Lashings for Scaffolding, with 420 figure callouts | ready |
 | 9 Direction Finding | Shadow-tip, watch method | FM 21-76 ch 18 | steps only | 9 public-domain Commons crops verified, including both star charts | partial, figures available |
