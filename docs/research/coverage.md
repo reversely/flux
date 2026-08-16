@@ -38,9 +38,9 @@ carries current guidance and names the divergence (PRD 6.5.7).
 | 8 Tools and Cordage | Bowline, prusik | TC 3-97.61 ch 8 | explicit checkpoint blocks | 247 born-digital figures | ready, #142 |
 | 8 Tools and Cordage | Square and shear lashing | FM 5-125 | steps only | end-state photos exist under CC BY-SA and CC BY, not public domain; per-step diagrams may sit in two public-domain marlinespike books on Commons | partial, verify the books |
 | 9 Direction Finding | Shadow-tip, watch method | FM 21-76 ch 18 | steps only | 9 public-domain Commons crops verified, including both star charts | partial, figures available |
-| 9 Direction Finding | Improvised floating compass | FM 21-76 ch 18 | steps only | no figure anywhere | blocked on figures |
+| 9 Direction Finding | Improvised floating compass | FM 21-76 ch 18 | steps only | Commons Floating Compass.png is public domain and shows a floating needle | partial, figure found |
 | 10 Signaling and Rescue | Ground-to-air panels, signal mirror, signal fires | FM 21-76 ch 19, FAA AIM for body signals | steps only | smoke generator crop verified; figure 19-7 is per-step | partial |
-| 11 Environments | Desert water discipline, sea raft and immersion, cold layering | FM 21-76 ch 13, 15, 16 | steps only | mixed | partial; figure 15-1 must be replaced |
+| 11 Environments | Desert water discipline, sea raft and immersion, cold layering | FM 21-76 ch 13, 15, 16 | steps only | mixed; the current NWS wind chill chart is on Commons as public domain and replaces figure 15-1 | partial |
 | 11 Environments | Tropical, ch 14 | under research | | | open |
 | 12 Man-Made Hazards | Personal decontamination | STP 031-COM-1006 | sequenced measures with a time budget | Commons decontamination category, 154 public-domain files | ready, #142 |
 | 12 Man-Made Hazards | Expedient fallout shelter, safe water after a release | FM 21-76 ch 23 | steps only | one figure, no procedural art | blocked on figures |
@@ -60,7 +60,6 @@ Figures block fewer items than first thought. Forty Commons files cite FM 21-76 
 public domain, covering the shelter, fire, water, and direction-finding procedures; the audit is on
 #137. What remains true is that most plates show a finished result rather than one step, so a plate
 usually grounds a whole procedure while individual nodes still need their own art, and four items
-(square and shear lashing, the floating compass, the fallout shelter, cold-weather layering) have no
-usable figure at any source. Steps, by contrast, exist for every process item; what most of them lack is a
+(the fallout shelter most sharply) still lack usable art. Steps, by contrast, exist for every process item; what most of them lack is a
 statement of what completion looks like, which only the mountaineering and task-checklist manuals
 provide.
