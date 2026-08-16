@@ -145,6 +145,10 @@ class WalkthroughStore:
         result: dict = {
             "session_id": session_id,
             "answers": transcript,
+            "questions": [
+                {**q, "states": self.states.get(q["character"], [])}
+                for q in self.questions
+            ],
             "candidate_count": len(survivors),
             "danger_count": len(danger),
             "danger_species": [self.species[s] for s in sorted(danger)]

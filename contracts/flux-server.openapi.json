@@ -1877,6 +1877,13 @@
             "type": "array",
             "title": "Answers"
           },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/WalkQuestion"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
           "candidate_count": {
             "type": "integer",
             "title": "Candidate Count"
@@ -1932,6 +1939,7 @@
         "required": [
           "session_id",
           "answers",
+          "questions",
           "candidate_count",
           "danger_count",
           "complete"

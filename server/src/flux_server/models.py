@@ -199,6 +199,7 @@ class WalkSessionState(BaseModel):
 
     session_id: str
     answers: list[WalkAnswer]
+    questions: list[WalkQuestion]
     candidate_count: int
     danger_count: int
     danger_species: list[WalkSpeciesCard] | None = None
