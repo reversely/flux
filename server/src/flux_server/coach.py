@@ -25,6 +25,8 @@ from typing import Protocol
 
 import httpx
 
+from flux_server.prompts import coach_step_prompt
+
 logger = logging.getLogger(__name__)
 
 CLASSIFY_TIMEOUT_S = 60.0
@@ -276,14 +278,7 @@ class CosmosStepClassifier:
         self._model = model
 
     def classify(self, knot: CoachKnot, frames: list[bytes]) -> int | None:
-        steps = "\n".join(f"S{i}: {s.cue}" for i, s in enumerate(knot.steps))
-        prompt = (
-            f"You are watching someone tie a {knot.name} step by step. "
-            f"The procedure's steps are:\n{steps}\n\n"
-            "These frames are one consecutive chunk of live video, in order. "
-            "Which single step is being performed in this chunk? "
-            'Answer with JSON only: {"step": "S<n>"}'
-        )
+        prompt = coach_step_prompt(knot.name, [s.cue for s in knot.steps])
         content: list[dict] = [{"type": "text", "text": prompt}]
         content.extend(
             {
