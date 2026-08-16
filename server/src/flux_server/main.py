@@ -281,9 +281,26 @@ def create_app(
                 "status": outcome.status,
                 "summary": outcome.summary,
                 "detail": outcome.detail,
+                "transcript": transcribe_videos(videos),
             },
         )
         return SessionFinished(session_id=session_id, status=outcome.status)
+
+    def transcribe_videos(videos: list[Path]) -> str | None:
+        """What the user said while filming (#168): each clip's audio track
+        through the box ASR, silent or unconfigured yielding None so the
+        result simply omits the field."""
+        if speech is None or speech is _FROM_ENV:
+            return None
+        lines = []
+        for path in videos:
+            try:
+                heard = speech.transcribe(path.read_bytes(), "parakeet")  # type: ignore[union-attr]
+            except httpx.HTTPError:
+                continue
+            if heard.text.strip():
+                lines.append(heard.text.strip())
+        return "\n".join(lines) or None
 
     @app.get("/v1/sessions/{session_id}/results", response_model=SessionResults)
     def session_results(session_id: str) -> SessionResults:
@@ -299,6 +316,7 @@ def create_app(
             records=[],
             summary=result.get("summary"),
             detail=result.get("detail"),
+            transcript=result.get("transcript"),
         )
 
     @app.get("/v1/sessions/{session_id}/frames/{frame_id}")

@@ -2024,6 +2024,17 @@
               }
             ],
             "title": "Detail"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
           }
         },
         "type": "object",

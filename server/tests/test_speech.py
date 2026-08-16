@@ -227,6 +227,53 @@ def test_stream_relays_partials_then_final(tmp_path):
     assert stream.finished and stream.closed
 
 
+class SummaryHandoff:
+    """Always completes with one canned summary."""
+
+    def summarize_session(self, session_id, videos):
+        from flux_server.vss import HandoffOutcome
+
+        return HandoffOutcome(status="complete", summary="a creek crossing")
+
+
+MP4_BYTES = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 32
+
+
+def finish_with_speech(tmp_path: Path, fake: FakeSpeech | None) -> TestClient:
+    app = create_app(
+        data_dir=tmp_path / "data",
+        handoff=SummaryHandoff(),
+        content=None,
+        tile_archive=None,
+        walkthrough=None,
+        coach_classifier=None,
+        speech=fake,
+    )
+    client = TestClient(app)
+    session_id = client.post(
+        "/v1/sessions", json={"functionality": "trail_memory"}
+    ).json()["session_id"]
+    client.post(
+        f"/v1/sessions/{session_id}/videos",
+        files={"video": ("hike.mp4", MP4_BYTES, "video/mp4")},
+        data={"captured_at": "2026-08-15T00:00:00Z"},
+    )
+    assert client.post(f"/v1/sessions/{session_id}/finish").status_code == 200
+    return client.get(f"/v1/sessions/{session_id}/results").json()
+
+
+def test_finish_carries_clip_transcript(tmp_path):
+    results = finish_with_speech(tmp_path, FakeSpeech(["standing water on the left"]))
+    assert results["summary"] == "a creek crossing"
+    assert results["transcript"] == "standing water on the left"
+
+
+def test_finish_without_speech_omits_transcript(tmp_path):
+    results = finish_with_speech(tmp_path, None)
+    assert results["summary"] == "a creek crossing"
+    assert results["transcript"] is None
+
+
 def test_stream_reports_unconfigured_backend(tmp_path):
     client = make_client(tmp_path, None)
     with client.websocket_connect("/v1/speech/stream") as ws:

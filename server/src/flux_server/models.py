@@ -61,6 +61,9 @@ class SessionResults(BaseModel):
     records: list[RecordStub]
     summary: str | None = None
     detail: str | None = None
+    # What the user said while filming, transcribed on the box (#168);
+    # absent when no speech backend is configured or the clips are silent.
+    transcript: str | None = None
 
 
 class VideoUploadResponse(BaseModel):
