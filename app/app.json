@@ -15,7 +15,10 @@
         "NSLocalNetworkUsageDescription": "Flux talks to your inspection server on this network.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "NSLocationWhenInUseUsageDescription": "Flux shows your position on the offline map and centers it on you.",
+        "NSMicrophoneUsageDescription": "Flux listens while you answer a question hands-free.",
+        "NSSpeechRecognitionUsageDescription": "Flux turns your spoken answer into text on the local server."
       }
     },
     "android": {
@@ -46,6 +49,18 @@
           "backgroundColor": "#208AEF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Flux shows your position on the offline map and centers it on you."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Flux listens while you answer a question hands-free."
         }
       ]
     ],
