@@ -102,9 +102,9 @@ export default function Library() {
           )}
           ListFooterComponent={
             <Text style={[dark.note, styles.footer]}>
-              Preview of the gather pass: pulls run for real when the box is
-              online. Every fetched source is staged for review before it
-              joins the pack.
+              Pulls run when this station is online; offline, the feed
+              previews the pass. Every fetched source is staged for review
+              before it joins the pack.
             </Text>
           }
         />

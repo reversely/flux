@@ -111,3 +111,77 @@ def test_feed_without_matching_sources_stays_queued(tmp_path):
     kinds = [e["kind"] for e in reversed(feed.events())]
     assert kinds == ["queued", "search", "done"]
     assert "stays queued" in feed.events()[0]["line"]
+
+
+def make_fake_fetch(pages=None, pdfs=None):
+    """A fetch callable serving canned Wikipedia search and PDF bodies."""
+    import json as _json
+
+    pages = pages if pages is not None else ["Vegetable farming"]
+    pdfs = pdfs or {}
+
+    def fetch(url):
+        if "rest.php/v1/search" in url:
+            body = _json.dumps({"pages": [{"title": t} for t in pages]}).encode()
+            return 200, "application/json", body
+        if "page/pdf/" in url:
+            name = url.rsplit("/", 1)[1]
+            return 200, "application/pdf", pdfs.get(name, b"%PDF-1.4 fake body")
+        if url.endswith(".pdf"):
+            return 200, "application/pdf", pdfs.get(url, b"%PDF-1.4 catalog body")
+        return 404, "text/html", b""
+
+    return fetch
+
+
+def test_gather_stages_files_and_reports_on_the_feed(tmp_path, monkeypatch):
+    from flux_server import gather as gather_module
+    from flux_server.gather import Gatherer
+
+    monkeypatch.setattr(
+        gather_module,
+        "CATALOG",
+        [
+            {
+                "keywords": ("grow", "food"),
+                "title": "Test catalog pub",
+                "url": "https://example.org/pub.pdf",
+                "filename": "pub.pdf",
+                "license": "public domain",
+            }
+        ],
+    )
+    gatherer = Gatherer(tmp_path, fetch=make_fake_fetch(), pace_s=0)
+    gatherer.queue.add("growing food", "what plants should i grow?")
+    staged = gatherer.gather_topic("growing food")
+    assert staged == 2  # catalog entry + first wikipedia page
+    events = gatherer.queue.entries()
+    assert [e["status"] for e in events if e["topic"] == "growing food"] == ["gathered"]
+    feed = gatherer.feed.events()
+    kinds = [e["kind"] for e in reversed(feed)]
+    assert kinds == ["search", "pull", "pull", "done"]
+    # Real events carry the provenance, not the preview note.
+    pull = next(e for e in feed if e["kind"] == "pull")
+    assert "sha256" in (pull["detail"] or "")
+    staged_dir = tmp_path / "library" / "staged" / "growing-food"
+    files = sorted(p.name for p in staged_dir.iterdir())
+    assert "pub.pdf" in files
+    assert any(name.endswith(".meta") for name in files)
+
+
+def test_gather_with_nothing_fetchable_keeps_topic_queued(tmp_path):
+    from flux_server.gather import Gatherer
+
+    def dead_fetch(url):
+        return 404, "text/html", b""
+
+    gatherer = Gatherer(tmp_path, fetch=dead_fetch, pace_s=0)
+    gatherer.queue.add("celestial navigation drills", None)
+    assert gatherer.gather_topic("celestial navigation drills") == 0
+    entry = next(
+        e
+        for e in gatherer.queue.entries()
+        if e["topic"] == "celestial navigation drills"
+    )
+    assert entry["status"] == "queued"
+    assert "stays queued" in gatherer.feed.events()[0]["line"]

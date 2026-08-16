@@ -67,6 +67,15 @@ class ResearchQueue:
             self._write(entries)
             return entry, True
 
+    def set_status_by_topic(self, topic: str, status: str) -> None:
+        """Mark a topic's entry (e.g. gathered); unknown topics are a no-op."""
+        with self._lock:
+            entries = self._read()
+            for entry in entries:
+                if _normalize(entry["topic"]) == _normalize(topic):
+                    entry["status"] = status
+            self._write(entries)
+
 
 # ---------------------------------------------------------------------------
 # Library feed (#TICKET): the visible half of the gather pass.

@@ -104,6 +104,7 @@ FLUX_COSMOS_URL="http://localhost:30082" \
 VSS_BASE_URL="http://localhost:18000" \
 FLUX_PERCEPTION_URL="http://localhost:18100" \
 FLUX_SPEECH_URL="http://localhost:18110" \
+FLUX_GATHER_ONLINE=1 \
 nohup env ${T3_ENV[@]:+"${T3_ENV[@]}"} ${LIGHTNING_ENV[@]:+"${LIGHTNING_ENV[@]}"} \
   uv run flux-server --host 0.0.0.0 --port 8000 > /tmp/flux-server.log 2>&1 &
 sleep 6

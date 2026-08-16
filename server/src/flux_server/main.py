@@ -9,6 +9,7 @@ import asyncio
 import hashlib
 import json
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -196,16 +197,28 @@ def create_app(
     @app.post("/v1/chat", response_model=ChatAnswer, response_model_exclude_none=True)
     def chat(request: ChatRequest) -> ChatAnswer:
         answer = retriever.answer(request.question, option=request.model)
-        # A topic entering the queue starts its gather preview, so the
-        # library feed shows the pull the moment the log takes it. A topic
-        # already queued (the seeds included) gets its first gather too;
-        # one with feed history does not repeat it on every ask.
+        # A topic entering the queue sets off its gather, so the library
+        # feed shows the pull the moment the log takes it. With
+        # FLUX_GATHER_ONLINE set the real worker fetches in a background
+        # thread (#234 follow-on); without it the staged preview runs, so
+        # an offline station keeps its exact behavior. A topic already
+        # queued (the seeds included) gets its first gather too; one with
+        # feed history does not repeat it on every ask.
         queued = getattr(answer, "queued", None)
         if queued is not None and (
             queued.state == "added"
             or not any(e["topic"] == queued.topic for e in library_feed.events())
         ):
-            library_feed.preview_gather(queued.topic)
+            if os.environ.get("FLUX_GATHER_ONLINE"):
+                from flux_server.gather import Gatherer
+
+                threading.Thread(
+                    target=Gatherer(data_dir).gather_topic,
+                    args=(queued.topic,),
+                    daemon=True,
+                ).start()
+            else:
+                library_feed.preview_gather(queued.topic)
         return answer
 
     # The research queue (#193): topics unsourced chat answers recorded,
