@@ -50,8 +50,8 @@ carries current guidance and names the divergence (PRD 6.5.7).
 
 | Item | Why it matters | Status |
 | --- | --- | --- |
-| Disaster scenarios: flood, storm, earthquake, pandemic, chemical release, infrastructure failure | PRD 2.1 lists them as an MVP 1 feature | under research |
-| Weather and sky reading | the PRD's cloud galleries | under research |
+| Disaster scenarios: flood, storm, earthquake, pandemic, chemical release, infrastructure failure | PRD 2.1 lists them as an MVP 1 feature | sourced from Ready.gov, public domain; all six ship as reference cards, with two enforceable values and one rehearsable sequence. See hazard-and-weather-sources.md |
+| Weather and sky reading | the PRD's cloud galleries | open |
 | Universal edibility test | a timed checklist, not a camera walk | under research |
 
 ## What blocks the most rows
