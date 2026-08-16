@@ -7,6 +7,9 @@ Every source below was fetched. Ready.gov and the agencies behind it are US gove
 public domain. Ready.gov refuses a plain fetch with HTTP 403 and answers a browser user agent, so
 a harvester needs one.
 
+CDC is not needed for any of this. Ready.gov carries all six scenarios and answers a browser user
+agent, so the fact that cdc.gov refuses this environment changes nothing.
+
 ## The six scenarios, and which are walks
 
 The product has two forms, and neither fits most of this material. A **process walk** asks whether
