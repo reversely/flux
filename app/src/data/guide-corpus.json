@@ -354,7 +354,7 @@
             {
               "id": "mushroom-id",
               "title": "Mushroom identification",
-              "blurb": "Deadly Amanitas share gills and a stem ring with edible field mushrooms. The separators are structural: the sack at the stem base, the gill color, the spore print. Work the features one at a time; every dangerous match stays on screen until your answers rule it out.",
+              "blurb": "Troubleshoot the likely species of this mushroom based on the shape of the mushroom cap, gills, and stem.",
               "tools": [
                 {
                   "kind": "walkthrough",
