@@ -93,6 +93,7 @@ def create_app(
     handoff: VideoHandoff | None = None,
     content: ContentStore | None | object = _FROM_ENV,
     tile_archive: Path | None | object = _FROM_ENV,
+    terrain_archive: Path | None | object = _FROM_ENV,
     walkthrough: WalkthroughStore | None | object = _FROM_ENV,
     coach_classifier: StepClassifier | None | object = _FROM_ENV,
     speech: SpeechService | None | object = _FROM_ENV,
@@ -113,6 +114,14 @@ def create_app(
     if tile_archive is _FROM_ENV:
         configured = os.environ.get("FLUX_TILE_ARCHIVE")
         tile_archive = Path(configured) if configured else None
+    if terrain_archive is _FROM_ENV:
+        configured = os.environ.get("FLUX_TILE_ARCHIVE_TERRAIN")
+        terrain_archive = Path(configured) if configured else None
+    # Layer name -> archive path; the legacy single route serves base.
+    tile_archives: dict[str, Path | None] = {
+        "base": tile_archive if isinstance(tile_archive, Path) else None,
+        "terrain": terrain_archive if isinstance(terrain_archive, Path) else None,
+    }
     if walkthrough is _FROM_ENV:
         walkthrough = walkthrough_store_from_env(data_dir)
     if coach_classifier is _FROM_ENV:
@@ -206,14 +215,31 @@ def create_app(
     @app.get("/v1/tiles/archive")
     @app.head("/v1/tiles/archive")
     def tile_archive_file() -> FileResponse:
-        if tile_archive is None or tile_archive is _FROM_ENV:
-            raise HTTPException(status_code=503, detail="no tile archive installed")
-        if not tile_archive.is_file():
+        return serve_archive("base")
+
+    # Per-layer archives (#75): the base map and the terrain-RGB DEM ship
+    # as separate PMTiles files, each behind its own configured path. Each
+    # layer answers 503 on its own when unset or missing, the way the
+    # single route always has.
+    @app.get("/v1/tiles/{layer}/archive")
+    @app.head("/v1/tiles/{layer}/archive")
+    def tile_layer_archive(layer: str) -> FileResponse:
+        return serve_archive(layer)
+
+    def serve_archive(layer: str) -> FileResponse:
+        if layer not in tile_archives:
+            raise HTTPException(status_code=404, detail=f"unknown tile layer: {layer}")
+        archive = tile_archives[layer]
+        if archive is None:
+            raise HTTPException(
+                status_code=503, detail=f"no {layer} tile archive installed"
+            )
+        if not archive.is_file():
             raise HTTPException(
                 status_code=503,
-                detail=f"tile archive missing at {tile_archive}",
+                detail=f"{layer} tile archive missing at {archive}",
             )
-        return FileResponse(tile_archive, media_type="application/octet-stream")
+        return FileResponse(archive, media_type="application/octet-stream")
 
     def require_media_mode(session_id: str, upload_kind: str) -> None:
         """Reject an upload whose kind contradicts the session's media mode."""
