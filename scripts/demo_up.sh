@@ -21,6 +21,7 @@ ssh -S "$SOCK" "$BOX" 'echo "  box: $(free -g | awk "NR==2{print \$3\"/\"\$2\" G
 
 echo "== forwards"
 for spec in 30081:localhost:30081 30082:localhost:30082 30083:localhost:30083 \
+            30084:localhost:30084 \
             18000:localhost:8000 18100:localhost:8100 18110:localhost:8110; do
   ssh -S "$SOCK" -O forward -L "$spec" "$BOX" 2>/dev/null || true
 done
