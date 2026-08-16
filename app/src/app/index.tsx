@@ -13,7 +13,16 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
+import Animated, {
+  Extrapolation,
+  FadeInDown,
+  FadeInUp,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { ChatQueueNote, ChatSource } from '@/api/types';
@@ -92,13 +101,13 @@ function Message({ message }: { message: ChatMessage }) {
   const router = useRouter();
   if (message.role === 'user') {
     return (
-      <View style={[styles.bubble, styles.userBubble]}>
+      <Animated.View entering={FadeInUp.duration(250)} style={[styles.bubble, styles.userBubble]}>
         <Text style={styles.userText}>{message.text}</Text>
-      </View>
+      </Animated.View>
     );
   }
   return (
-    <View style={[styles.bubble, styles.assistantBubble]}>
+    <Animated.View entering={FadeInUp.duration(250)} style={[styles.bubble, styles.assistantBubble]}>
       {message.pending ? (
         <ActivityIndicator color={colors.ink3} />
       ) : (
@@ -116,7 +125,7 @@ function Message({ message }: { message: ChatMessage }) {
       )}
       <SourceLine sources={message.sources} />
       <QueueLine queued={message.queued} />
-    </View>
+    </Animated.View>
   );
 }
 
@@ -169,6 +178,23 @@ function SourceLine({ sources }: { sources?: ChatSource[] }) {
         {chapters.length === 1 ? `chapter ${chapters[0]}` : `chapters ${chapters.join(', ')}`}
       </Text>
     </Pressable>
+  );
+}
+
+/**
+ * The wordmark's own bar line in conversation mode (#207): identity stays
+ * on screen without rejoining the icon bar (#179). Pinned above the list;
+ * a field-tinted backing fades in as the list scrolls under it.
+ */
+function WordmarkBar({ scrollY }: { scrollY: SharedValue<number> }) {
+  const backing = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [0, 24], [0, 1], Extrapolation.CLAMP),
+  }));
+  return (
+    <Animated.View entering={FadeInDown.duration(300)} style={styles.wordmarkBar}>
+      <Animated.View style={[styles.wordmarkBarBacking, backing]} />
+      <Text style={styles.wordmarkBarText}>LifeKit</Text>
+    </Animated.View>
   );
 }
 
@@ -247,15 +273,22 @@ export default function ChatHome() {
           onPress={() => router.push('/connect')}
         />
       </TopBar>
+      {messages.length > 0 && <WordmarkBar scrollY={scrollY} />}
       <KeyboardAvoidingView
         style={styles.body}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {messages.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.wordmark}>LifeKit</Text>
-            <Text style={[typography.body, styles.tagline]}>your offline AI field guide to the world. </Text>
-            <QuestionGallery onAsk={(question) => void send(question)} />
+            <Animated.View entering={FadeInDown.duration(450)}>
+              <Text style={styles.wordmark}>LifeKit</Text>
+            </Animated.View>
+            <Animated.View entering={FadeInDown.duration(450).delay(120)}>
+              <Text style={[typography.body, styles.tagline]}>your offline AI field guide to the world. </Text>
+            </Animated.View>
+            <Animated.View entering={FadeInDown.duration(450).delay(240)}>
+              <QuestionGallery onAsk={(question) => void send(question)} />
+            </Animated.View>
           </View>
         ) : (
           <Animated.FlatList
@@ -326,6 +359,25 @@ const styles = StyleSheet.create({
     ...typography.display,
     color: darkHome.ink,
     textAlign: 'center',
+  },
+  wordmarkBar: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: darkHome.line,
+  },
+  wordmarkBarBacking: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(11, 17, 24, 0.70)',
+  },
+  wordmarkBarText: {
+    ...typography.displaySmall,
+    color: darkHome.ink,
   },
   tagline: {
     textAlign: 'center',
