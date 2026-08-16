@@ -17,6 +17,94 @@ from pathlib import Path
 
 SEARCH_SNIPPET_TOKENS = 18
 
+# English function words that carry no evidence about which block answers a
+# question. Only `search_any` filters on these; the exact search endpoint
+# keeps every word the caller typed.
+_QUERY_STOPWORDS = frozenset(
+    [
+        "a",
+        "about",
+        "after",
+        "all",
+        "also",
+        "and",
+        "any",
+        "are",
+        "because",
+        "been",
+        "before",
+        "being",
+        "but",
+        "can",
+        "could",
+        "did",
+        "does",
+        "doing",
+        "down",
+        "for",
+        "from",
+        "had",
+        "has",
+        "have",
+        "her",
+        "him",
+        "his",
+        "how",
+        "into",
+        "its",
+        "just",
+        "like",
+        "more",
+        "most",
+        "much",
+        "must",
+        "not",
+        "now",
+        "off",
+        "once",
+        "only",
+        "other",
+        "our",
+        "out",
+        "over",
+        "she",
+        "should",
+        "some",
+        "such",
+        "than",
+        "that",
+        "the",
+        "their",
+        "them",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "those",
+        "through",
+        "under",
+        "until",
+        "very",
+        "was",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "while",
+        "who",
+        "whom",
+        "why",
+        "will",
+        "with",
+        "without",
+        "would",
+        "you",
+        "your",
+    ]
+)
+
 
 class ContentStore:
     """Read-only view over one pack content database."""
@@ -36,11 +124,27 @@ class ContentStore:
 
     def _build_search_index(self) -> None:
         self._conn.execute("ATTACH DATABASE ':memory:' AS search")
+        # Two indexes over the same blocks. Porter stemming serves the exact
+        # search endpoint: it folds inflections ("berries" finds "berry")
+        # and still matches one- and two-letter terms ("ax"). Chat retrieval
+        # needs more: the manual writes berries as Blackberries, Chinaberry,
+        # pokeberries, which no word-level stemmer reaches, so a plural
+        # question missed every berry block and chat answered "the guide
+        # does not cover". The trigram index matches inside those compounds
+        # and bm25's rarity weighting ranks the right chapter first.
         self._conn.execute(
-            "CREATE VIRTUAL TABLE search.block_fts USING fts5(id UNINDEXED, text)"
+            "CREATE VIRTUAL TABLE search.block_fts USING"
+            " fts5(id UNINDEXED, text, tokenize = 'porter unicode61')"
         )
         self._conn.execute(
             "INSERT INTO search.block_fts (id, text) SELECT id, text FROM block"
+        )
+        self._conn.execute(
+            "CREATE VIRTUAL TABLE search.block_trigram USING"
+            " fts5(id UNINDEXED, text, tokenize = 'trigram')"
+        )
+        self._conn.execute(
+            "INSERT INTO search.block_trigram (id, text) SELECT id, text FROM block"
         )
 
     def _rows(self, query: str, params: tuple = ()) -> list[dict]:
@@ -119,26 +223,30 @@ class ContentStore:
     def search_any(self, query: str, limit: int) -> list[dict]:
         """OR-match for chat retrieval: a natural-language question rarely
         has every word in one block, so any informative term may hit and
-        FTS5 rank orders the results. Words under four characters drop out
-        as noise."""
+        FTS5 rank orders the results. Function words drop out before the
+        query: with "with" or "which" included, any block of prose matches
+        and the ranked hits drift to unrelated chapters."""
+        words = (term.strip(".,!?;:'\"()").lower() for term in query.split())
         terms = " OR ".join(
-            '"{}"'.format(term.replace('"', ""))
-            for term in query.split()
-            if len(term) >= 4
+            '"{}"'.format(word.replace('"', ""))
+            for word in words
+            if len(word) >= 3 and word not in _QUERY_STOPWORDS
         )
-        return self._search_match(terms, limit)
+        return self._search_match(terms, limit, table="block_trigram")
 
-    def _search_match(self, terms: str, limit: int) -> list[dict]:
+    def _search_match(
+        self, terms: str, limit: int, table: str = "block_fts"
+    ) -> list[dict]:
         if not terms:
             return []
         return self._rows(
-            "SELECT block_fts.id AS block_id, block.section_id,"
+            f"SELECT {table}.id AS block_id, block.section_id,"
             " section.chapter_id,"
-            " snippet(block_fts, 1, '[', ']', '…', ?) AS snippet"
-            " FROM search.block_fts"
-            " JOIN block ON block.id = block_fts.id"
+            f" snippet({table}, 1, '[', ']', '…', ?) AS snippet"
+            f" FROM search.{table}"
+            f" JOIN block ON block.id = {table}.id"
             " JOIN section ON section.id = block.section_id"
-            " WHERE block_fts MATCH ? ORDER BY rank LIMIT ?",
+            f" WHERE {table} MATCH ? ORDER BY rank LIMIT ?",
             (SEARCH_SNIPPET_TOKENS, terms, limit),
         )
 

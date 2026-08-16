@@ -123,3 +123,67 @@ def test_search_failure_degrades_to_a_plain_answer(content) -> None:
     answer = retriever.answer("How do I purify water before drinking it?")
     assert answer.sources is None
     assert answer.text == "Boil it first."
+
+
+def make_retriever_answering(
+    content: ContentStore | None, text: str
+) -> NemotronRetriever:
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        content_text = "none" if payload["max_tokens"] == 16 else text
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"role": "assistant", "content": content_text}}]
+            },
+        )
+
+    return NemotronRetriever(
+        base_url="http://box:30081/v1",
+        model=MODEL,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        content=content,
+    )
+
+
+NON_COVERAGE_OPENER = (
+    "The guide does not cover whether specific berries are safe to eat. "
+    "I will note this topic for the library's review log. "
+    "Eat only those plants you can positively identify, per chapter 9."
+)
+
+
+def test_sourced_answer_drops_false_non_coverage_opener(content) -> None:
+    # The model keeps opening sourced answers with a non-coverage claim the
+    # prompt forbids; the server drops those sentences so the answer opens
+    # with the guidance its passages carry.
+    retriever = make_retriever_answering(content, NON_COVERAGE_OPENER)
+    answer = retriever.answer("How do I purify water before drinking it?")
+    assert answer.sources is not None
+    assert answer.text == (
+        "Eat only those plants you can positively identify, per chapter 9."
+    )
+
+
+def test_unsourced_answer_keeps_its_non_coverage_clause(content) -> None:
+    retriever = make_retriever_answering(content, NON_COVERAGE_OPENER)
+    answer = retriever.answer("Which direction sets the evening wind?")
+    assert answer.sources is None
+    assert answer.text == NON_COVERAGE_OPENER
+
+
+def test_sourced_answer_keeps_a_mid_answer_caveat(content) -> None:
+    caveat = (
+        "Purify all standing water before drinking. "
+        "The guide does not cover desalination beyond the solar still."
+    )
+    retriever = make_retriever_answering(content, caveat)
+    answer = retriever.answer("How do I purify water before drinking it?")
+    assert answer.text == caveat
+
+
+def test_sourced_answer_of_only_non_coverage_stays_whole(content) -> None:
+    text = "The guide does not cover this topic."
+    retriever = make_retriever_answering(content, text)
+    answer = retriever.answer("How do I purify water before drinking it?")
+    assert answer.text == text

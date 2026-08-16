@@ -44,8 +44,11 @@ logger = logging.getLogger(__name__)
 CHAT_TIMEOUT_S = 120.0
 
 # Two-tier retrieval (#185): how many pack blocks a question pulls into the
-# prompt, and how much of each block's text rides along.
-PASSAGE_LIMIT = 3
+# prompt, and how much of each block's text rides along. Five slots, because
+# the ranked list mixes species lists with the governing rule blocks and a
+# three-slot window dropped the rule ("eat only plants you can positively
+# identify") behind the lists, leaving the model to declare non-coverage.
+PASSAGE_LIMIT = 5
 PASSAGE_CHARS = 800
 
 PASSAGES_HEADER = (
@@ -159,6 +162,27 @@ def _strip_think(content: str) -> str:
     return re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
 
 
+# A sourced answer opening with a non-coverage claim contradicts its own
+# passages: the model keeps producing "The guide does not cover berries"
+# ahead of a well-grounded answer even when the prompt forbids the phrase,
+# so the server drops those leading sentences instead. Only the opening is
+# scrubbed; a caveat later in a grounded answer stands.
+_NON_COVERAGE_SENTENCE = re.compile(
+    r"((?:does|do) not (?:directly )?(?:cover|address)"
+    r"|not (?:covered|addressed)|review log)",
+    re.IGNORECASE,
+)
+
+
+def _drop_false_non_coverage(text: str) -> str:
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    kept = 0
+    while kept < len(sentences) and _NON_COVERAGE_SENTENCE.search(sentences[kept]):
+        kept += 1
+    remainder = " ".join(sentences[kept:]).strip()
+    return remainder or text
+
+
 def _parse_category(content: str) -> str | None:
     words = _strip_think(content).split()
     if not words:
@@ -244,6 +268,8 @@ class NemotronRetriever:
                 tool=_tool_from_question(question),
             )
         text = _strip_think(content) or UNREACHABLE_TEXT
+        if sources:
+            text = _drop_false_non_coverage(text)
         tool = self._decide_tool(question, text)
         queued = None if sources else self._queue_topic(question)
         # One trace covers the model calls: the answer completion, the tool

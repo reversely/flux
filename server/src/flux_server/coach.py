@@ -241,12 +241,14 @@ KNOTS: dict[str, CoachKnot] = {
                 ),
             ],
         ),
-        # Improvised tourniquet (FM 4-25.11 2-20; app tile 1). Cues are the
-        # improvised-set step cues benched in docs/training/t3_zeroshot.ipynb
-        # and trained into the T3 adapter; the adapter serves under the model
-        # id named by FLUX_COSMOS_MODEL_TOURNIQUET, and without that env the
-        # base model answers, so the procedure degrades to bench-measured
-        # zero-shot behavior rather than breaking.
+        # Improvised tourniquet (FM 4-25.11 2-20; app tile 1). Four phases,
+        # not six steps: the phase-grain bench (t3_zeroshot.ipynb Run 5)
+        # merged the confusable adjacent steps and the pointer went from
+        # stalling in most sessions to tracking within one phase 91% of the
+        # time, with the twist-and-secure phase at 30/33. Cues are the
+        # benched phase cues verbatim. The adapter, when trained, serves
+        # under FLUX_COSMOS_MODEL_TOURNIQUET; without it the base model
+        # answers at the bench-measured rates.
         CoachKnot(
             id="tourniquet",
             name="Improvised tourniquet",
@@ -264,45 +266,38 @@ KNOTS: dict[str, CoachKnot] = {
                     cue="the bleeding site found and exposed on the limb",
                 ),
                 CoachStepDef(
-                    screen="Band above the wound. Never on a joint.",
+                    screen="Band above the wound. Wrap and tie tight.",
                     voice=(
                         "Place a band at least two inches wide around the limb, between "
-                        "the wound and the heart. Never directly over a wound, a "
-                        "fracture, or a joint."
+                        "the wound and the heart, never over a wound, a fracture, or a "
+                        "joint. Tie a half-knot, place a stick on top, and tie a full "
+                        "knot over the stick."
                     ),
-                    cue="a belt or strip of clothing placed around the limb above the wound",
+                    cue=(
+                        "a belt or strip of clothing wrapped around the limb and tied "
+                        "tight above the wound"
+                    ),
                 ),
                 CoachStepDef(
-                    screen="Half-knot. Stick on top. Full knot over.",
-                    voice=(
-                        "Tie a half-knot, the first part of tying a shoe lace. Place a "
-                        "stick on top of it, and tie a full knot over the stick."
-                    ),
-                    cue="the band tied or cinched tight around the limb",
-                ),
-                CoachStepDef(
-                    screen="Twist until bright red bleeding stops.",
+                    screen="Twist until bleeding stops. Tie off the stick.",
                     voice=(
                         "Twist the stick until the tourniquet is tight around the limb "
-                        "and the bright red bleeding has stopped."
+                        "and the bright red bleeding has stopped. Loop the free ends "
+                        "over the stick and tie them on the side of the limb, so it "
+                        "cannot unwind."
                     ),
-                    cue="a screwdriver or rod inserted into the band and twisted to tighten",
-                ),
-                CoachStepDef(
-                    screen="Loop ends over the stick. Tie on the side.",
-                    voice=(
-                        "Loop the free ends over the ends of the stick, bring them "
-                        "around the limb, and tie them together on the side, so the "
-                        "stick cannot unwind."
+                    cue=(
+                        "a screwdriver or rod in the band, twisted until bleeding stops "
+                        "and secured"
                     ),
-                    cue="the rod secured so it cannot unwind",
                 ),
                 CoachStepDef(
                     screen="Leave in full view. Mark a T and the time.",
                     voice=(
-                        "Leave the tourniquet in full view and mark the forehead with a "
-                        "T and the time. Once applied, it stays on until medical care "
-                        "takes over; loosening it can restart bleeding and lead to shock."
+                        "Check that the bright red bleeding has stopped. Leave the "
+                        "tourniquet in full view and mark the forehead with a T and the "
+                        "time. Once applied, it stays on until medical care takes over; "
+                        "loosening it can restart bleeding and lead to shock."
                     ),
                     cue="the wound checked for stopped bleeding",
                 ),
