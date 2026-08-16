@@ -257,6 +257,67 @@ export const PROCEDURES: Procedure[] = [
     ],
   },
   {
+    id: 'tourniquet',
+    name: 'Improvised tourniquet',
+    tileId: 1,
+    watchable: true,
+    manualChapter: 4,
+    reference: require('../../assets/coach/steps/tourniquet_4.jpg'),
+    attribution: {
+      source: 'FM 4-25.11 figs 2-32 to 2-36',
+      author: 'US Army',
+      license: 'public domain',
+    },
+    steps: [
+      {
+        screen: 'Find the bleed. Expose the limb.',
+        voice:
+          'Find where the bright red bleeding comes from and expose it. A tourniquet is a last resort, for an arm or leg, when a pressure dressing has failed to stop the bleeding.',
+        manual:
+          'The tourniquet should not be used unless a pressure dressing has failed to stop the bleeding or an arm or leg has been cut off.',
+      },
+      {
+        screen: 'Band above the wound. Never on a joint.',
+        voice:
+          'Place a band at least two inches wide around the limb, between the wound and the heart. Never directly over a wound, a fracture, or a joint.',
+        manual:
+          'Place the tourniquet around the limb, between the wound and the body trunk (or between the wound and the heart). Never place it directly over a wound, a fracture, or joint.',
+        figure: require('../../assets/coach/steps/tourniquet_1.jpg'),
+      },
+      {
+        screen: 'Half-knot. Stick on top. Full knot over.',
+        voice:
+          'Tie a half-knot, the first part of tying a shoe lace. Place a stick on top of it, and tie a full knot over the stick.',
+        manual:
+          'Tie a half-knot. Place a stick (or similar rigid object) on top of the half-knot. Tie a full knot over the stick.',
+        figure: require('../../assets/coach/steps/tourniquet_2.jpg'),
+      },
+      {
+        screen: 'Twist until bright red bleeding stops.',
+        voice:
+          'Twist the stick until the tourniquet is tight around the limb and the bright red bleeding has stopped.',
+        manual:
+          'Twist the stick until the tourniquet is tight around the limb and/or the bright red bleeding has stopped.',
+        figure: require('../../assets/coach/steps/tourniquet_3.jpg'),
+      },
+      {
+        screen: 'Loop ends over the stick. Tie on the side.',
+        voice:
+          'Loop the free ends over the ends of the stick, bring them around the limb, and tie them together on the side, so the stick cannot unwind.',
+        manual:
+          'Fasten the tourniquet to the limb by looping the free ends of the tourniquet over the ends of the stick. Then bring the ends around the limb to prevent the stick from loosening. Tie them together on the side of the limb.',
+        figure: require('../../assets/coach/steps/tourniquet_4.jpg'),
+      },
+      {
+        screen: 'Leave in full view. Mark a T and the time.',
+        voice:
+          'Leave the tourniquet in full view and mark the forehead with a T and the time. Once applied, it stays on until medical care takes over; loosening it can restart bleeding and lead to shock.',
+        manual:
+          'DO NOT loosen or release a tourniquet after it has been applied as release could precipitate bleeding and potentially lead to shock. Mark the casualty’s forehead with a “T” and the time.',
+      },
+    ],
+  },
+  {
     id: 'fire-tepee',
     name: 'Build a fire',
     tileId: 3,
