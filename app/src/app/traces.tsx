@@ -36,7 +36,12 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
         {entry.estTokens !== undefined ? `, ~${entry.estTokens} tokens` : ''}
       </Text>
       {entry.model !== undefined && (
-        <Text style={[dark.note, styles.model]}>{entry.model}</Text>
+        <Text style={[dark.note, styles.model]}>
+          {entry.model}
+          {entry.inferenceMs !== undefined
+            ? `, inference ${(entry.inferenceMs / 1000).toFixed(2)} s`
+            : ''}
+        </Text>
       )}
       {entry.referenced !== undefined && entry.referenced.length > 0 && (
         <Text style={dark.note} numberOfLines={open ? undefined : 2}>
@@ -132,6 +137,9 @@ const styles = StyleSheet.create({
   },
   error: {
     color: '#8C3730',
+  },
+  inference: {
+    color: colors.signature,
   },
   model: {
     color: colors.signature,

@@ -9,6 +9,7 @@ import asyncio
 import hashlib
 import json
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -50,6 +51,7 @@ from flux_server.models import (
     FunctionalityList,
     FunctionalityMode,
     IdentificationRecord,
+    InferenceTrace,
     IngestEntry,
     NarrationCreated,
     NarrationRequest,
@@ -619,11 +621,19 @@ def create_app(
                 status_code=422, detail=f"unreadable clip: {error}"
             ) from error
         before = advance_pointer(session["predictions"], len(knot.steps))
+        started = time.monotonic()
         prediction = coach_classifier.classify(knot, frames)
+        latency_ms = int((time.monotonic() - started) * 1000)
         session = coach_store.record(session_id, prediction)
         after = advance_pointer(session["predictions"], len(knot.steps))
         return CoachClipResult(
-            prediction=prediction, step=after, advanced=after > before
+            prediction=prediction,
+            step=after,
+            advanced=after > before,
+            trace=InferenceTrace(
+                model=getattr(coach_classifier, "model", "step-classifier"),
+                latency_ms=latency_ms,
+            ),
         )
 
     @app.post(

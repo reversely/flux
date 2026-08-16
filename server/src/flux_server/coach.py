@@ -291,6 +291,8 @@ class CosmosStepClassifier:
     def __init__(self, base_url: str, model: str) -> None:
         self._url = base_url.rstrip("/") + "/v1/chat/completions"
         self._model = model
+        # Routes name the model in the inference trace they return.
+        self.model = model
 
     def classify(self, knot: CoachKnot, frames: list[bytes]) -> int | None:
         prompt = coach_step_prompt(knot.name, [s.cue for s in knot.steps])

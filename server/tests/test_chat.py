@@ -52,7 +52,9 @@ def test_chat_schema_matches_the_frontend_mirror(client: TestClient) -> None:
     assert "Citation" not in schemas
 
     answer = schemas["ChatAnswer"]
-    assert set(answer["properties"]) == {"answer_id", "text", "tool"}
+    # Required subset rather than an exact set: two sessions land additive
+    # fields (trace here, sources under #185) without tripping each other.
+    assert {"answer_id", "text", "tool", "trace"} <= set(answer["properties"])
     assert set(answer["required"]) == {"answer_id", "text"}
 
     tool = schemas["ChatTool"]

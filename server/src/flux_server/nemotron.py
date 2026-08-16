@@ -21,12 +21,13 @@ plain answer; the route never errors because the box is down.
 import json
 import logging
 import re
+import time
 import uuid
 from pathlib import Path
 
 import httpx
 
-from flux_server.models import ChatAnswer, ChatTool
+from flux_server.models import ChatAnswer, ChatTool, InferenceTrace
 from flux_server.prompts import chat_system_prompt
 
 logger = logging.getLogger(__name__)
@@ -195,6 +196,7 @@ class NemotronRetriever:
 
     def answer(self, question: str) -> ChatAnswer:
         answer_id = f"ans_{uuid.uuid4().hex[:8]}"
+        started = time.monotonic()
         try:
             content = self._answer_text(question)
         except (httpx.HTTPError, KeyError, IndexError, TypeError) as error:
@@ -205,10 +207,17 @@ class NemotronRetriever:
                 tool=_tool_from_question(question),
             )
         text = _strip_think(content) or UNREACHABLE_TEXT
+        tool = self._decide_tool(question, text)
+        # One trace covers both model calls: the answer completion and the
+        # tool classification that follows it.
         return ChatAnswer(
             answer_id=answer_id,
             text=text,
-            tool=self._decide_tool(question, text),
+            tool=tool,
+            trace=InferenceTrace(
+                model=self.model,
+                latency_ms=int((time.monotonic() - started) * 1000),
+            ),
         )
 
     def _decide_tool(self, question: str, answer_text: str) -> ChatTool | None:

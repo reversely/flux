@@ -180,12 +180,23 @@ class ChatTool(BaseModel):
     chapter: int | None = None
 
 
+class InferenceTrace(BaseModel):
+    """Which model produced a result and how long the call took, measured
+    by the server around the model call; the traces tab renders these
+    fields ahead of the payload."""
+
+    model: str
+    latency_ms: int
+
+
 class ChatAnswer(BaseModel):
     """Chapter mentions in text carry the reference links (no citations field)."""
 
     answer_id: str
     text: str
     tool: ChatTool | None = None
+    # Absent when the model is unreachable and the keyword floor answered.
+    trace: InferenceTrace | None = None
 
 
 class WalkSpeciesCard(BaseModel):
@@ -298,6 +309,7 @@ class CoachClipResult(BaseModel):
     prediction: int | None = None
     step: int
     advanced: bool
+    trace: InferenceTrace | None = None
 
 
 class SpeechTrace(BaseModel):

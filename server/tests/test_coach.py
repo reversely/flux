@@ -102,19 +102,21 @@ def test_clips_drive_the_pointer(client_and_classifier):
         f"/v1/coach/sessions/{session_id}/clip",
         files={"video": ("clip.mp4", clip, "video/mp4")},
     ).json()
-    assert first == {"prediction": 1, "step": 0, "advanced": False}
+    assert first["prediction"] == 1
+    assert (first["step"], first["advanced"]) == (0, False)
+    assert first["trace"]["latency_ms"] >= 0
 
     second = client.post(
         f"/v1/coach/sessions/{session_id}/clip",
         files={"video": ("clip.mp4", clip, "video/mp4")},
     ).json()
-    assert second == {"prediction": 1, "step": 1, "advanced": True}
+    assert (second["prediction"], second["step"], second["advanced"]) == (1, 1, True)
 
     third = client.post(
         f"/v1/coach/sessions/{session_id}/clip",
         files={"video": ("clip.mp4", clip, "video/mp4")},
     ).json()
-    assert third == {"prediction": 2, "step": 1, "advanced": False}
+    assert (third["prediction"], third["step"], third["advanced"]) == (2, 1, False)
 
     # The classifier saw sampled frames, not the raw container.
     assert classifier.calls[0][0] == "square"

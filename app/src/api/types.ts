@@ -27,6 +27,19 @@ export interface ChatTool {
   guide?: string;
 }
 
+export interface InferenceTrace {
+  model: string;
+  latency_ms: number;
+}
+
+/** One pack passage a two-tier answer drew on (#185); ids anchor deep links. */
+export interface ChatSource {
+  block_id: string;
+  section_id: string;
+  chapter_id: string;
+  snippet: string;
+}
+
 export interface ChatAnswer {
   answer_id: string;
   text: string;
@@ -34,6 +47,9 @@ export interface ChatAnswer {
   // The server still emits the pre-rework citations field; the client ignores
   // it (chapter mentions in text carry the links) until the shapes realign.
   citations?: unknown[];
+  /** Present when the answer quotes pack passages; absent on plain answers. */
+  sources?: ChatSource[];
+  trace?: InferenceTrace;
 }
 
 /**
@@ -192,6 +208,7 @@ export interface CoachClipResult {
   prediction?: number;
   step: number;
   advanced: boolean;
+  trace?: InferenceTrace;
 }
 
 export interface WalkSpeciesDetail extends WalkSpeciesCard {
