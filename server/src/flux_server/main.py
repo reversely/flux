@@ -49,6 +49,7 @@ from flux_server.models import (
     FrameUploadResponse,
     FunctionalityList,
     FunctionalityMode,
+    IngestEntry,
     NarrationCreated,
     NarrationRequest,
     SearchResults,
@@ -58,6 +59,8 @@ from flux_server.models import (
     SessionFinished,
     SessionResults,
     SpeechTrace,
+    TrailAnswer,
+    TrailQuestion,
     TranscriptionResult,
     VideoUploadResponse,
     WalkAnswer,
@@ -272,7 +275,25 @@ def create_app(
         videos = store.video_paths(session_id)
         if not videos:
             raise HTTPException(status_code=409, detail="session has no videos")
-        outcome = handoff.summarize_session(session_id, videos)
+        # The transcript comes first so the summary prompt can layer what
+        # the user said while filming on top of the base contract (#170).
+        transcript = transcribe_videos(videos)
+        ingest: list[dict] = []
+
+        def record_progress(video: str, state: str) -> None:
+            # One entry per clip, updated in place and flushed on every
+            # change, so polling the results route sees live handoff progress.
+            for entry in ingest:
+                if entry["video"] == video:
+                    entry["state"] = state
+                    break
+            else:
+                ingest.append({"video": video, "state": state})
+            store.write_ingest(session_id, ingest)
+
+        outcome = handoff.summarize_session(
+            session_id, videos, progress=record_progress, transcript=transcript
+        )
         if outcome is None:
             return SessionFinished(session_id=session_id, status="in_progress")
         store.write_result(
@@ -281,7 +302,7 @@ def create_app(
                 "status": outcome.status,
                 "summary": outcome.summary,
                 "detail": outcome.detail,
-                "transcript": transcribe_videos(videos),
+                "transcript": transcript,
             },
         )
         return SessionFinished(session_id=session_id, status=outcome.status)
@@ -308,7 +329,10 @@ def create_app(
         result = store.read_result(session_id)
         if result is None:
             return SessionResults(
-                session_id=session_id, status="in_progress", records=[]
+                session_id=session_id,
+                status="in_progress",
+                records=[],
+                ingest=ingest_entries(session_id),
             )
         return SessionResults(
             session_id=session_id,
@@ -317,7 +341,38 @@ def create_app(
             summary=result.get("summary"),
             detail=result.get("detail"),
             transcript=result.get("transcript"),
+            ingest=ingest_entries(session_id),
         )
+
+    def ingest_entries(session_id: str) -> list[IngestEntry] | None:
+        stored = store.read_ingest(session_id)
+        if stored is None:
+            return None
+        return [IngestEntry(**entry) for entry in stored]
+
+    @app.post(
+        "/v1/sessions/{session_id}/ask",
+        response_model=TrailAnswer,
+        response_model_exclude_none=True,
+    )
+    def ask_trail(session_id: str, request: TrailQuestion) -> TrailAnswer:
+        """Answer a question over a recorded trail's clips (#106).
+
+        Honest gating like the finish handoff: without a configured VSS
+        there is no fabricated answer, only a 503.
+        """
+        require_session(session_id)
+        videos = store.video_paths(session_id)
+        if not videos:
+            raise HTTPException(status_code=409, detail="session has no videos")
+        outcome = handoff.ask_session(session_id, videos, request.question)
+        if outcome is None:
+            raise HTTPException(status_code=503, detail="no VSS configured")
+        if outcome.status == "failed" or outcome.summary is None:
+            raise HTTPException(
+                status_code=502, detail=outcome.detail or "VSS answer failed"
+            )
+        return TrailAnswer(session_id=session_id, answer=outcome.summary)
 
     @app.get("/v1/sessions/{session_id}/frames/{frame_id}")
     def get_frame(session_id: str, frame_id: str) -> FileResponse:

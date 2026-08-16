@@ -228,21 +228,26 @@ def test_stream_relays_partials_then_final(tmp_path):
 
 
 class SummaryHandoff:
-    """Always completes with one canned summary."""
+    """Always completes with one canned summary, recording the transcript."""
 
-    def summarize_session(self, session_id, videos):
+    def __init__(self) -> None:
+        self.transcripts: list[str | None] = []
+
+    def summarize_session(self, session_id, videos, progress=None, transcript=None):
         from flux_server.vss import HandoffOutcome
 
+        self.transcripts.append(transcript)
         return HandoffOutcome(status="complete", summary="a creek crossing")
 
 
 MP4_BYTES = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 32
 
 
-def finish_with_speech(tmp_path: Path, fake: FakeSpeech | None) -> TestClient:
+def finish_with_speech(tmp_path: Path, fake: FakeSpeech | None):
+    handoff = SummaryHandoff()
     app = create_app(
         data_dir=tmp_path / "data",
-        handoff=SummaryHandoff(),
+        handoff=handoff,
         content=None,
         tile_archive=None,
         walkthrough=None,
@@ -259,19 +264,25 @@ def finish_with_speech(tmp_path: Path, fake: FakeSpeech | None) -> TestClient:
         data={"captured_at": "2026-08-15T00:00:00Z"},
     )
     assert client.post(f"/v1/sessions/{session_id}/finish").status_code == 200
-    return client.get(f"/v1/sessions/{session_id}/results").json()
+    return client.get(f"/v1/sessions/{session_id}/results").json(), handoff
 
 
 def test_finish_carries_clip_transcript(tmp_path):
-    results = finish_with_speech(tmp_path, FakeSpeech(["standing water on the left"]))
+    results, handoff = finish_with_speech(
+        tmp_path, FakeSpeech(["standing water on the left"])
+    )
     assert results["summary"] == "a creek crossing"
     assert results["transcript"] == "standing water on the left"
+    # The same transcript reaches the handoff, where the summary prompt
+    # layers it on top of the base contract (#170).
+    assert handoff.transcripts == ["standing water on the left"]
 
 
 def test_finish_without_speech_omits_transcript(tmp_path):
-    results = finish_with_speech(tmp_path, None)
+    results, handoff = finish_with_speech(tmp_path, None)
     assert results["summary"] == "a creek crossing"
     assert results["transcript"] is None
+    assert handoff.transcripts == [None]
 
 
 def test_stream_reports_unconfigured_backend(tmp_path):

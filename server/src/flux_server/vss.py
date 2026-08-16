@@ -18,11 +18,14 @@ import logging
 import os
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
 import httpx
+
+from flux_server.prompts import trail_summary_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +33,19 @@ SUMMARIZE_TIMEOUT_S = 600.0
 DELETE_ATTEMPTS = 3
 DELETE_RETRY_DELAY_S = 1.0
 
-SUMMARY_PROMPT = (
-    "Call the video_understanding tool to summarize the video {sensor_id}: "
-    "describe the route, notable landmarks, hazards, and anything a hiker "
-    "retracing it would need to know."
+# Trail answers follow the VSS-surface shape: the practical implication for
+# the user first, then the observation from the footage that supports it.
+ASK_PROMPT = (
+    "Call the video_understanding tool on the video {sensor_id} and answer "
+    "this question about the recorded trail: {question}. "
+    "Answer with the practical implication for the hiker first, in one or "
+    "two sentences, then the specific observation from the video that "
+    "supports it."
 )
+
+# Reports one video's ingest state ("summarizing", "done", "failed") while a
+# handoff runs, so the results route can show progress mid-finish.
+IngestProgress = Callable[[str, str], None]
 
 _AGENT_THINK_RE = re.compile(r"<agent-think>.*</agent-think>", flags=re.DOTALL)
 
@@ -59,9 +70,19 @@ class HandoffOutcome:
 
 class VideoHandoff(Protocol):
     def summarize_session(
-        self, session_id: str, videos: list[Path]
+        self,
+        session_id: str,
+        videos: list[Path],
+        progress: IngestProgress | None = None,
+        transcript: str | None = None,
     ) -> HandoffOutcome | None:
         """Return the outcome, or None when no VSS is configured."""
+        ...
+
+    def ask_session(
+        self, session_id: str, videos: list[Path], question: str
+    ) -> HandoffOutcome | None:
+        """Answer a question over the session's clips, or None unconfigured."""
         ...
 
 
@@ -75,8 +96,22 @@ class NotConfiguredHandoff:
     def __init__(self) -> None:
         self.recorded: list[dict] = []
 
+    def ask_session(
+        self, session_id: str, videos: list[Path], question: str
+    ) -> HandoffOutcome | None:
+        self.recorded.append({"session_id": session_id, "question": question})
+        logger.warning(
+            "VSS_BASE_URL not configured: session %s trail question dropped",
+            session_id,
+        )
+        return None
+
     def summarize_session(
-        self, session_id: str, videos: list[Path]
+        self,
+        session_id: str,
+        videos: list[Path],
+        progress: IngestProgress | None = None,
+        transcript: str | None = None,
     ) -> HandoffOutcome | None:
         for video in videos:
             plan = {
@@ -113,13 +148,21 @@ class VSSHandoff:
         self._delete_retry_delay_s = delete_retry_delay_s
 
     def summarize_session(
-        self, session_id: str, videos: list[Path]
+        self,
+        session_id: str,
+        videos: list[Path],
+        progress: IngestProgress | None = None,
+        transcript: str | None = None,
     ) -> HandoffOutcome | None:
+        report = progress or (lambda video, state: None)
         summaries: list[str] = []
         for video in videos:
             try:
-                summaries.append(self._summarize_video(session_id, video))
+                report(video.name, "summarizing")
+                summaries.append(self._summarize_video(session_id, video, transcript))
+                report(video.name, "done")
             except httpx.HTTPError as error:
+                report(video.name, "failed")
                 logger.error(
                     "VSS handoff failed for session %s video %s: %s",
                     session_id,
@@ -129,12 +172,51 @@ class VSSHandoff:
                 return HandoffOutcome(status="failed", detail=str(error))
         return HandoffOutcome(status="complete", summary="\n\n".join(summaries))
 
-    def _summarize_video(self, session_id: str, video: Path) -> str:
+    def ask_session(
+        self, session_id: str, videos: list[Path], question: str
+    ) -> HandoffOutcome | None:
+        """Re-upload the stored clips and ask one question over each.
+
+        Sensors do not outlive the summarize handoff (PRD 3.5 deletes them),
+        so a question re-uploads from the server's own copies and cleans up
+        the same way. One answer per clip, joined like the summaries.
+        """
+        answers: list[str] = []
+        for video in videos:
+            sensor_id, sensor_url = self._upload(
+                f"{session_id}_ask_{video.name}", video
+            )
+            try:
+                response = self._client.post(
+                    f"{self.base_url}/generate",
+                    json={
+                        "input_message": ASK_PROMPT.format(
+                            sensor_id=sensor_id, question=question
+                        )
+                    },
+                )
+                response.raise_for_status()
+                answers.append(answer_from_generate_value(response.json()["value"]))
+            except httpx.HTTPError as error:
+                logger.error(
+                    "VSS ask failed for session %s video %s: %s",
+                    session_id,
+                    video.name,
+                    error,
+                )
+                return HandoffOutcome(status="failed", detail=str(error))
+            finally:
+                self._delete_with_retry(sensor_url)
+        return HandoffOutcome(status="complete", summary="\n\n".join(answers))
+
+    def _summarize_video(
+        self, session_id: str, video: Path, transcript: str | None
+    ) -> str:
         # Session-qualified filename: VST names the sensor after the upload,
         # and video_001.mp4 alone would collide across sessions.
         sensor_id, sensor_url = self._upload(f"{session_id}_{video.name}", video)
         try:
-            return self._generate(sensor_id)
+            return self._generate(sensor_id, transcript)
         finally:
             self._delete_with_retry(sensor_url)
 
@@ -156,10 +238,10 @@ class VSSHandoff:
         sensor_url = storage_url.removesuffix("/storage/file") + f"/sensor/{sensor_id}"
         return sensor_id, sensor_url
 
-    def _generate(self, sensor_id: str) -> str:
+    def _generate(self, sensor_id: str, transcript: str | None) -> str:
         response = self._client.post(
             f"{self.base_url}/generate",
-            json={"input_message": SUMMARY_PROMPT.format(sensor_id=sensor_id)},
+            json={"input_message": trail_summary_prompt(sensor_id, transcript)},
         )
         response.raise_for_status()
         return answer_from_generate_value(response.json()["value"])

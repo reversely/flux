@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from flux_server.main import create_app
 from flux_server.vss import (
+    HandoffOutcome,
     NotConfiguredHandoff,
     VSSHandoff,
     answer_from_generate_value,
@@ -293,3 +294,61 @@ def test_handoff_from_env(
         handoff = handoff_from_env()
         assert isinstance(handoff, VSSHandoff)
         assert handoff.base_url == env_value
+
+
+class StubAskHandoff:
+    """Scripted ask/summarize outcomes with recorded calls."""
+
+    def __init__(self) -> None:
+        self.asked: list[tuple[str, str]] = []
+
+    def summarize_session(self, session_id, videos, progress=None, transcript=None):
+        if progress is not None:
+            for video in videos:
+                progress(video.name, "summarizing")
+                progress(video.name, "done")
+        return HandoffOutcome(status="complete", summary="ok")
+
+    def ask_session(self, session_id, videos, question):
+        self.asked.append((session_id, question))
+        return HandoffOutcome(status="complete", summary="Water is 400 m back.")
+
+
+def test_ask_answers_over_a_recorded_session(tmp_path: Path) -> None:
+    handoff = StubAskHandoff()
+    client = make_client(tmp_path, handoff)
+    session_id = create_session(client)
+    upload_video(client, session_id)
+    response = client.post(
+        f"/v1/sessions/{session_id}/ask", json={"question": "any water sources?"}
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "session_id": session_id,
+        "answer": "Water is 400 m back.",
+    }
+    assert handoff.asked == [(session_id, "any water sources?")]
+
+
+def test_ask_without_videos_is_409(tmp_path: Path) -> None:
+    client = make_client(tmp_path, StubAskHandoff())
+    session_id = create_session(client)
+    response = client.post(f"/v1/sessions/{session_id}/ask", json={"question": "q"})
+    assert response.status_code == 409
+
+
+def test_ask_unconfigured_is_503(tmp_path: Path) -> None:
+    client = make_client(tmp_path, NotConfiguredHandoff())
+    session_id = create_session(client)
+    upload_video(client, session_id)
+    response = client.post(f"/v1/sessions/{session_id}/ask", json={"question": "q"})
+    assert response.status_code == 503
+
+
+def test_finish_exposes_per_clip_ingest_states(tmp_path: Path) -> None:
+    client = make_client(tmp_path, StubAskHandoff())
+    session_id = create_session(client)
+    upload_video(client, session_id)
+    client.post(f"/v1/sessions/{session_id}/finish")
+    results = client.get(f"/v1/sessions/{session_id}/results").json()
+    assert results["ingest"] == [{"video": "video_001.mp4", "state": "done"}]

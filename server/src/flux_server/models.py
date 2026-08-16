@@ -55,12 +55,21 @@ class FrameUploadResponse(BaseModel):
     results: list[RecordStub]
 
 
+class IngestEntry(BaseModel):
+    """One clip's place in the VSS handoff while a finish runs (#106)."""
+
+    video: str
+    state: Literal["summarizing", "done", "failed"]
+
+
 class SessionResults(BaseModel):
     session_id: str
     status: Literal["in_progress", "complete", "failed"]
     records: list[RecordStub]
     summary: str | None = None
     detail: str | None = None
+    # Per-clip handoff progress; absent before the finish starts (#106).
+    ingest: list[IngestEntry] | None = None
     # What the user said while filming, transcribed on the box (#168);
     # absent when no speech backend is configured or the clips are silent.
     transcript: str | None = None
@@ -288,3 +297,16 @@ class WalkUtteranceResult(BaseModel):
     state: str | None = None
     trace: SpeechTrace
     walk: "WalkSessionState"
+
+
+class TrailQuestion(BaseModel):
+    """A question asked over a finished trail session (#106)."""
+
+    question: str
+
+
+class TrailAnswer(BaseModel):
+    """The VSS agent's answer over the session's clips: implication first."""
+
+    session_id: str
+    answer: str

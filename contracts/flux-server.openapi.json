@@ -565,6 +565,56 @@
         }
       }
     },
+    "/v1/sessions/{session_id}/ask": {
+      "post": {
+        "summary": "Ask Trail",
+        "description": "Answer a question over a recorded trail's clips (#106).\n\nHonest gating like the finish handoff: without a configured VSS\nthere is no fabricated answer, only a 503.",
+        "operationId": "ask_trail_v1_sessions__session_id__ask_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrailQuestion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrailAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/sessions/{session_id}/frames/{frame_id}": {
       "get": {
         "summary": "Get Frame",
@@ -1714,6 +1764,30 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "IngestEntry": {
+        "properties": {
+          "video": {
+            "type": "string",
+            "title": "Video"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "summarizing",
+              "done",
+              "failed"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video",
+          "state"
+        ],
+        "title": "IngestEntry",
+        "description": "One clip's place in the VSS handoff while a finish runs (#106)."
+      },
       "NarrationCreated": {
         "properties": {
           "narration_id": {
@@ -2025,6 +2099,20 @@
             ],
             "title": "Detail"
           },
+          "ingest": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/IngestEntry"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingest"
+          },
           "transcript": {
             "anyOf": [
               {
@@ -2068,6 +2156,39 @@
         ],
         "title": "SpeechTrace",
         "description": "Where a speech inference ran; shown raw in the app's traces tab."
+      },
+      "TrailAnswer": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "answer"
+        ],
+        "title": "TrailAnswer",
+        "description": "The VSS agent's answer over the session's clips: implication first."
+      },
+      "TrailQuestion": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "TrailQuestion",
+        "description": "A question asked over a finished trail session (#106)."
       },
       "TranscriptionResult": {
         "properties": {
