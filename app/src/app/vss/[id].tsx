@@ -1,16 +1,25 @@
 import { Feather } from '@expo/vector-icons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { mapTranscript, suggestedOptions } from '@/api/speech';
+import { useHoldToTalk, useNarration } from '@/api/voice';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { findingFor, sourceById, vssById } from '@/data/vss';
 import { useSession } from '@/store/session';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
+
+/** On-device speech that resolves when the line has been said, so the
+ * capture prompt can finish before the unmuted clip starts recording. */
+const speakThrough = (line: string) =>
+  new Promise<void>((resolve) => {
+    Speech.speak(line, { onDone: () => resolve(), onError: () => resolve() });
+  });
 
 type Phase = 'intro' | 'filming' | 'interview' | 'result';
 
@@ -37,22 +46,52 @@ export default function VssScreen() {
   const [step, setStep] = useState(0);
   const [reading, setReading] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // What the user said while filming; suggests options, never answers them.
+  const [clipHeard, setClipHeard] = useState<string | null>(null);
+  const [heard, setHeard] = useState<string | null>(null);
   const camera = useRef<CameraView | null>(null);
   const client = useSession((s) => s.client);
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
   const question = session?.questions[step];
 
-  // Every question is spoken as it appears; the options stay tappable, so
-  // silence never blocks the session.
+  // Every question is spoken as it appears (Kokoro through the server,
+  // on-device fallback); the options stay tappable, so silence never
+  // blocks the session.
+  const narration = useNarration();
   useEffect(() => {
     if (phase === 'interview' && question !== undefined) {
-      Speech.stop();
-      Speech.speak(question.ask);
+      setHeard(null);
+      void narration.speak(`${question.ask} Options: ${question.options.join(', ')}.`);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, question]);
-  useEffect(() => () => {
-    void Speech.stop();
-  }, []);
+
+  // Hold-to-talk answers pass the same exact gate as the walk; a spoken
+  // option is a confirmation, anything else asks again.
+  const talk = useHoldToTalk({
+    onPartial: setHeard,
+    onFinal: (text) => {
+      if (question === undefined) {
+        return;
+      }
+      const mapped = mapTranscript(text, question.options);
+      if (mapped.action === 'answer') {
+        setHeard(null);
+        answer(mapped.state);
+      } else if (mapped.action === 'repeat') {
+        setHeard(null);
+        void narration.speak(`${question.ask} Options: ${question.options.join(', ')}.`);
+      } else if (mapped.action === 'undo') {
+        setHeard(null);
+        setStep(Math.max(0, step - 1));
+      } else {
+        setHeard(`"${text}" — say a listed option`);
+      }
+    },
+    onProblem: (kind) =>
+      setHeard(kind === 'denied' ? 'Mic off. Allow the microphone.' : 'Voice needs the server'),
+  });
 
   if (session === undefined) {
     return (
@@ -66,13 +105,20 @@ export default function VssScreen() {
   const finding = findingFor(session, answers);
   const findingSource = sourceById(session, finding.source);
 
-  // The clip goes to the box while the interview runs. When no server is
-  // reachable the interview still happens; the session says so rather than
-  // pretending it looked.
+  // The clip goes to the box while the interview runs, and its audio track
+  // goes to Parakeet: what the user said while filming becomes suggestions
+  // on the interview options. The capture prompt finishes speaking before
+  // recording starts, so the app's own voice never lands in the clip. When
+  // no server is reachable the interview still happens; the session says
+  // so rather than pretending it looked.
   const record = async () => {
     setPhase('filming');
     setNote(null);
-    Speech.speak(session.capture);
+    setClipHeard(null);
+    if (micPermission !== null && !micPermission.granted && micPermission.canAskAgain) {
+      await requestMicPermission();
+    }
+    await speakThrough(session.capture);
     try {
       const video = await camera.current?.recordAsync({
         codec: 'avc1',
@@ -91,6 +137,16 @@ export default function VssScreen() {
             setReading(false);
           }
         })();
+        void (async () => {
+          try {
+            const clip = await client().transcribeClip(video.uri);
+            if (clip.text.trim() !== '') {
+              setClipHeard(clip.text);
+            }
+          } catch {
+            // No speech backend; the clip still went to VSS above.
+          }
+        })();
       }
     } catch {
       setPhase('interview');
@@ -104,13 +160,18 @@ export default function VssScreen() {
     }
     const next = { ...answers, [question.id]: value };
     setAnswers(next);
+    setHeard(null);
     if (step + 1 < session.questions.length) {
       setStep(step + 1);
     } else {
-      Speech.stop();
+      narration.stop();
       setPhase('result');
     }
   };
+
+  const suggested = question !== undefined && clipHeard !== null
+    ? suggestedOptions(clipHeard, question.options)
+    : [];
 
   return (
     <View style={styles.screen}>
@@ -122,7 +183,7 @@ export default function VssScreen() {
           style={styles.preview}
           mode="video"
           facing="back"
-          mute
+          mute={micPermission?.granted !== true}
           videoQuality="4:3"
         />
       )}
@@ -169,12 +230,45 @@ export default function VssScreen() {
             <Text style={typography.surfaceTitle}>{question.ask}</Text>
             <Text style={typography.annotation}>{question.because}</Text>
             <View style={styles.row}>
-              {question.options.map((option) => (
-                <Pressable key={option} style={styles.chip} onPress={() => answer(option)}>
-                  <Text style={styles.chipText}>{option}</Text>
-                </Pressable>
-              ))}
+              {question.options.map((option) => {
+                const hinted = suggested.includes(option);
+                return (
+                  <Pressable
+                    key={option}
+                    style={[styles.chip, hinted && styles.chipSuggested]}
+                    onPress={() => answer(option)}
+                  >
+                    <Text style={styles.chipText}>
+                      {option}
+                      {hinted ? ' · heard' : ''}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
+            <View style={styles.voiceRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={talk.listening ? 'Release to answer' : 'Hold to answer by voice'}
+                onPressIn={() => {
+                  narration.stop();
+                  setHeard('Listening');
+                  void talk.start();
+                }}
+                onPressOut={talk.stop}
+                style={[styles.micButton, talk.listening && styles.micButtonLive]}
+              >
+                <Feather name="mic" size={18} color={talk.listening ? colors.card : colors.ink} />
+              </Pressable>
+              <Text style={[typography.annotation, styles.heardText]} numberOfLines={2}>
+                {heard ?? 'Hold. Say an option.'}
+              </Text>
+            </View>
+            {clipHeard !== null && (
+              <Text style={typography.annotation} numberOfLines={2}>
+                In the clip: {clipHeard}
+              </Text>
+            )}
             <Text style={typography.annotation}>
               {step + 1} of {session.questions.length}
             </Text>
@@ -280,6 +374,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipText: { ...typography.listBody, color: colors.ink },
+  chipSuggested: { borderColor: colors.signature, backgroundColor: colors.signatureSoft },
+  voiceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.m },
+  micButton: {
+    width: sizes.control,
+    height: sizes.control,
+    borderRadius: radius.control,
+    borderWidth: 1,
+    borderColor: colors.steel[2],
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+  },
+  micButtonLive: { backgroundColor: colors.signature, borderColor: colors.signature },
+  heardText: { flex: 1 },
   sources: { gap: spacing.xs, marginTop: spacing.l },
   sourcesHead: { ...typography.annotation, textTransform: 'uppercase', letterSpacing: 0.4 },
   sourceLine: { ...typography.listBody, color: colors.signature },

@@ -172,3 +172,8 @@ export interface NarrationCreated {
   voice: string;
   trace: SpeechTrace;
 }
+
+export interface TranscriptionResult {
+  text: string;
+  trace: SpeechTrace;
+}

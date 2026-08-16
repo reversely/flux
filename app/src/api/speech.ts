@@ -133,6 +133,19 @@ function normalize(text: string): string {
     .trim();
 }
 
+/**
+ * Options whose whole normalized phrase occurs in a free transcript, for
+ * suggesting answers heard in a clip's narration. Suggestions only: the
+ * user still confirms by tap or voice, per the #80 care rule.
+ */
+export function suggestedOptions(transcript: string, options: string[]): string[] {
+  const spoken = ` ${normalize(transcript)} `;
+  return options.filter((option) => {
+    const phrase = normalize(option);
+    return phrase !== '' && spoken.includes(` ${phrase} `);
+  });
+}
+
 export function mapTranscript(text: string, states: string[]): SpokenAction {
   const spoken = normalize(text);
   if (spoken === '') {

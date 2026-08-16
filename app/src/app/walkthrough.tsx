@@ -1,20 +1,14 @@
 import { Feather } from '@expo/vector-icons';
-import {
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioPlayer,
-  useAudioStream,
-} from 'expo-audio';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Speech from 'expo-speech';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { mapTranscript, openTranscriptionStream, type TranscriptionStream } from '@/api/speech';
+import { mapTranscript } from '@/api/speech';
 import type { WalkQuestion, WalkSessionState } from '@/api/types';
+import { useHoldToTalk, useNarration } from '@/api/voice';
 import { MushroomDiagram } from '@/components/MushroomDiagram';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
@@ -119,21 +113,11 @@ export default function Walkthrough() {
   // the specimen; the text-only flow stays silent. Narration prefers the
   // box's Kokoro voice through the server and falls back to on-device
   // speech when the server has no speech backend (#155).
-  const player = useAudioPlayer();
+  const narration = useNarration();
   const narrate = useCallback(
-    async (question: WalkQuestion) => {
-      const line = `${question.question} Options: ${question.states.join(', ')}.`;
-      Speech.stop();
-      player.pause();
-      try {
-        const narration = await client().createNarration(line);
-        player.replace({ uri: client().narrationUrl(narration.audio_url) });
-        player.play();
-      } catch {
-        Speech.speak(line);
-      }
-    },
-    [client, player],
+    (question: WalkQuestion) =>
+      narration.speak(`${question.question} Options: ${question.states.join(', ')}.`),
+    [narration],
   );
   const spokenCharacter = current?.character;
   useEffect(() => {
@@ -143,22 +127,13 @@ export default function Walkthrough() {
     void narrate(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spokenCharacter, wantCamera]);
-  useEffect(() => () => void Speech.stop(), []);
 
   // Push-to-talk (#155): while the chip is held down, int16 PCM streams to
   // WS /v1/speech/stream and partials land on screen; release ends the
   // utterance and the final transcript passes the same exact gate as the
   // server's mapping. Recording pauses narration, so the mic never hears
   // the app's own voice (the #74 turn-taking rule).
-  const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState<string | null>(null);
-  const wsRef = useRef<TranscriptionStream | null>(null);
-  const { stream: mic } = useAudioStream({
-    sampleRate: 16000,
-    channels: 1,
-    encoding: 'int16',
-    onBuffer: (buffer) => wsRef.current?.feed(buffer.data, buffer.sampleRate),
-  });
 
   const applyTranscript = async (text: string) => {
     if (walk === null || current === undefined) {
@@ -196,47 +171,18 @@ export default function Walkthrough() {
     }
   };
 
+  const talk = useHoldToTalk({
+    onPartial: setHeard,
+    onFinal: (text) => void applyTranscript(text),
+    onProblem: (kind) =>
+      setHeard(kind === 'denied' ? 'Mic off. Allow the microphone.' : 'Voice needs the server'),
+  });
+
   const startListening = async () => {
-    const permission = await requestRecordingPermissionsAsync();
-    if (!permission.granted) {
-      setHeard('Mic off. Allow the microphone.');
-      return;
-    }
-    Speech.stop();
-    player.pause();
-    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+    narration.stop();
     setHeard('Listening');
-    setListening(true);
-    wsRef.current = openTranscriptionStream({
-      baseUrl: client().baseUrl,
-      onPartial: (text) => setHeard(text),
-      onFinal: (final) => {
-        wsRef.current = null;
-        void applyTranscript(final.text);
-      },
-      onError: () => {
-        wsRef.current = null;
-        setHeard('Voice needs the server');
-      },
-    });
-    await mic.start();
+    await talk.start();
   };
-
-  const stopListening = () => {
-    setListening(false);
-    mic.stop();
-    void setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-    wsRef.current?.end();
-  };
-
-  useEffect(
-    () => () => {
-      mic.stop();
-      wsRef.current?.cancel();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
 
   const stateChips = (question: WalkQuestion) => (
     <View style={styles.stateWrap}>
@@ -308,15 +254,15 @@ export default function Walkthrough() {
               <View style={styles.voiceRow}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={listening ? 'Release to answer' : 'Hold to answer by voice'}
+                  accessibilityLabel={talk.listening ? 'Release to answer' : 'Hold to answer by voice'}
                   onPressIn={() => void startListening()}
-                  onPressOut={stopListening}
-                  style={[styles.micButton, listening && styles.micButtonLive]}
+                  onPressOut={talk.stop}
+                  style={[styles.micButton, talk.listening && styles.micButtonLive]}
                 >
                   <Feather
                     name="mic"
                     size={18}
-                    color={listening ? colors.card : colors.ink}
+                    color={talk.listening ? colors.card : colors.ink}
                   />
                 </Pressable>
                 <Text style={[typography.annotation, styles.heard]} numberOfLines={2}>

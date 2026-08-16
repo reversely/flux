@@ -12,6 +12,7 @@ import type {
   NarrationCreated,
   SectionDetail,
   SessionResults,
+  TranscriptionResult,
   WalkSessionState,
   WalkSpeciesDetail,
 } from './types';
@@ -141,6 +142,30 @@ export class ApiClient {
 
   narrationUrl(audioPath: string): string {
     return `${this.baseUrl}${audioPath}`;
+  }
+
+  // The box ASR decodes any ffmpeg-readable container, so a recorded clip
+  // posts as-is and its narration comes back as text.
+  async transcribeClip(
+    fileUri: string,
+    mimeType: string = 'video/quicktime',
+  ): Promise<TranscriptionResult> {
+    return traced('POST', '/v1/speech/transcriptions', `clip ${mimeType}`, async () => {
+      const result = await FileSystem.uploadAsync(
+        `${this.baseUrl}/v1/speech/transcriptions`,
+        fileUri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'audio',
+          mimeType,
+        },
+      );
+      if (result.status !== 200) {
+        throw new Error(`transcription failed: ${result.status}`);
+      }
+      return JSON.parse(result.body) as TranscriptionResult;
+    });
   }
 
   async createCoachSession(knot: string): Promise<CoachSessionState> {
