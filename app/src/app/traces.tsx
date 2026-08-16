@@ -38,6 +38,9 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
       {entry.model !== undefined && (
         <Text style={[dark.note, styles.model]}>
           {entry.model}
+          {entry.tokensIn !== undefined || entry.tokensOut !== undefined
+            ? `, ${entry.tokensIn ?? '?'} in / ${entry.tokensOut ?? '?'} out tok`
+            : ''}
           {entry.inferenceMs !== undefined
             ? `, inference ${(entry.inferenceMs / 1000).toFixed(2)} s`
             : ''}

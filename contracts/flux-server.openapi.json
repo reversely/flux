@@ -2398,6 +2398,28 @@
           "latency_ms": {
             "type": "integer",
             "title": "Latency Ms"
+          },
+          "tokens_in": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens In"
+          },
+          "tokens_out": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Out"
           }
         },
         "type": "object",
@@ -2908,6 +2930,16 @@
           "answer": {
             "type": "string",
             "title": "Answer"
+          },
+          "trace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InferenceTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

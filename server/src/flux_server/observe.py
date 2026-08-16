@@ -47,6 +47,9 @@ class Observation:
     # True when the model reports the frames show something other than the
     # guide's subject entirely; observation then names what it saw.
     off_subject: bool = False
+    # Usage the NIM reported for this call; absent when it reports none.
+    tokens_in: int | None = None
+    tokens_out: int | None = None
 
 
 class ObserveClassifier(Protocol):
@@ -84,7 +87,8 @@ class CosmosObserver:
                 timeout=OBSERVE_TIMEOUT_S,
             )
             response.raise_for_status()
-            text = response.json()["choices"][0]["message"]["content"]
+            payload = response.json()
+            text = payload["choices"][0]["message"]["content"]
         except (httpx.HTTPError, KeyError, IndexError) as error:
             logger.warning("observe call failed: %s", error)
             return None
@@ -95,6 +99,7 @@ class CosmosObserver:
             parsed = json.loads(match.group(0))
         except ValueError:
             return None
+        usage = payload.get("usage") or {}
         answer = str(parsed.get("answer", "unsure")).strip().lower()
         state = answer if answer in {s.lower() for s in states} else None
         try:
@@ -106,6 +111,8 @@ class CosmosObserver:
             confidence=confidence,
             observation=str(parsed.get("observation", ""))[:300],
             off_subject=answer == "off_subject",
+            tokens_in=usage.get("prompt_tokens"),
+            tokens_out=usage.get("completion_tokens"),
         )
 
 

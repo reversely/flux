@@ -30,6 +30,8 @@ export interface ChatTool {
 export interface InferenceTrace {
   model: string;
   latency_ms: number;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
 }
 
 /** One pack passage a two-tier answer drew on (#185); ids anchor deep links. */

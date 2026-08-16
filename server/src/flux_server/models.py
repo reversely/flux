@@ -187,6 +187,10 @@ class InferenceTrace(BaseModel):
 
     model: str
     latency_ms: int
+    # Prompt and completion token counts, when the backend reports usage;
+    # absent for engines that do not count (VSS generate, TTS).
+    tokens_in: int | None = None
+    tokens_out: int | None = None
 
 
 class ChatSource(BaseModel):
@@ -220,6 +224,25 @@ class ChatAnswer(BaseModel):
     queued: ChatQueueNote | None = None
     # Absent when the model is unreachable and the keyword floor answered.
     trace: InferenceTrace | None = None
+
+
+class FeatureHit(BaseModel):
+    """One nearest-feature answer (#226); lat/lon is the feature's nearest
+    sampled point, the straight-line route target until #148 lands."""
+
+    feature_class: str
+    name: str | None = None
+    distance_m: int
+    bearing_deg: int
+    lat: float
+    lon: float
+
+
+class NearestFeatures(BaseModel):
+    """Hits ordered nearest first; attribution is the layer's ODbL line."""
+
+    hits: list[FeatureHit]
+    attribution: str
 
 
 class ResearchTopic(BaseModel):
@@ -407,6 +430,7 @@ class TrailAnswer(BaseModel):
 
     session_id: str
     answer: str
+    trace: InferenceTrace | None = None
 
 
 class WalkObservation(BaseModel):

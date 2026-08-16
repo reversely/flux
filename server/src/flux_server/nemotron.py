@@ -245,6 +245,8 @@ class NemotronRetriever:
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self._turn_tokens_in = 0
+        self._turn_tokens_out = 0
         corpus = json.loads(Path(corpus_path).read_text())
         self.system_prompt = build_system_prompt(corpus)
         self._tiles = [
@@ -257,6 +259,12 @@ class NemotronRetriever:
     def answer(self, question: str) -> ChatAnswer:
         answer_id = f"ans_{uuid.uuid4().hex[:8]}"
         started = time.monotonic()
+        # Per-answer token totals across every completion this turn
+        # makes (answer, tool classification, topic naming). Single request
+        # at a time in practice; a concurrent chat would blur the counts,
+        # not corrupt them.
+        self._turn_tokens_in = 0
+        self._turn_tokens_out = 0
         sources, passages = self._retrieve(question)
         try:
             content = self._answer_text(question + passages)
@@ -283,6 +291,8 @@ class NemotronRetriever:
             trace=InferenceTrace(
                 model=self.model,
                 latency_ms=int((time.monotonic() - started) * 1000),
+                tokens_in=self._turn_tokens_in or None,
+                tokens_out=self._turn_tokens_out or None,
             ),
         )
 
@@ -421,7 +431,11 @@ class NemotronRetriever:
             },
         )
         response.raise_for_status()
-        message = response.json()["choices"][0]["message"]
+        payload = response.json()
+        message = payload["choices"][0]["message"]
         if not isinstance(message, dict):
             raise TypeError("chat completion message is not an object")
+        usage = payload.get("usage") or {}
+        self._turn_tokens_in += usage.get("prompt_tokens") or 0
+        self._turn_tokens_out += usage.get("completion_tokens") or 0
         return message

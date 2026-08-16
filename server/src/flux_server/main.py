@@ -34,6 +34,7 @@ from flux_server.coach import (
     extract_frames,
 )
 from flux_server.content import ContentStore, content_store_from_env
+from flux_server.features import DEFAULT_CLASSES, FeatureStore, feature_store_from_env
 from flux_server.library import ResearchQueue
 from flux_server.models import (
     FUNCTIONALITY_MEDIA_MODE,
@@ -47,6 +48,7 @@ from flux_server.models import (
     CoachSessionCreate,
     CoachSessionState,
     CoachStep,
+    FeatureHit,
     Figure,
     FrameUploadResponse,
     FunctionalityList,
@@ -56,6 +58,7 @@ from flux_server.models import (
     IngestEntry,
     NarrationCreated,
     NarrationRequest,
+    NearestFeatures,
     ResearchTopic,
     SearchResults,
     SectionDetail,
@@ -116,6 +119,7 @@ def create_app(
     speech: SpeechService | None | object = _FROM_ENV,
     perception: PerceptionClient | None = None,
     walk_observer: ObserveClassifier | None | object = _FROM_ENV,
+    features: FeatureStore | None | object = _FROM_ENV,
     sky_reader: SkyReader | None | object = _FROM_ENV,
 ) -> FastAPI:
     """Build the app around one on-disk session store and one retriever."""
@@ -159,6 +163,8 @@ def create_app(
             os.environ.get("FLUX_COSMOS_URL"),
             os.environ.get("FLUX_COSMOS_MODEL", "nvidia/cosmos-reason2-8b"),
         )
+    if features is _FROM_ENV:
+        features = feature_store_from_env()
     coach_store = CoachStore(data_dir / "coach")
     app = FastAPI(title="flux stub inference server")
     app.add_middleware(
@@ -192,6 +198,29 @@ def create_app(
     )
     def library_queue() -> list[ResearchTopic]:
         return [ResearchTopic(**entry) for entry in research_queue.entries()]
+
+    # Nearest features over the #222 water layer (#226); 503 without the
+    # artifact, the tile-archive pattern.
+    @app.get(
+        "/v1/features/nearest",
+        response_model=NearestFeatures,
+        response_model_exclude_none=True,
+    )
+    def features_nearest(
+        lat: float = Query(ge=-90, le=90),
+        lon: float = Query(ge=-180, le=180),
+        cls: str = Query(default=",".join(DEFAULT_CLASSES)),
+        limit: int = Query(default=3, ge=1, le=10),
+    ) -> NearestFeatures:
+        if features is None or features is _FROM_ENV:
+            raise HTTPException(status_code=503, detail="no feature layer installed")
+        classes = tuple(c for c in cls.split(",") if c) or DEFAULT_CLASSES
+        return NearestFeatures(
+            hits=[
+                FeatureHit(**hit) for hit in features.nearest(lat, lon, classes, limit)
+            ],
+            attribution=features.meta.get("attribution", ""),
+        )
 
     def require_content() -> ContentStore:
         if content is None or content is _FROM_ENV:
@@ -481,6 +510,7 @@ def create_app(
         videos = store.video_paths(session_id)
         if not videos:
             raise HTTPException(status_code=409, detail="session has no videos")
+        started = time.monotonic()
         outcome = handoff.ask_session(session_id, videos, request.question)
         if outcome is None:
             raise HTTPException(status_code=503, detail="no VSS configured")
@@ -488,7 +518,14 @@ def create_app(
             raise HTTPException(
                 status_code=502, detail=outcome.detail or "VSS answer failed"
             )
-        return TrailAnswer(session_id=session_id, answer=outcome.summary)
+        return TrailAnswer(
+            session_id=session_id,
+            answer=outcome.summary,
+            trace=InferenceTrace(
+                model="vss/video_understanding",
+                latency_ms=int((time.monotonic() - started) * 1000),
+            ),
+        )
 
     @app.get("/v1/sessions/{session_id}/frames/{frame_id}")
     def get_frame(session_id: str, frame_id: str) -> FileResponse:
@@ -740,6 +777,8 @@ def create_app(
             citation=node["citation"],
             off_subject=observation.off_subject,
             trace=InferenceTrace(
+                tokens_in=observation.tokens_in,
+                tokens_out=observation.tokens_out,
                 model=os.environ.get("FLUX_COSMOS_MODEL", "nvidia/cosmos-reason2-8b"),
                 latency_ms=int((time.monotonic() - started) * 1000),
             ),
@@ -789,12 +828,17 @@ def create_app(
         observations: list[WalkObservation] = []
         unseen: list[str] = []
         pass_started = time.monotonic()
+        pass_tokens_in = 0
+        pass_tokens_out = 0
         for node in open_nodes:
             states = view.states.get(node["character"], [])
             started = time.monotonic()
             observed = walk_observer.observe(
                 node["question"], states, frames, subject=view.title.lower()
             )
+            if observed is not None:
+                pass_tokens_in += observed.tokens_in or 0
+                pass_tokens_out += observed.tokens_out or 0
             if observed is None or observed.state is None or observed.off_subject:
                 unseen.append(node["character"])
                 continue
@@ -807,6 +851,8 @@ def create_app(
                     observation=observed.observation,
                     citation=node["citation"],
                     trace=InferenceTrace(
+                        tokens_in=observed.tokens_in,
+                        tokens_out=observed.tokens_out,
                         model=os.environ.get(
                             "FLUX_COSMOS_MODEL", "nvidia/cosmos-reason2-8b"
                         ),
@@ -819,6 +865,8 @@ def create_app(
             observations=observations,
             unseen=unseen,
             trace=InferenceTrace(
+                tokens_in=pass_tokens_in or None,
+                tokens_out=pass_tokens_out or None,
                 model=os.environ.get("FLUX_COSMOS_MODEL", "nvidia/cosmos-reason2-8b"),
                 latency_ms=int((time.monotonic() - pass_started) * 1000),
             ),

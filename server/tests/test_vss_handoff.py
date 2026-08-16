@@ -323,10 +323,11 @@ def test_ask_answers_over_a_recorded_session(tmp_path: Path) -> None:
         f"/v1/sessions/{session_id}/ask", json={"question": "any water sources?"}
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "session_id": session_id,
-        "answer": "Water is 400 m back.",
-    }
+    body = response.json()
+    assert body["session_id"] == session_id
+    assert body["answer"] == "Water is 400 m back."
+    assert body["trace"]["model"] == "vss/video_understanding"
+    assert isinstance(body["trace"]["latency_ms"], int)
     assert handoff.asked == [(session_id, "any water sources?")]
 
 

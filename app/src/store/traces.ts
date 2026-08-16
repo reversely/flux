@@ -20,6 +20,8 @@ export interface TraceEntry {
   /** Server-measured milliseconds around the model call itself, from the
    * response's trace block; absent when the route reports none. */
   inferenceMs?: number;
+  tokensIn?: number;
+  tokensOut?: number;
   /** Rough token estimate over request plus response text (chars over 4). */
   estTokens?: number;
   /** Sources the response cited: citations, anchors, attribution lines. */
@@ -115,14 +117,30 @@ export function detailOf(payload: unknown): string {
 /** Wraps one API call so it lands in the trace tab whatever its outcome. */
 /** The response's inference trace: the server-reported model and timing
  * win over the static route table when a route carries them. */
-function traceOf(payload: unknown): { model?: string; inferenceMs?: number } {
-  const trace = (payload as { trace?: { model?: unknown; latency_ms?: unknown } })?.trace;
+function traceOf(payload: unknown): {
+  model?: string;
+  inferenceMs?: number;
+  tokensIn?: number;
+  tokensOut?: number;
+} {
+  const trace = (
+    payload as {
+      trace?: {
+        model?: unknown;
+        latency_ms?: unknown;
+        tokens_in?: unknown;
+        tokens_out?: unknown;
+      };
+    }
+  )?.trace;
   if (trace === undefined || trace === null) {
     return {};
   }
   return {
     model: typeof trace.model === 'string' ? trace.model : undefined,
     inferenceMs: typeof trace.latency_ms === 'number' ? trace.latency_ms : undefined,
+    tokensIn: typeof trace.tokens_in === 'number' ? trace.tokens_in : undefined,
+    tokensOut: typeof trace.tokens_out === 'number' ? trace.tokens_out : undefined,
   };
 }
 
@@ -147,6 +165,8 @@ export async function traced<T>(
       detail,
       model: measured.model ?? modelFor(path),
       inferenceMs: measured.inferenceMs,
+      tokensIn: measured.tokensIn,
+      tokensOut: measured.tokensOut,
       estTokens: Math.round((request.length + detail.length) / 4),
       referenced: [...referenced].slice(0, 6),
     });
