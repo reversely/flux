@@ -25,7 +25,7 @@ from typing import Protocol
 
 import httpx
 
-from flux_server.prompts import coach_step_prompt
+from flux_server.prompts import coach_procedure_prompt, coach_step_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,13 @@ class CoachKnot:
     id: str
     name: str
     steps: tuple[CoachStepDef, ...]
+    # Set on non-knot procedures: the classifier prompt says "perform
+    # <classifier_phrase>" instead of "tie a <name>", and the phrase is the
+    # one the bench and the adapter trained on verbatim.
+    classifier_phrase: str | None = None
+    # Names the env var holding a fine-tuned model id for this procedure
+    # (e.g. FLUX_COSMOS_MODEL_TOURNIQUET). Absent or unset env: base model.
+    model_env: str | None = None
 
 
 def _knot(knot_id: str, name: str, steps: list[tuple[str, str, str]]) -> CoachKnot:
@@ -230,6 +237,72 @@ KNOTS: dict[str, CoachKnot] = {
                 ),
             ],
         ),
+        # Improvised tourniquet (FM 4-25.11 2-20; app tile 1). Cues are the
+        # improvised-set step cues benched in docs/training/t3_zeroshot.ipynb
+        # and trained into the T3 adapter; the adapter serves under the model
+        # id named by FLUX_COSMOS_MODEL_TOURNIQUET, and without that env the
+        # base model answers, so the procedure degrades to bench-measured
+        # zero-shot behavior rather than breaking.
+        CoachKnot(
+            id="tourniquet",
+            name="Improvised tourniquet",
+            classifier_phrase="tourniquet application to stop limb bleeding",
+            model_env="FLUX_COSMOS_MODEL_TOURNIQUET",
+            steps=(
+                CoachStepDef(
+                    screen="Find the bleed. Expose the limb.",
+                    voice=(
+                        "Find where the bright red bleeding comes from and expose it. "
+                        "A tourniquet is a last resort, for an arm or leg, when a "
+                        "pressure dressing has failed to stop the bleeding."
+                    ),
+                    cue="the bleeding site found and exposed on the limb",
+                ),
+                CoachStepDef(
+                    screen="Band above the wound. Never on a joint.",
+                    voice=(
+                        "Place a band at least two inches wide around the limb, between "
+                        "the wound and the heart. Never directly over a wound, a "
+                        "fracture, or a joint."
+                    ),
+                    cue="a belt or strip of clothing placed around the limb above the wound",
+                ),
+                CoachStepDef(
+                    screen="Half-knot. Stick on top. Full knot over.",
+                    voice=(
+                        "Tie a half-knot, the first part of tying a shoe lace. Place a "
+                        "stick on top of it, and tie a full knot over the stick."
+                    ),
+                    cue="the band tied or cinched tight around the limb",
+                ),
+                CoachStepDef(
+                    screen="Twist until bright red bleeding stops.",
+                    voice=(
+                        "Twist the stick until the tourniquet is tight around the limb "
+                        "and the bright red bleeding has stopped."
+                    ),
+                    cue="a screwdriver or rod inserted into the band and twisted to tighten",
+                ),
+                CoachStepDef(
+                    screen="Loop ends over the stick. Tie on the side.",
+                    voice=(
+                        "Loop the free ends over the ends of the stick, bring them "
+                        "around the limb, and tie them together on the side, so the "
+                        "stick cannot unwind."
+                    ),
+                    cue="the rod secured so it cannot unwind",
+                ),
+                CoachStepDef(
+                    screen="Leave in full view. Mark a T and the time.",
+                    voice=(
+                        "Leave the tourniquet in full view and mark the forehead with a "
+                        "T and the time. Once applied, it stays on until medical care "
+                        "takes over; loosening it can restart bleeding and lead to shock."
+                    ),
+                    cue="the wound checked for stopped bleeding",
+                ),
+            ),
+        ),
     ]
 }
 
@@ -295,13 +368,20 @@ class CosmosStepClassifier:
         self.model = model
 
     def classify(self, knot: CoachKnot, frames: list[bytes]) -> int | None:
-        prompt = coach_step_prompt(knot.name, [s.cue for s in knot.steps])
+        cues = [s.cue for s in knot.steps]
+        if knot.classifier_phrase:
+            prompt = coach_procedure_prompt(knot.classifier_phrase, cues)
+        else:
+            prompt = coach_step_prompt(knot.name, cues)
+        model = self._model
+        if knot.model_env:
+            model = os.environ.get(knot.model_env) or self._model
         content = frames_to_content(prompt, frames)
         try:
             response = httpx.post(
                 self._url,
                 json={
-                    "model": self._model,
+                    "model": model,
                     "temperature": 0,
                     "max_tokens": 200,
                     "messages": [{"role": "user", "content": content}],

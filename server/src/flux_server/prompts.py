@@ -77,6 +77,20 @@ def coach_step_prompt(knot_name: str, cues: list[str]) -> str:
     return compose(BASE, CLIP_OBSERVER, task)
 
 
+def coach_procedure_prompt(procedure_phrase: str, cues: list[str]) -> str:
+    # The non-knot coach wording. Benched and trained verbatim in
+    # docs/training/t3_zeroshot.ipynb; a rewording is a re-measurement.
+    steps = "\n".join(f"S{i}: {cue}" for i, cue in enumerate(cues))
+    task = (
+        f"You are watching someone perform {procedure_phrase} step by step. "
+        f"The procedure's steps are:\n{steps}\n\n"
+        "These frames are one consecutive chunk of live video, in order. "
+        "Which single step is being performed in this chunk? "
+        'Answer with JSON only: {"step": "S<n>"}'
+    )
+    return compose(BASE, CLIP_OBSERVER, task)
+
+
 def trail_summary_prompt(sensor_id: str, transcript: str | None = None) -> str:
     task = (
         f"Call the video_understanding tool to summarize the video {sensor_id}: "
