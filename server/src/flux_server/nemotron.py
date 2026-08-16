@@ -169,7 +169,7 @@ def _strip_think(content: str) -> str:
 # scrubbed; a caveat later in a grounded answer stands.
 _NON_COVERAGE_SENTENCE = re.compile(
     r"((?:does|do) not (?:directly )?(?:cover|address)"
-    r"|not (?:covered|addressed)|review log)",
+    r"|not (?:covered|addressed)|outside the scope|review log)",
     re.IGNORECASE,
 )
 
@@ -276,10 +276,16 @@ class NemotronRetriever:
                 tool=_tool_from_question(question),
             )
         text = _strip_think(content) or UNREACHABLE_TEXT
+        # The demand-side signal reads the model's own verdict before the
+        # scrub touches it: passages that only loosely bore on the question
+        # make the model declare non-coverage, and that topic belongs in
+        # the queue exactly like a sourceless one.
+        declared_non_coverage = _NON_COVERAGE_SENTENCE.search(text) is not None
         if sources:
             text = _drop_false_non_coverage(text)
         tool = self._decide_tool(question, text)
-        queued = None if sources else self._queue_topic(question)
+        covered = bool(sources) and not declared_non_coverage
+        queued = None if covered else self._queue_topic(question)
         # One trace covers the model calls: the answer completion, the tool
         # classification, and the topic naming on unsourced answers.
         return ChatAnswer(

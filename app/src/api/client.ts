@@ -6,6 +6,7 @@ import type {
   ChapterDetail,
   ChapterSummary,
   ChatAnswer,
+  LibraryFeedEvent,
   CoachClipResult,
   CoachSessionState,
   Figure,
@@ -49,6 +50,10 @@ export class ApiClient {
 
   async chat(question: string): Promise<ChatAnswer> {
     return this.postJson<ChatAnswer>('/v1/chat', { question });
+  }
+
+  async libraryFeed(): Promise<LibraryFeedEvent[]> {
+    return this.getJson<LibraryFeedEvent[]>('/v1/library/feed');
   }
 
   async graphWindow(

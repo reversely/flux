@@ -35,7 +35,7 @@ from flux_server.coach import (
 )
 from flux_server.content import ContentStore, content_store_from_env
 from flux_server.features import DEFAULT_CLASSES, FeatureStore, feature_store_from_env
-from flux_server.library import ResearchQueue
+from flux_server.library import LibraryFeed, ResearchQueue
 from flux_server.models import (
     FUNCTIONALITY_MEDIA_MODE,
     Block,
@@ -57,6 +57,7 @@ from flux_server.models import (
     IdentificationRecord,
     InferenceTrace,
     IngestEntry,
+    LibraryFeedEvent,
     NarrationCreated,
     NarrationRequest,
     NearestFeatures,
@@ -130,6 +131,7 @@ def create_app(
         data_dir = Path(os.environ.get("FLUX_DATA_DIR", DEFAULT_DATA_DIR))
     store = SessionStore(data_dir)
     research_queue = ResearchQueue(data_dir / "research-queue.json")
+    library_feed = LibraryFeed(data_dir / "library-feed.json")
     if retriever is None:
         retriever = retriever_from_env(research_queue)
     if handoff is None:
@@ -193,7 +195,18 @@ def create_app(
     # app mirror's `tool?`/`prime?` optionals rather than emitting nulls.
     @app.post("/v1/chat", response_model=ChatAnswer, response_model_exclude_none=True)
     def chat(request: ChatRequest) -> ChatAnswer:
-        return retriever.answer(request.question)
+        answer = retriever.answer(request.question)
+        # A topic entering the queue starts its gather preview, so the
+        # library feed shows the pull the moment the log takes it. A topic
+        # already queued (the seeds included) gets its first gather too;
+        # one with feed history does not repeat it on every ask.
+        queued = getattr(answer, "queued", None)
+        if queued is not None and (
+            queued.state == "added"
+            or not any(e["topic"] == queued.topic for e in library_feed.events())
+        ):
+            library_feed.preview_gather(queued.topic)
+        return answer
 
     # The research queue (#193): topics unsourced chat answers recorded,
     # seeded with starter topics. The box's online gather pass and any
@@ -205,6 +218,15 @@ def create_app(
     )
     def library_queue() -> list[ResearchTopic]:
         return [ResearchTopic(**entry) for entry in research_queue.entries()]
+
+    @app.get(
+        "/v1/library/feed",
+        response_model=list[LibraryFeedEvent],
+        response_model_exclude_none=True,
+    )
+    def library_feed_events() -> list[LibraryFeedEvent]:
+        """Newest first: the visible half of the gather pass."""
+        return [LibraryFeedEvent(**event) for event in library_feed.events()]
 
     # Nearest features over the #222 water layer (#226); 503 without the
     # artifact, the tile-archive pattern.

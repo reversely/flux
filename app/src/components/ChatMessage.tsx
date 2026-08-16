@@ -16,17 +16,25 @@ import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
  * question added its topic to the library queue or found it already there.
  */
 function QueueLine({ queued }: { queued?: ChatQueueNote }) {
+  const router = useRouter();
   if (!queued) {
     return null;
   }
   const added = queued.state === 'added';
+  // Tapping opens the library feed, where the gather for this topic shows.
   return (
-    <View style={styles.sourceLine}>
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`Open the library feed for ${queued.topic}`}
+      onPress={() => router.push('/library')}
+      style={styles.sourceLine}
+    >
       <Feather name={added ? 'plus-circle' : 'clock'} size={12} color={colors.ink3} />
       <Text style={styles.sourceLabel}>
         {added ? `Queued for the library: ${queued.topic}` : `In the library queue: ${queued.topic}`}
       </Text>
-    </View>
+      <Feather name="chevron-right" size={12} color={colors.ink3} />
+    </Pressable>
   );
 }
 

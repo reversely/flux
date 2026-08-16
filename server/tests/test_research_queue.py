@@ -88,3 +88,26 @@ def test_route_lists_the_queue(tmp_path: Path) -> None:
         body = client.get("/v1/library/queue").json()
     assert [entry["topic"] for entry in body] == SEED_TOPICS
     assert all(entry["status"] == "queued" for entry in body)
+
+
+def test_feed_previews_a_gather_for_plant_topics(tmp_path):
+    from flux_server.library import PREVIEW_NOTE, LibraryFeed
+
+    feed = LibraryFeed(tmp_path / "feed.json", delays=())
+    feed.preview_gather("vegetable planting in seattle")
+    events = feed.events()
+    kinds = [e["kind"] for e in reversed(events)]
+    assert kinds == ["queued", "search", "pull", "pull", "done"]
+    # Staged events are marked as the preview they are.
+    assert all(e["detail"] == PREVIEW_NOTE for e in events if e["kind"] != "queued")
+    assert "WSU Extension" in events[2]["line"] or "PNW 548" in events[2]["line"]
+
+
+def test_feed_without_matching_sources_stays_queued(tmp_path):
+    from flux_server.library import LibraryFeed
+
+    feed = LibraryFeed(tmp_path / "feed.json", delays=())
+    feed.preview_gather("celestial navigation drills")
+    kinds = [e["kind"] for e in reversed(feed.events())]
+    assert kinds == ["queued", "search", "done"]
+    assert "stays queued" in feed.events()[0]["line"]

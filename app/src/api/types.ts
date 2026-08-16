@@ -48,6 +48,17 @@ export interface ChatQueueNote {
   state: 'added' | 'queued';
 }
 
+/** One event on the library feed: the visible half of the gather pass. */
+export interface LibraryFeedEvent {
+  id: string;
+  at: string;
+  topic: string;
+  kind: 'queued' | 'search' | 'pull' | 'done' | string;
+  line: string;
+  /** Carries the preview note while the online gather worker is unbuilt. */
+  detail?: string;
+}
+
 export interface ChatAnswer {
   answer_id: string;
   text: string;

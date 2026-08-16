@@ -265,6 +265,20 @@ class ResearchTopic(BaseModel):
     created_at: str
 
 
+class LibraryFeedEvent(BaseModel):
+    """One event on the library feed: the visible half of the gather pass.
+
+    kind is queued | search | pull | done; detail carries the preview note
+    while the online gather worker remains unbuilt."""
+
+    id: str
+    at: str
+    topic: str
+    kind: str
+    line: str
+    detail: str | None = None
+
+
 class WalkSpeciesCard(BaseModel):
     species: str
     edibility: Literal["edible", "inedible", "caution", "danger", "unknown"]
