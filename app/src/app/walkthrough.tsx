@@ -92,6 +92,7 @@ export default function Walkthrough() {
   const start = async () => {
     setMessage(null);
     setBusy(true);
+    lookedRef.current.clear();
     try {
       let state = await client().createWalkthrough(guide || undefined);
       for (const pair of (replay ?? '').split(',')) {
@@ -230,6 +231,10 @@ export default function Walkthrough() {
   walkRef.current = walk;
   suggestionRef.current = suggestion;
   currentRef.current = current;
+  // One deliberate look per node (#220): a node gets exactly one automatic
+  // clip; another only on retake or when the walk moves to a new node. No
+  // perpetual filming.
+  const lookedRef = useRef<Set<string>>(new Set());
 
   const speakOnce = (kind: string, line: string) => {
     const last = lastSpokenRef.current;
@@ -253,6 +258,9 @@ export default function Walkthrough() {
     const pending = suggestionRef.current;
     if (pending?.state != null && pending.off_subject !== true) {
       return 'waiting — say yes, or dismiss';
+    }
+    if (lookedRef.current.has(question.character)) {
+      return 'look taken — tap an option, or say retake';
     }
     return null;
   };
@@ -283,6 +291,7 @@ export default function Walkthrough() {
     if (question === undefined || sessionId === undefined) {
       return;
     }
+    lookedRef.current.add(question.character);
     const observed = await client().observeWalkthrough(
       sessionId,
       question.character,
@@ -343,7 +352,11 @@ export default function Walkthrough() {
       return;
     }
     if (watchLoop.isWatching()) {
-      // The loop owns the camera; clearing the verdict lets it resume.
+      // The loop owns the camera; forgetting this node's look and clearing
+      // the verdict makes it take a fresh one.
+      if (currentRef.current !== undefined) {
+        lookedRef.current.delete(currentRef.current.character);
+      }
       setSuggestion(null);
       return;
     }
@@ -416,6 +429,13 @@ export default function Walkthrough() {
       setHeard(null);
       setSuggestion(null);
       await toggle(pending.character, pending.state);
+      return;
+    }
+    // "Retake" by voice takes a fresh look at the current node.
+    if (/^(retake|look again|check again|another look)\b/i.test(text.trim())) {
+      lookedRef.current.delete(current.character);
+      setSuggestion(null);
+      setHeard(null);
       return;
     }
     const mapped = mapTranscript(text, current.states);

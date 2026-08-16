@@ -118,11 +118,26 @@ export function useWatchLoop(options: {
     } catch {
       // No motion sensor: the steadiness gate simply always passes.
     }
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
     let chunkIndex = 0;
     while (watchRef.current && opts.current.cameraRef.current !== null) {
+      // Gate BEFORE recording: the camera preview stays up, but nothing
+      // records unless this look has somewhere to go. No perpetual
+      // filming — a gated loop idles and says why.
+      const gated = opts.current.decide();
+      if (gated !== null) {
+        patch({ skipReason: gated, filmingStartedAt: null });
+        await sleep(800);
+        continue;
+      }
+      if (motionAvg() > STEADY_THRESHOLD_G) {
+        patch({ skipReason: SKIP_MOVING, filmingStartedAt: null });
+        await sleep(500);
+        continue;
+      }
       motionRef.current = [];
       chunkIndex += 1;
-      patch({ filmingStartedAt: Date.now(), chunkIndex });
+      patch({ filmingStartedAt: Date.now(), chunkIndex, skipReason: null });
       let video;
       try {
         video = await opts.current.cameraRef.current.recordAsync({
@@ -135,6 +150,8 @@ export function useWatchLoop(options: {
       if (!watchRef.current || video === undefined) {
         break;
       }
+      // The world may have moved during the look: re-check both gates on
+      // the finished chunk before spending inference on it.
       let skip: string | null = null;
       if (motionAvg() > STEADY_THRESHOLD_G) {
         skip = SKIP_MOVING;
@@ -142,7 +159,7 @@ export function useWatchLoop(options: {
         skip = opts.current.decide();
       }
       if (skip !== null) {
-        patch({ skipReason: skip });
+        patch({ skipReason: skip, filmingStartedAt: null });
         continue;
       }
       // Strictly one at a time: filming pauses here until the model
