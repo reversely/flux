@@ -992,6 +992,13 @@ single best-benching procedure surveyed, since each step flips a whole-garment
 state and R2PPE supplies labeled footage. It ranks below the three above only
 because it sits furthest from the wilderness core of the app.
 
+## Posture: non-commercial is satisfied
+
+The project is a research artifact under a non-profit, so every NonCommercial term below is met,
+including COIN's bar on testing commercial systems and iNaturalist's bar on training for
+commercial purposes. Read the verdicts under that light: a source is still unusable only for
+NoDerivatives, an access gate, or a share-alike obligation we decline to carry.
+
 ## Recurring license traps
 
 Read this section against the inference-only framing at the top of the

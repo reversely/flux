@@ -9,6 +9,10 @@ The detail lives in three briefs: `process-node-sources.md` for process steps an
 `synoptic-characters-fungi-plants.md` and `synoptic-characters-animals.md` for identification
 characters. This page is the index; those pages carry the evidence and the licence verdicts.
 
+This project is a non-profit research artifact, so NonCommercial terms are satisfied. What still
+blocks a source: NoDerivatives, an access gate such as a subscription or signed agreement, and,
+for anything we redistribute, a share-alike obligation we are unwilling to carry.
+
 Two rules govern every row. This project produces no datasets, so an item with no existing open
 source ships without camera judgement. Where FM 21-76 diverges from current guidance, the node
 carries current guidance and names the divergence (PRD 6.5.7).
