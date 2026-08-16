@@ -56,6 +56,10 @@ class CoachKnot:
     # Names the env var holding a fine-tuned model id for this procedure
     # (e.g. FLUX_COSMOS_MODEL_TOURNIQUET). Absent or unset env: base model.
     model_env: str | None = None
+    # Names the env var holding the endpoint serving that model. The
+    # deployment's NIM has no adapter hooks, so a fine-tune serves from its
+    # own port. Absent or unset env: FLUX_COSMOS_URL.
+    url_env: str | None = None
 
 
 def _knot(knot_id: str, name: str, steps: list[tuple[str, str, str]]) -> CoachKnot:
@@ -248,6 +252,7 @@ KNOTS: dict[str, CoachKnot] = {
             name="Improvised tourniquet",
             classifier_phrase="tourniquet application to stop limb bleeding",
             model_env="FLUX_COSMOS_MODEL_TOURNIQUET",
+            url_env="FLUX_COSMOS_URL_TOURNIQUET",
             steps=(
                 CoachStepDef(
                     screen="Find the bleed. Expose the limb.",
@@ -376,10 +381,15 @@ class CosmosStepClassifier:
         model = self._model
         if knot.model_env:
             model = os.environ.get(knot.model_env) or self._model
+        url = self._url
+        if knot.url_env:
+            override = os.environ.get(knot.url_env)
+            if override:
+                url = override.rstrip("/") + "/v1/chat/completions"
         content = frames_to_content(prompt, frames)
         try:
             response = httpx.post(
-                self._url,
+                url,
                 json={
                     "model": model,
                     "temperature": 0,
