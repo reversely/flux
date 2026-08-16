@@ -29,6 +29,8 @@ from collections import Counter
 from pathlib import Path
 
 DATA = Path.home() / "flux-model/data/trauma-thompson"
+# Defaults hit the base-model NIM; --url/--model retarget the identical
+# harness at the adapter endpoint (t3_serve.py) for before/after numbers.
 COSMOS_URL = "http://localhost:30082/v1/chat/completions"
 MODEL = "nvidia/cosmos-reason2-8b"
 MAX_FRAMES = 8
@@ -140,7 +142,13 @@ def extract_frames(video: Path, start: float, stop: float) -> list[bytes]:
         return [f.read_bytes() for f in frames]
 
 
-def classify(prompt: str, frames: list[bytes], n_classes: int) -> int | None:
+def classify(
+    prompt: str,
+    frames: list[bytes],
+    n_classes: int,
+    url: str = COSMOS_URL,
+    model: str = MODEL,
+) -> int | None:
     content = [{"type": "text", "text": prompt}] + [
         {
             "type": "image_url",
@@ -152,14 +160,14 @@ def classify(prompt: str, frames: list[bytes], n_classes: int) -> int | None:
     ]
     body = json.dumps(
         {
-            "model": MODEL,
+            "model": model,
             "temperature": 0,
             "max_tokens": 200,
             "messages": [{"role": "user", "content": content}],
         }
     ).encode()
     req = urllib.request.Request(
-        COSMOS_URL, data=body, headers={"Content-Type": "application/json"}
+        url, data=body, headers={"Content-Type": "application/json"}
     )
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
@@ -252,6 +260,8 @@ def main() -> None:
     parser.add_argument("--set", choices=["regular", "jit"], required=True)
     parser.add_argument("--grain", choices=["action", "step"], default="action")
     parser.add_argument("--out", required=True)
+    parser.add_argument("--url", default=COSMOS_URL)
+    parser.add_argument("--model", default=MODEL)
     args = parser.parse_args()
 
     subdir = "regular" if args.set == "regular" else "JIT"
@@ -293,7 +303,9 @@ def main() -> None:
             if not frames:
                 prediction = None
             else:
-                prediction = classify(prompt, frames, len(actions))
+                prediction = classify(
+                    prompt, frames, len(actions), url=args.url, model=args.model
+                )
             truth = truth_of(r)
             correct = prediction == truth
             hits += correct
