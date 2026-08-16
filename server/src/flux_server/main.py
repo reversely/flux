@@ -59,10 +59,12 @@ from flux_server.models import (
     InferenceTrace,
     IngestEntry,
     LibraryFeedEvent,
+    LibraryFeedEventCreate,
     NarrationCreated,
     NarrationRequest,
     NearestFeatures,
     ResearchTopic,
+    ResearchTopicStatus,
     SearchResults,
     SectionDetail,
     SessionCreated,
@@ -240,6 +242,24 @@ def create_app(
     def library_feed_events() -> list[LibraryFeedEvent]:
         """Newest first: the visible half of the gather pass."""
         return [LibraryFeedEvent(**event) for event in library_feed.events()]
+
+    @app.post(
+        "/v1/library/feed",
+        response_model=LibraryFeedEvent,
+        response_model_exclude_none=True,
+    )
+    def library_feed_append(event: LibraryFeedEventCreate) -> LibraryFeedEvent:
+        """A remote gatherer (the box librarian, #242) reports progress here."""
+        recorded = library_feed.record(
+            event.topic, event.kind, event.line, event.detail
+        )
+        return LibraryFeedEvent(**recorded)
+
+    @app.post("/v1/library/queue/status", response_model=dict)
+    def library_queue_status(update: ResearchTopicStatus) -> dict:
+        """A remote gatherer marks a topic (e.g. gathered); unknown topics no-op."""
+        research_queue.set_status_by_topic(update.topic, update.status)
+        return {"ok": True}
 
     # Nearest features over the #222 water layer (#226); 503 without the
     # artifact, the tile-archive pattern.

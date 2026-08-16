@@ -282,6 +282,22 @@ class LibraryFeedEvent(BaseModel):
     detail: str | None = None
 
 
+class LibraryFeedEventCreate(BaseModel):
+    """A remote gatherer's event append (the box librarian, #242)."""
+
+    topic: str
+    kind: str
+    line: str
+    detail: str | None = None
+
+
+class ResearchTopicStatus(BaseModel):
+    """A remote gatherer's status report for one queue topic."""
+
+    topic: str
+    status: str
+
+
 class WalkSpeciesCard(BaseModel):
     species: str
     edibility: Literal["edible", "inedible", "caution", "danger", "unknown"]

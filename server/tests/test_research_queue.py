@@ -185,3 +185,36 @@ def test_gather_with_nothing_fetchable_keeps_topic_queued(tmp_path):
     )
     assert entry["status"] == "queued"
     assert "stays queued" in gatherer.feed.events()[0]["line"]
+
+
+def test_remote_gatherer_routes_append_and_mark(tmp_path):
+    from fastapi.testclient import TestClient
+    from flux_server.main import create_app
+
+    app = create_app(
+        data_dir=tmp_path,
+        content=None,
+        tile_archive=None,
+        walkthrough=None,
+    )
+    client = TestClient(app)
+    posted = client.post(
+        "/v1/library/feed",
+        json={
+            "topic": "growing food",
+            "kind": "pull",
+            "line": "pulled: something · 12 KB",
+            "detail": "https://example.org · sha256 abc",
+        },
+    )
+    assert posted.status_code == 200
+    feed = client.get("/v1/library/feed").json()
+    assert feed[0]["line"].startswith("pulled: something")
+    marked = client.post(
+        "/v1/library/queue/status",
+        json={"topic": "growing food", "status": "gathered"},
+    )
+    assert marked.status_code == 200
+    queue = client.get("/v1/library/queue").json()
+    entry = next(e for e in queue if e["topic"] == "growing food")
+    assert entry["status"] == "gathered"

@@ -1,5 +1,12 @@
 # NemoClaw ops console on the GN100 (#48 spike)
 
+Agents under this console: `skills/flux-stack-ops` (health sweep and
+bring-up/teardown consulting) and `skills/flux-librarian` (the personal-sync
+agent: works the station's research queue on a cron schedule, stages
+sources on the box, reports to the station's library feed). The librarian
+executes as a scheduled job because the chat tier cannot act (below); the
+console is its operator interface.
+
 Chat-driven administration of the box for an operator without an SSH
 session. Stood up 2026-08-16 against the blueprint installer at
 `~/video-search-and-summarization/deploy/docker/scripts/nemoclaw`.
