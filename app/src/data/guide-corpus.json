@@ -413,6 +413,41 @@
               ]
             }
           ]
+        },
+        {
+          "id": "plants",
+          "title": "Plants",
+          "items": [
+            {
+              "id": "plant-toxicity",
+              "title": "Plant toxicity",
+              "blurb": "Narrow whether this plant is poisonous to eat or touch from its habit, leaves, flowers, sap, and stings, against the Washington species list.",
+              "tools": [
+                {
+                  "kind": "walkthrough",
+                  "label": "Ask about a plant",
+                  "camera": false,
+                  "guide": "plant-toxicity"
+                },
+                {
+                  "kind": "walkthrough",
+                  "label": "Check one with the camera",
+                  "camera": true,
+                  "guide": "plant-toxicity"
+                },
+                {
+                  "kind": "catalog",
+                  "label": "Browse the plants",
+                  "guide": "plant-toxicity"
+                },
+                {
+                  "kind": "reference",
+                  "label": "Full text",
+                  "chapter": 10
+                }
+              ]
+            }
+          ]
         }
       ]
     }

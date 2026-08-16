@@ -1,0 +1,92 @@
+{
+  "guide_id": "plant-toxicity",
+  "title": "Plants",
+  "tile_id": 6,
+  "source": "Piper & Beattie, Flora of the Northwest Coast (1915); Piper, Flora of the State of Washington (1906); Chesnut, Principal Poisonous Plants of the United States (USDA 1898); Pammel, A Manual of Poisonous Plants (1911)",
+  "key_column": "species",
+  "revid_column": "source_ref",
+  "verdict_column": "edibility",
+  "source_title_column": "source_title",
+  "common_name_column": "common_name",
+  "tiers": {
+    "deadly": "danger",
+    "poisonous": "danger",
+    "toxic": "danger",
+    "touch-poison": "danger",
+    "caution": "caution",
+    "purgative": "caution",
+    "edible-cooked": "caution",
+    "edible": "edible",
+    "choice": "edible",
+    "inedible": "inedible",
+    "unpalatable": "inedible",
+    "unknown": "unknown"
+  },
+  "unknown_values": ["", "na", "n/a", "unknown"],
+  "questions": [
+    {
+      "character": "habit",
+      "question": "Growing as: a tree, a shrub, a vine, a soft-stemmed plant (herb), a fern, or grasslike?",
+      "answer_source": "both",
+      "capture_condition": "the whole plant is in frame",
+      "states": ["tree", "shrub", "vine", "herb", "fern", "grasslike"],
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), habit per species description"
+    },
+    {
+      "character": "leafArrangement",
+      "question": "Leaves on the stem: alternate, opposite, whorled, or all at the base?",
+      "answer_source": "both",
+      "capture_condition": "a stem with several leaves is in frame",
+      "states": ["alternate", "opposite", "whorled", "basal"],
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), leaf arrangement per species description"
+    },
+    {
+      "character": "leafType",
+      "question": "Each leaf: one blade (simple), or split into leaflets (compound)?",
+      "answer_source": "both",
+      "capture_condition": "one full leaf fills the frame",
+      "states": ["simple", "compound"],
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), leaf form per species description"
+    },
+    {
+      "character": "leafMargin",
+      "question": "The leaf edge: smooth (entire), toothed, or lobed?",
+      "answer_source": "both",
+      "capture_condition": "a leaf edge is in frame up close",
+      "states": ["entire", "toothed", "lobed"],
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), leaf margin per species description"
+    },
+    {
+      "character": "flowerColor",
+      "question": "Flower color?",
+      "answer_source": "both",
+      "capture_condition": "an open flower is in frame in daylight",
+      "states": ["white", "yellow", "red", "pink", "purple", "blue", "green", "orange"],
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), flower color per species description"
+    },
+    {
+      "character": "clusterForm",
+      "question": "Flowers sit: single (solitary), in a long cluster (raceme), in an umbrella head (umbel), in a tight head, or on a spike?",
+      "answer_source": "both",
+      "capture_condition": "a flowering stem is in frame",
+      "states": ["solitary", "raceme", "umbel", "head", "spike"],
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), inflorescence per species description"
+    },
+    {
+      "character": "sap",
+      "question": "Broken stem: milky sap, or not?",
+      "answer_source": "user",
+      "capture_condition": null,
+      "states": ["milky", "none"],
+      "citation": "Pammel, A Manual of Poisonous Plants (1911), latex noted per species description"
+    },
+    {
+      "character": "armature",
+      "question": "On stems or leaves: stinging hairs, spines, or neither?",
+      "answer_source": "both",
+      "capture_condition": "a stem section fills the frame up close",
+      "states": ["stinging", "spiny", "unarmed"],
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), armature per species description"
+    }
+  ]
+}
