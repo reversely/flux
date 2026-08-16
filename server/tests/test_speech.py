@@ -137,6 +137,10 @@ class OneQuestionWalk:
     def __init__(self) -> None:
         self.transcripts: dict[str, list[dict]] = {"s1": []}
         self.states = {"gill_attachment": ["free", "attached", "decurrent"]}
+        self.guides = {"fungi-edibility": self}
+
+    def guide_of(self, session_id):
+        return "fungi-edibility" if session_id in self.transcripts else None
 
     def transcript(self, session_id):
         return self.transcripts.get(session_id)
@@ -149,7 +153,7 @@ class OneQuestionWalk:
         self.transcripts[session_id] = self.transcripts[session_id][:-1]
         return self.transcripts[session_id]
 
-    def next_question(self, transcript):
+    def next_question(self, transcript, guide_id=None):
         if any(e["character"] == "gill_attachment" for e in transcript):
             return None
         return {

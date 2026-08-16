@@ -194,6 +194,27 @@ class WalkSpeciesCard(BaseModel):
     edibility_raw: str
     source_title: str
     source_revid: str
+    # Field-guide display name ("red baneberry"); absent on guides whose
+    # species key already reads as the display name.
+    common_name: str | None = None
+
+
+class WalkGuideCard(BaseModel):
+    """One identification guide the walkthrough can run (#129)."""
+
+    id: str
+    title: str
+    source: str
+    tile_id: int | None = None
+    species_count: int
+    danger_count: int
+
+
+class WalkSessionCreate(BaseModel):
+    """Names the guide to walk; absent means the fungi walk, so pre-#129
+    clients that post no body keep their exact behavior."""
+
+    guide_id: str | None = None
 
 
 class WalkQuestion(BaseModel):
@@ -242,6 +263,10 @@ class WalkSessionState(BaseModel):
     candidates: list[WalkSpeciesCard] | None = None
     complete: bool
     question: WalkQuestion | None = None
+    # Present on sessions that walk a named guide (#129); absent on the
+    # default fungi walk so its response shape is unchanged.
+    guide_id: str | None = None
+    guide_title: str | None = None
 
 
 class CoachSessionCreate(BaseModel):

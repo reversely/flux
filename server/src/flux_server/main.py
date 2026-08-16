@@ -66,7 +66,9 @@ from flux_server.models import (
     TranscriptionResult,
     VideoUploadResponse,
     WalkAnswer,
+    WalkGuideCard,
     WalkObservation,
+    WalkSessionCreate,
     WalkSessionState,
     WalkSpeciesDetail,
     WalkUtteranceResult,
@@ -82,7 +84,11 @@ from flux_server.speech import (
 )
 from flux_server.storage import SessionStore, UnplayableVideoError
 from flux_server.vss import VideoHandoff, handoff_from_env
-from flux_server.walkthrough import WalkthroughStore, walkthrough_store_from_env
+from flux_server.walkthrough import (
+    DEFAULT_GUIDE_ID,
+    WalkthroughStore,
+    walkthrough_store_from_env,
+)
 from flux_server.weather import SkyReader, sky_reader_from_env
 
 DEFAULT_DATA_DIR = Path("data/sessions")
@@ -492,9 +498,35 @@ def create_app(
         response_model=WalkSessionState,
         response_model_exclude_none=True,
     )
-    def create_walkthrough() -> WalkSessionState:
+    def create_walkthrough(
+        request: WalkSessionCreate | None = None,
+    ) -> WalkSessionState:
         walk = require_walkthrough()
-        return walk_state(walk, walk.create())
+        guide_id = (request.guide_id if request else None) or DEFAULT_GUIDE_ID
+        if guide_id not in walk.guides:
+            raise HTTPException(status_code=422, detail="unknown guide")
+        return walk_state(walk, walk.create(guide_id))
+
+    @app.get(
+        "/v1/walkthrough/guides",
+        response_model=list[WalkGuideCard],
+    )
+    def walkthrough_guides() -> list[WalkGuideCard]:
+        """The identification guides this pack can walk (#129)."""
+        walk = require_walkthrough()
+        return [
+            WalkGuideCard(
+                id=view.guide_id,
+                title=view.title,
+                source=view.source,
+                tile_id=view.tile_id,
+                species_count=len(view.species),
+                danger_count=sum(
+                    1 for s in view.species.values() if s["edibility"] == "danger"
+                ),
+            )
+            for view in walk.guides.values()
+        ]
 
     @app.get(
         "/v1/walkthrough/sessions/{session_id}",
@@ -511,9 +543,10 @@ def create_app(
     )
     def answer_walkthrough(session_id: str, answer: WalkAnswer) -> WalkSessionState:
         walk = require_walkthrough()
-        if walk.transcript(session_id) is None:
+        view = walk.view_for(session_id)
+        if view is None:
             raise HTTPException(status_code=404, detail="unknown walkthrough session")
-        known = walk.states.get(answer.character)
+        known = view.states.get(answer.character)
         if known is None:
             raise HTTPException(status_code=422, detail="unknown character")
         selected = (
@@ -531,8 +564,12 @@ def create_app(
         "/v1/walkthrough/species",
         response_model=list[WalkSpeciesDetail],
     )
-    def walkthrough_species() -> list[WalkSpeciesDetail]:
-        return [WalkSpeciesDetail(**row) for row in require_walkthrough().catalog()]
+    def walkthrough_species(guide_id: str | None = None) -> list[WalkSpeciesDetail]:
+        walk = require_walkthrough()
+        guide = guide_id or DEFAULT_GUIDE_ID
+        if guide not in walk.guides:
+            raise HTTPException(status_code=422, detail="unknown guide")
+        return [WalkSpeciesDetail(**row) for row in walk.catalog(guide)]
 
     @app.get("/v1/walkthrough/images/{species}")
     def walkthrough_image(species: str) -> FileResponse:
@@ -635,9 +672,10 @@ def create_app(
         whose answer source is user-only refuses rather than answers.
         """
         walk = require_walkthrough()
-        if walk.transcript(session_id) is None:
+        view = walk.view_for(session_id)
+        if view is None:
             raise HTTPException(status_code=404, detail="unknown walkthrough session")
-        node = next((q for q in walk.questions if q["character"] == character), None)
+        node = next((q for q in view.questions if q["character"] == character), None)
         if node is None:
             raise HTTPException(status_code=422, detail="unknown character")
         if node.get("answer_source", "user") == "user":
@@ -654,7 +692,7 @@ def create_app(
             raise HTTPException(
                 status_code=422, detail=f"unreadable clip: {error}"
             ) from error
-        states = walk.states.get(character, [])
+        states = view.states.get(character, [])
         observation = walk_observer.observe(node["question"], states, frames)
         if observation is None:
             raise HTTPException(status_code=502, detail="observe answer unusable")
@@ -774,13 +812,15 @@ def create_app(
         transcript = walk.transcript(session_id)
         if transcript is None:
             raise HTTPException(status_code=404, detail="unknown walkthrough session")
+        guide_id = walk.guide_of(session_id) or DEFAULT_GUIDE_ID
+        view = walk.guides[guide_id]
         nemotron_url = os.environ.get("FLUX_NEMOTRON_URL")
         if not nemotron_url:
             raise HTTPException(status_code=503, detail="no language model configured")
-        question = walk.next_question(transcript)
+        question = walk.next_question(transcript, guide_id)
         if question is None:
             raise HTTPException(status_code=409, detail="the walk is complete")
-        states = walk.states.get(question["character"], [])
+        states = view.states.get(question["character"], [])
         mapped = interpret_utterance(
             request.question, question["question"], states, nemotron_url
         )
@@ -816,8 +856,13 @@ def create_app(
             raise HTTPException(
                 status_code=502, detail="speech backend unreachable"
             ) from error
-        question = walk.next_question(transcript)
-        states = [] if question is None else walk.states.get(question["character"], [])
+        guide_id = walk.guide_of(session_id) or DEFAULT_GUIDE_ID
+        question = walk.next_question(transcript, guide_id)
+        states = (
+            []
+            if question is None
+            else walk.guides[guide_id].states.get(question["character"], [])
+        )
         mapped = map_utterance(heard.text, states)
         action = mapped["action"]
         if question is None and action in ("answer", "skip"):

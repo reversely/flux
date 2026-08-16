@@ -243,6 +243,44 @@
         }
       }
     },
+    "/v1/content/figures/{figure_id}/image": {
+      "get": {
+        "summary": "Figure Image",
+        "description": "The figure's extracted image, pack-relative; 404 until a pack\nbuild attaches one (#137).",
+        "operationId": "figure_image_v1_content_figures__figure_id__image_get",
+        "parameters": [
+          {
+            "name": "figure_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Figure Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/content/search": {
       "get": {
         "summary": "Search Content",
@@ -737,6 +775,23 @@
       "post": {
         "summary": "Create Walkthrough",
         "operationId": "create_walkthrough_v1_walkthrough_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/WalkSessionCreate"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -744,6 +799,39 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WalkSessionState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/walkthrough/guides": {
+      "get": {
+        "summary": "Walkthrough Guides",
+        "description": "The identification guides this pack can walk (#129).",
+        "operationId": "walkthrough_guides_v1_walkthrough_guides_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WalkGuideCard"
+                  },
+                  "type": "array",
+                  "title": "Response Walkthrough Guides V1 Walkthrough Guides Get"
                 }
               }
             }
@@ -843,17 +931,45 @@
       "get": {
         "summary": "Walkthrough Species",
         "operationId": "walkthrough_species_v1_walkthrough_species_get",
+        "parameters": [
+          {
+            "name": "guide_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Guide Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/WalkSpeciesDetail"
                   },
-                  "type": "array",
                   "title": "Response Walkthrough Species V1 Walkthrough Species Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2658,6 +2774,51 @@
         "title": "WalkAnswer",
         "description": "A confirmed observation. `states` selects any-of within the\ncharacter; empty or absent alongside a None `state` records a skip,\nwhich filters nothing. `state` remains for single-answer clients."
       },
+      "WalkGuideCard": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "tile_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tile Id"
+          },
+          "species_count": {
+            "type": "integer",
+            "title": "Species Count"
+          },
+          "danger_count": {
+            "type": "integer",
+            "title": "Danger Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "source",
+          "species_count",
+          "danger_count"
+        ],
+        "title": "WalkGuideCard",
+        "description": "One identification guide the walkthrough can run (#129)."
+      },
       "WalkObservation": {
         "properties": {
           "character": {
@@ -2781,6 +2942,24 @@
         ],
         "title": "WalkQuestion"
       },
+      "WalkSessionCreate": {
+        "properties": {
+          "guide_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guide Id"
+          }
+        },
+        "type": "object",
+        "title": "WalkSessionCreate",
+        "description": "Names the guide to walk; absent means the fungi walk, so pre-#129\nclients that post no body keep their exact behavior."
+      },
       "WalkSessionState": {
         "properties": {
           "session_id": {
@@ -2850,6 +3029,28 @@
                 "type": "null"
               }
             ]
+          },
+          "guide_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guide Id"
+          },
+          "guide_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guide Title"
           }
         },
         "type": "object",
@@ -2892,6 +3093,17 @@
           "source_revid": {
             "type": "string",
             "title": "Source Revid"
+          },
+          "common_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Common Name"
           }
         },
         "type": "object",
@@ -2932,6 +3144,17 @@
           "source_revid": {
             "type": "string",
             "title": "Source Revid"
+          },
+          "common_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Common Name"
           },
           "traits": {
             "additionalProperties": {
