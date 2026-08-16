@@ -210,3 +210,56 @@ for it, which the filter rule treats as compatible with every answer.
 | species | TEXT | The species. |
 | character | TEXT, references walk_question(character) | The character. |
 | state | TEXT | A canonical state; the template's primary and secondary values each produce a row. |
+
+## Natural-feature layer
+
+A separate SQLite file, `features.db`, beside the content database. It answers
+"how far am I from water" (#223) offline: the app scans a latitude and
+longitude window around the GPS fix and takes the nearest sampled point. The
+build is `flux-pipeline features <region.osm.pbf> <features.db>` (#222) from
+the region's OSM extract.
+
+Geometry is sampled, not carried: a water outline keeps vertices at least
+100 m apart, a linear waterway at least 250 m apart, so a nearest-vertex scan
+approximates nearest-feature distance at walking scale (worst-case ~125 m on
+a waterway). A spring is one point. Waterways tagged `intermittent=yes` are
+excluded: a seasonal streambed is a wrong "nearest water" answer for most of
+the year.
+
+The layer carries inland water. OSM models the sea as `natural=coastline`,
+which this build does not read, so marine shoreline joins as its own class
+later rather than silently standing in for fresh water.
+
+The source is ODbL-licensed OpenStreetMap data. The `meta` table carries the
+attribution a consumer must display beside results.
+
+### Table: meta
+
+| column | type | notes |
+| --- | --- | --- |
+| key | TEXT | Primary key. `license` (`ODbL-1.0`), `attribution` (`© OpenStreetMap contributors`), `source` (the extract URL or filename). |
+| value | TEXT | |
+
+### Table: feature
+
+One row per extracted feature.
+
+| column | type | notes |
+| --- | --- | --- |
+| id | INTEGER | Primary key. |
+| osm_id | TEXT | `node/<id>`, `way/<id>`, or `relation/<id>` in the source extract. |
+| class | TEXT | One of `water` (lakes and ponds, from `natural=water` areas), `river`, `stream`, `canal` (linear waterways), `spring`. The set is open: later classes (peaks, shelters) add rows, never repurpose these. |
+| name | TEXT, nullable | The OSM name when tagged. |
+
+### Table: feature_point
+
+Sampled geometry, one row per kept vertex, indexed on `lat`. Coordinates are
+integer microdegrees (WGS84 degrees times 1,000,000, ~11 cm resolution),
+which keeps 1.9M Washington points phone-sized where REAL storage measured
+123 MB.
+
+| column | type | notes |
+| --- | --- | --- |
+| feature_id | INTEGER, references feature(id) | Owning feature. |
+| lat | INTEGER | Microdegrees. |
+| lon | INTEGER | Microdegrees. |

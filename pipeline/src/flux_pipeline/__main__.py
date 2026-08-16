@@ -41,7 +41,21 @@ def main() -> None:
     )
     guide_cmd.add_argument("source", type=Path)
     guide_cmd.add_argument("db", type=Path)
+    features_cmd = sub.add_parser(
+        "features", help="extract the water-feature layer from an OSM extract (#222)"
+    )
+    features_cmd.add_argument("osm_file", type=Path)
+    features_cmd.add_argument("out_db", type=Path)
+    features_cmd.add_argument(
+        "--source-url", default=None, help="recorded in the artifact's meta table"
+    )
     args = top.parse_args()
+
+    if args.command == "features":
+        from flux_pipeline.features import build_features
+
+        print(build_features(args.osm_file, args.out_db, args.source_url))
+        return
 
     if args.command == "figures":
         from flux_pipeline.figures import write_figures
