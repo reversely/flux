@@ -221,9 +221,9 @@ class WalkSpeciesDetail(WalkSpeciesCard):
 class WalkSessionState(BaseModel):
     """The whole session, recomputed from the transcript on every response.
 
-    candidates and danger_species carry full cards when the survivor set is
-    small or the walk is complete, and stay absent while the set is large;
-    the counts are always present.
+    danger_species carries full cards on every step (#136); candidates
+    carries them when the survivor set is small or the walk is complete and
+    stays absent while the set is large. The counts are always present.
     """
 
     session_id: str

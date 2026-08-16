@@ -129,6 +129,14 @@ def run_transcript(client, answers):
     return states
 
 
+def test_danger_list_ships_before_any_answer(client):
+    # #136: the danger subset is never gated on its size; a fresh session
+    # already names every dangerous species still in play.
+    session = client.post("/v1/walkthrough/sessions").json()
+    assert session["danger_count"] == len(session["danger_species"])
+    assert session["danger_count"] > 0
+
+
 def test_button_mushroom_pilot(client):
     states = run_transcript(client, BUTTON_ANSWERS)
     first = states[0]

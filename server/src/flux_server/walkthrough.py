@@ -187,9 +187,10 @@ class WalkthroughStore:
             ],
             "candidate_count": len(survivors),
             "danger_count": len(danger),
-            "danger_species": [self.species[s] for s in sorted(danger)]
-            if len(danger) <= LIST_CANDIDATES_AT or complete
-            else None,
+            # The danger subset ships on every step (#136): showing which
+            # species could kill you is the safety affordance the walk
+            # exists for, so it is never gated on the count.
+            "danger_species": [self.species[s] for s in sorted(danger)],
             "candidates": [self.species[s] for s in sorted(survivors)]
             if len(survivors) <= LIST_CANDIDATES_AT or complete
             else None,
