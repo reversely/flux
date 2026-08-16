@@ -211,7 +211,7 @@ export default function KnotCoach() {
         </Pressable>
       </View>
       {figure !== undefined && (
-        <View style={[styles.referenceWrap, { top: insets.top + 64 }]} pointerEvents="none">
+        <View style={[styles.referenceWrap, { top: insets.top + 120 }]} pointerEvents="none">
           <Image source={figure} style={styles.reference} contentFit="contain" />
         </View>
       )}
@@ -298,8 +298,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reference: {
-    width: 132,
-    height: 132,
+    width: 180,
+    height: 170,
     borderRadius: radius.control,
     backgroundColor: 'rgba(255, 255, 255, 0.92)',
   },
