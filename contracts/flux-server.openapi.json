@@ -717,6 +717,132 @@
         }
       }
     },
+    "/v1/coach/sessions": {
+      "post": {
+        "summary": "Create Coach Session",
+        "operationId": "create_coach_session_v1_coach_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachSessionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachSessionState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/coach/sessions/{session_id}": {
+      "get": {
+        "summary": "Get Coach Session",
+        "operationId": "get_coach_session_v1_coach_sessions__session_id__get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachSessionState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/coach/sessions/{session_id}/clip": {
+      "post": {
+        "summary": "Coach Clip",
+        "operationId": "coach_clip_v1_coach_sessions__session_id__clip_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_coach_clip_v1_coach_sessions__session_id__clip_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachClipResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/walkthrough/sessions/{session_id}/undo": {
       "post": {
         "summary": "Undo Walkthrough",
@@ -861,6 +987,20 @@
           "section_id"
         ],
         "title": "BlockDetail"
+      },
+      "Body_coach_clip_v1_coach_sessions__session_id__clip_post": {
+        "properties": {
+          "video": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Video"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video"
+        ],
+        "title": "Body_coach_clip_v1_coach_sessions__session_id__clip_post"
       },
       "Body_upload_frame_v1_sessions__session_id__frames_post": {
         "properties": {
@@ -1095,6 +1235,106 @@
         ],
         "title": "ChatTool",
         "description": "Widget an answer can launch preloaded; prime names the model context."
+      },
+      "CoachClipResult": {
+        "properties": {
+          "prediction": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prediction"
+          },
+          "step": {
+            "type": "integer",
+            "title": "Step"
+          },
+          "advanced": {
+            "type": "boolean",
+            "title": "Advanced"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "advanced"
+        ],
+        "title": "CoachClipResult",
+        "description": "One clip's classification and the pointer after it."
+      },
+      "CoachSessionCreate": {
+        "properties": {
+          "knot": {
+            "type": "string",
+            "title": "Knot"
+          }
+        },
+        "type": "object",
+        "required": [
+          "knot"
+        ],
+        "title": "CoachSessionCreate",
+        "description": "Names the knot to coach; the step list comes back in the state."
+      },
+      "CoachSessionState": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "knot": {
+            "type": "string",
+            "title": "Knot"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "step": {
+            "type": "integer",
+            "title": "Step"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/CoachStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "knot",
+          "name",
+          "step",
+          "steps"
+        ],
+        "title": "CoachSessionState",
+        "description": "The pointer plus the full step list, recomputed from the transcript."
+      },
+      "CoachStep": {
+        "properties": {
+          "screen": {
+            "type": "string",
+            "title": "Screen"
+          },
+          "voice": {
+            "type": "string",
+            "title": "Voice"
+          }
+        },
+        "type": "object",
+        "required": [
+          "screen",
+          "voice"
+        ],
+        "title": "CoachStep",
+        "description": "One coached step: the screen fragment and the spoken line."
       },
       "Figure": {
         "properties": {

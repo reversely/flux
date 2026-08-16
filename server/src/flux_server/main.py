@@ -12,6 +12,15 @@ from fastapi import FastAPI, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from flux_server.coach import (
+    KNOTS,
+    ClipUnreadableError,
+    CoachStore,
+    StepClassifier,
+    advance_pointer,
+    classifier_from_env,
+    extract_frames,
+)
 from flux_server.content import ContentStore, content_store_from_env
 from flux_server.models import (
     FUNCTIONALITY_MEDIA_MODE,
@@ -21,6 +30,10 @@ from flux_server.models import (
     ChapterSummary,
     ChatAnswer,
     ChatRequest,
+    CoachClipResult,
+    CoachSessionCreate,
+    CoachSessionState,
+    CoachStep,
     Figure,
     FrameUploadResponse,
     FunctionalityList,
@@ -54,6 +67,7 @@ def create_app(
     content: ContentStore | None | object = _FROM_ENV,
     tile_archive: Path | None | object = _FROM_ENV,
     walkthrough: WalkthroughStore | None | object = _FROM_ENV,
+    coach_classifier: StepClassifier | None | object = _FROM_ENV,
 ) -> FastAPI:
     """Build the app around one on-disk session store and one retriever."""
     if data_dir is None:
@@ -70,6 +84,9 @@ def create_app(
         tile_archive = Path(configured) if configured else None
     if walkthrough is _FROM_ENV:
         walkthrough = walkthrough_store_from_env(data_dir)
+    if coach_classifier is _FROM_ENV:
+        coach_classifier = classifier_from_env()
+    coach_store = CoachStore(data_dir / "coach")
     app = FastAPI(title="flux stub inference server")
     app.add_middleware(
         CORSMiddleware,
@@ -321,6 +338,54 @@ def create_app(
             raise HTTPException(status_code=422, detail="unknown state")
         walk.record(session_id, {"character": answer.character, "state": answer.state})
         return walk_state(walk, session_id)
+
+    def coach_state(session_id: str, session: dict) -> CoachSessionState:
+        knot = KNOTS[session["knot"]]
+        return CoachSessionState(
+            session_id=session_id,
+            knot=knot.id,
+            name=knot.name,
+            step=advance_pointer(session["predictions"], len(knot.steps)),
+            steps=[CoachStep(screen=s.screen, voice=s.voice) for s in knot.steps],
+        )
+
+    @app.post("/v1/coach/sessions", response_model=CoachSessionState)
+    def create_coach_session(request: CoachSessionCreate) -> CoachSessionState:
+        if request.knot not in KNOTS:
+            raise HTTPException(status_code=422, detail="unknown knot")
+        session_id = coach_store.create(request.knot)
+        return coach_state(session_id, {"knot": request.knot, "predictions": []})
+
+    @app.get("/v1/coach/sessions/{session_id}", response_model=CoachSessionState)
+    def get_coach_session(session_id: str) -> CoachSessionState:
+        session = coach_store.load(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="unknown coach session")
+        return coach_state(session_id, session)
+
+    @app.post("/v1/coach/sessions/{session_id}/clip", response_model=CoachClipResult)
+    async def coach_clip(session_id: str, video: UploadFile) -> CoachClipResult:
+        session = coach_store.load(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail="unknown coach session")
+        if coach_classifier is None or coach_classifier is _FROM_ENV:
+            raise HTTPException(status_code=503, detail="coach model not configured")
+        knot = KNOTS[session["knot"]]
+        data = await video.read()
+        # ffmpeg decodes QuickTime directly, so no remux is needed here.
+        try:
+            frames = extract_frames(data)
+        except ClipUnreadableError as error:
+            raise HTTPException(
+                status_code=422, detail=f"unreadable clip: {error}"
+            ) from error
+        before = advance_pointer(session["predictions"], len(knot.steps))
+        prediction = coach_classifier.classify(knot, frames)
+        session = coach_store.record(session_id, prediction)
+        after = advance_pointer(session["predictions"], len(knot.steps))
+        return CoachClipResult(
+            prediction=prediction, step=after, advanced=after > before
+        )
 
     @app.post(
         "/v1/walkthrough/sessions/{session_id}/undo",

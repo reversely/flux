@@ -199,3 +199,34 @@ class WalkSessionState(BaseModel):
     candidates: list[WalkSpeciesCard] | None = None
     complete: bool
     question: WalkQuestion | None = None
+
+
+class CoachSessionCreate(BaseModel):
+    """Names the knot to coach; the step list comes back in the state."""
+
+    knot: str
+
+
+class CoachStep(BaseModel):
+    """One coached step: the screen fragment and the spoken line."""
+
+    screen: str
+    voice: str
+
+
+class CoachSessionState(BaseModel):
+    """The pointer plus the full step list, recomputed from the transcript."""
+
+    session_id: str
+    knot: str
+    name: str
+    step: int
+    steps: list[CoachStep]
+
+
+class CoachClipResult(BaseModel):
+    """One clip's classification and the pointer after it."""
+
+    prediction: int | None = None
+    step: int
+    advanced: bool
