@@ -53,29 +53,41 @@ MAX_STREAM_S = 60
 
 
 def decode_to_pcm(data: bytes) -> np.ndarray:
-    """Any container ffmpeg reads (wav, m4a, webm) -> float32 mono 16 kHz."""
-    result = subprocess.run(
-        [
-            "ffmpeg",
-            "-loglevel",
-            "error",
-            "-i",
-            "pipe:0",
-            "-f",
-            "f32le",
-            "-ac",
-            "1",
-            "-ar",
-            str(SAMPLE_RATE),
-            "pipe:1",
-        ],
-        input=data,
-        capture_output=True,
-        check=False,
-    )
+    """Any container ffmpeg reads (wav, m4a, mp4) -> float32 mono 16 kHz.
+
+    The input lands in a temp file, not a pipe: MP4s written without
+    faststart keep their index at the end, and ffmpeg cannot seek a pipe,
+    so pipe decoding silently yields zero samples for them.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".media") as tmp:
+        tmp.write(data)
+        tmp.flush()
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-loglevel",
+                "error",
+                "-i",
+                tmp.name,
+                "-f",
+                "f32le",
+                "-ac",
+                "1",
+                "-ar",
+                str(SAMPLE_RATE),
+                "pipe:1",
+            ],
+            capture_output=True,
+            check=False,
+        )
     if result.returncode != 0:
         raise HTTPException(status_code=422, detail="audio not decodable")
-    return np.frombuffer(result.stdout, dtype=np.float32)
+    pcm = np.frombuffer(result.stdout, dtype=np.float32)
+    if pcm.size == 0:
+        # A silent 500 from the model on empty input helps nobody; a clip
+        # with no audio track is a client-visible condition.
+        raise HTTPException(status_code=422, detail="no audio in the clip")
+    return pcm
 
 
 def wav_header(n_samples: int, rate: int) -> bytes:
