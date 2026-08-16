@@ -4,12 +4,63 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { Block, SectionDetail } from '@/api/types';
+import type { Block, Figure, SectionDetail } from '@/api/types';
+import { References, type ReferenceRow } from '@/components/References';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { loadSection } from '@/data/encyclopedia';
 import { useSession } from '@/store/session';
 import { colors, radius, spacing, tagColors, typography } from '@/theme/tokens';
+
+/** Distinct FM figure refs cited across the section, in first-mention order. */
+function citedFigureRefs(blocks: Block[]): string[] {
+  const refs: string[] = [];
+  for (const block of blocks) {
+    for (const ref of (block.figure_ref ?? '').split(',')) {
+      const trimmed = ref.trim();
+      if (trimmed !== '' && !refs.includes(trimmed)) {
+        refs.push(trimmed);
+      }
+    }
+  }
+  return refs;
+}
+
+/**
+ * The entry's reference rows: one per source document the blocks draw on,
+ * one per cited figure. FM rows deep-link into the bundled manual at the
+ * chapter (`/reference`), the same file the chat agent's corpus quotes.
+ */
+function referenceRows(section: SectionDetail, figures: Record<string, Figure>): ReferenceRow[] {
+  const chapter = Number(section.chapter_id.replace(/^ch0?/, ''));
+  const manualHref = Number.isNaN(chapter) ? '/reference' : `/reference?chapter=${chapter}`;
+  const rows: ReferenceRow[] = [];
+  for (const source of [...new Set(section.blocks.map((b) => b.source))]) {
+    const fm = source === 'FM 21-76';
+    rows.push({
+      key: `doc-${source}`,
+      icon: 'book-open',
+      title: source,
+      note: fm
+        ? `Chapter ${chapter}${section.fm_heading !== null ? `, section ${section.fm_heading}` : ''} · US Army · public domain`
+        : undefined,
+      href: fm ? manualHref : undefined,
+    });
+  }
+  for (const ref of citedFigureRefs(section.blocks)) {
+    const figure = figures[ref];
+    rows.push({
+      key: `fig-${ref}`,
+      icon: 'image',
+      title: `Figure ${ref}`,
+      note:
+        figure?.attribution ??
+        `${figure?.source_manual ?? 'FM 21-76'} · ${figure?.license ?? 'public-domain'}`,
+      href: manualHref,
+    });
+  }
+  return rows;
+}
 
 function bulletLines(text: string): string[] {
   return text
@@ -146,6 +197,7 @@ export default function SectionReader() {
   const [section, setSection] = useState<SectionDetail | null>(null);
   const [sample, setSample] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [figures, setFigures] = useState<Record<string, Figure>>({});
 
   useEffect(() => {
     if (sectionId === undefined) {
@@ -158,6 +210,21 @@ export default function SectionReader() {
         if (!cancelled) {
           setSection(result.data);
           setSample(result.sample);
+        }
+        // Figure attribution is per file (#144); a failed lookup leaves the
+        // row on its manual-level default rather than blocking the entry.
+        const loaded: Record<string, Figure> = {};
+        await Promise.all(
+          citedFigureRefs(result.data.blocks).map(async (ref) => {
+            try {
+              loaded[ref] = await client().getFigure(`fm21-76-fig-${ref}`);
+            } catch {
+              // default note stands
+            }
+          }),
+        );
+        if (!cancelled && Object.keys(loaded).length > 0) {
+          setFigures(loaded);
         }
       } catch {
         if (!cancelled) {
@@ -194,6 +261,7 @@ export default function SectionReader() {
             .map((block) => (
               <BlockView key={block.id} block={block} />
             ))}
+          <References rows={referenceRows(section, figures)} />
         </ScrollView>
       )}
     </View>

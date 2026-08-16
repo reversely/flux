@@ -112,6 +112,18 @@ export interface SectionDetail {
   blocks: Block[];
 }
 
+/** One pack figure row, mirroring the server's Figure model (#137, #144). */
+export interface Figure {
+  id: string;
+  block_id: string;
+  fm_figure_ref: string;
+  image_path: string | null;
+  source_manual: string;
+  license: string;
+  /** `source-url, author` for the attached image; absent until harvested. */
+  attribution: string | null;
+}
+
 export interface IngestEntry {
   video: string;
   state: 'summarizing' | 'done' | 'failed';

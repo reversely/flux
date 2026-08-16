@@ -8,6 +8,7 @@ import type {
   ChatAnswer,
   CoachClipResult,
   CoachSessionState,
+  Figure,
   FrameUploadResponse,
   NarrationCreated,
   SectionDetail,
@@ -57,6 +58,10 @@ export class ApiClient {
 
   async getSection(sectionId: string): Promise<SectionDetail> {
     return this.getJson<SectionDetail>(`/v1/content/sections/${sectionId}`);
+  }
+
+  async getFigure(figureId: string): Promise<Figure> {
+    return this.getJson<Figure>(`/v1/content/figures/${figureId}`);
   }
 
   private async getJson<T>(path: string): Promise<T> {
