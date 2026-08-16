@@ -22,10 +22,18 @@ export function useNarration() {
   const client = useSession((s) => s.client);
   const player = useAudioPlayer();
 
+  // The player's native object dies with the owning screen; a narration
+  // resolving after unmount must not crash the app, so every player call
+  // tolerates a released object and falls back to device speech.
   const speak = useCallback(
     async (line: string) => {
       Speech.stop();
-      player.pause();
+      try {
+        player.pause();
+      } catch {
+        Speech.speak(line);
+        return;
+      }
       try {
         const narration = await client().createNarration(line);
         player.replace({ uri: client().narrationUrl(narration.audio_url) });
@@ -39,7 +47,11 @@ export function useNarration() {
 
   const stop = useCallback(() => {
     Speech.stop();
-    player.pause();
+    try {
+      player.pause();
+    } catch {
+      // A released player has nothing to stop.
+    }
   }, [player]);
 
   useEffect(() => () => void Speech.stop(), []);
