@@ -242,9 +242,16 @@ class NemotronRetriever:
         http_client: httpx.Client | None = None,
         content: ContentStore | None = None,
         research_queue: ResearchQueue | None = None,
+        options: dict[str, tuple[str, str]] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
+        # Named alternatives (#237): option name -> (base_url, model). The
+        # request's option serves the answer completion; the small
+        # classification and topic-naming completions stay on the default,
+        # which keeps their measured prompts on the model they were
+        # measured against.
+        self._options = options or {}
         self._turn_tokens_in = 0
         self._turn_tokens_out = 0
         corpus = json.loads(Path(corpus_path).read_text())
@@ -256,9 +263,14 @@ class NemotronRetriever:
         self._content = content
         self._research_queue = research_queue
 
-    def answer(self, question: str) -> ChatAnswer:
+    def answer(self, question: str, option: str | None = None) -> ChatAnswer:
         answer_id = f"ans_{uuid.uuid4().hex[:8]}"
         started = time.monotonic()
+        # Unknown option names resolve to the default pair; the trace below
+        # names whichever model actually answered.
+        answer_url, answer_model = self._options.get(
+            option or "", (self.base_url, self.model)
+        )
         # Per-answer token totals across every completion this turn
         # makes (answer, tool classification, topic naming). Single request
         # at a time in practice; a concurrent chat would blur the counts,
@@ -267,7 +279,9 @@ class NemotronRetriever:
         self._turn_tokens_out = 0
         sources, passages = self._retrieve(question)
         try:
-            content = self._answer_text(question + passages)
+            content = self._answer_text(
+                question + passages, base_url=answer_url, model=answer_model
+            )
         except (httpx.HTTPError, KeyError, IndexError, TypeError) as error:
             logger.error("Nemotron chat completion failed: %s", error)
             return ChatAnswer(
@@ -295,7 +309,7 @@ class NemotronRetriever:
             sources=sources or None,
             queued=queued,
             trace=InferenceTrace(
-                model=self.model,
+                model=answer_model,
                 latency_ms=int((time.monotonic() - started) * 1000),
                 tokens_in=self._turn_tokens_in or None,
                 tokens_out=self._turn_tokens_out or None,
@@ -406,12 +420,16 @@ class NemotronRetriever:
                 return chapter
         return None
 
-    def _answer_text(self, question: str) -> str:
+    def _answer_text(
+        self, question: str, base_url: str | None = None, model: str | None = None
+    ) -> str:
         message = self._complete(
             system=self.system_prompt,
             question=question,
             temperature=0.2,
             max_tokens=1024,
+            base_url=base_url,
+            model=model,
         )
         return message.get("content") or ""
 
@@ -422,12 +440,18 @@ class NemotronRetriever:
         return message.get("content") or ""
 
     def _complete(
-        self, system: str, question: str, temperature: float, max_tokens: int
+        self,
+        system: str,
+        question: str,
+        temperature: float,
+        max_tokens: int,
+        base_url: str | None = None,
+        model: str | None = None,
     ) -> dict:
         response = self._client.post(
-            f"{self.base_url}/chat/completions",
+            f"{(base_url or self.base_url).rstrip('/')}/chat/completions",
             json={
-                "model": self.model,
+                "model": model or self.model,
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": question},

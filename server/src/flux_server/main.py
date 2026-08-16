@@ -195,7 +195,7 @@ def create_app(
     # app mirror's `tool?`/`prime?` optionals rather than emitting nulls.
     @app.post("/v1/chat", response_model=ChatAnswer, response_model_exclude_none=True)
     def chat(request: ChatRequest) -> ChatAnswer:
-        answer = retriever.answer(request.question)
+        answer = retriever.answer(request.question, option=request.model)
         # A topic entering the queue starts its gather preview, so the
         # library feed shows the pull the moment the log takes it. A topic
         # already queued (the seeds included) gets its first gather too;

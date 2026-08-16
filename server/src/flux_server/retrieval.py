@@ -31,13 +31,13 @@ NO_MODEL_TEXT = (
 
 
 class Retriever(Protocol):
-    def answer(self, question: str) -> ChatAnswer: ...
+    def answer(self, question: str, option: str | None = None) -> ChatAnswer: ...
 
 
 class NoPackRetriever:
     """Answers every question with the no-pack notice and no tool launch."""
 
-    def answer(self, question: str) -> ChatAnswer:
+    def answer(self, question: str, option: str | None = None) -> ChatAnswer:
         return ChatAnswer(
             answer_id=f"ans_{uuid.uuid4().hex[:8]}",
             text=NO_PACK_TEXT,
@@ -52,11 +52,30 @@ class NoModelRetriever:
     of failing server startup.
     """
 
-    def answer(self, question: str) -> ChatAnswer:
+    def answer(self, question: str, option: str | None = None) -> ChatAnswer:
         return ChatAnswer(
             answer_id=f"ans_{uuid.uuid4().hex[:8]}",
             text=NO_MODEL_TEXT,
         )
+
+
+def chat_options_from_env() -> dict[str, tuple[str, str]]:
+    """Alternative chat models from FLUX_CHAT_OPTION_<NAME>="<url>|<model>".
+
+    Each var registers one option the chat request can name (lowercased),
+    e.g. FLUX_CHAT_OPTION_LIGHTNING pointing at the box's vLLM port for
+    Nemotron 3.5 Lightning. Malformed values are skipped, so a bad env var
+    costs the option, never the server.
+    """
+    prefix = "FLUX_CHAT_OPTION_"
+    options: dict[str, tuple[str, str]] = {}
+    for key, value in os.environ.items():
+        if not key.startswith(prefix):
+            continue
+        url, _, model = value.partition("|")
+        if url and model:
+            options[key[len(prefix) :].lower()] = (url, model)
+    return options
 
 
 def retriever_from_env(research_queue=None) -> Retriever:
@@ -84,6 +103,7 @@ def retriever_from_env(research_queue=None) -> Retriever:
             # the content routes hold a separate read-only handle.
             content=content_store_from_env(),
             research_queue=research_queue,
+            options=chat_options_from_env(),
         )
     db = os.environ.get("FLUX_CONTENT_DB")
     if db and Path(db).is_file():

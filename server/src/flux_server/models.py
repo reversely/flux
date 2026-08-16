@@ -167,6 +167,9 @@ class SearchResults(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str
+    # Names a registered chat-model option (#237), e.g. "lightning".
+    # Absent or unknown: the default model answers.
+    model: str | None = None
 
 
 class ChatTool(BaseModel):
