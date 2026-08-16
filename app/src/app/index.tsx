@@ -3,11 +3,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated as RNAnimated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,14 +25,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { ChatQueueNote, ChatSource } from '@/api/types';
-import { AnswerText } from '@/components/AnswerText';
 import { HomeBackdrop } from '@/components/HomeBackdrop';
 import { TopBar, TopBarButton } from '@/components/TopBar';
+import { ConditionsStrip } from '@/components/ConditionsStrip';
 import { WidgetDirectory } from '@/components/WidgetDirectory';
 import { REFERENCE_TITLE } from '@/data/reference';
-import { launchTool } from '@/lib/launch';
-import { type ChatMessage, useChat } from '@/store/chat';
+import { useChat } from '@/store/chat';
 import { useSession } from '@/store/session';
 import { darkHome } from '@/theme/biome';
 import { aeonikFace } from '@/theme/fonts';
@@ -98,90 +96,6 @@ function QuestionGallery({ onAsk }: { onAsk: (question: string) => void }) {
   );
 }
 
-function Message({ message }: { message: ChatMessage }) {
-  const router = useRouter();
-  if (message.role === 'user') {
-    return (
-      <Animated.View entering={FadeInUp.duration(250)} style={[styles.bubble, styles.userBubble]}>
-        <Text style={styles.userText}>{message.text}</Text>
-      </Animated.View>
-    );
-  }
-  return (
-    <Animated.View entering={FadeInUp.duration(250)} style={[styles.bubble, styles.assistantBubble]}>
-      {message.pending ? (
-        <ActivityIndicator color={colors.ink3} />
-      ) : (
-        <AnswerText text={message.text} />
-      )}
-      {message.tool && (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => launchTool(router, message.tool!)}
-          style={styles.tool}
-        >
-          <Feather name="video" size={14} color={colors.signature} />
-          <Text style={styles.toolLabel}>{message.tool.label}</Text>
-        </Pressable>
-      )}
-      <SourceLine sources={message.sources} />
-      <QueueLine queued={message.queued} />
-    </Animated.View>
-  );
-}
-
-/**
- * The research-queue note under an unsourced answer (#194): whether this
- * question added its topic to the library queue or found it already there.
- */
-function QueueLine({ queued }: { queued?: ChatQueueNote }) {
-  if (!queued) {
-    return null;
-  }
-  const added = queued.state === 'added';
-  return (
-    <View style={styles.sourceLine}>
-      <Feather name={added ? 'plus-circle' : 'clock'} size={12} color={colors.ink3} />
-      <Text style={styles.sourceLabel}>
-        {added ? `Queued for the library: ${queued.topic}` : `In the library queue: ${queued.topic}`}
-      </Text>
-    </View>
-  );
-}
-
-/**
- * One book line under an answer that quotes pack passages (#186): the
- * chapters the sources cite, tapping into the reference. Chapter numbers
- * parse from the pack's chapter ids ("fm21-76-ch06"); an id that does not
- * carry one drops out rather than rendering a broken link.
- */
-function SourceLine({ sources }: { sources?: ChatSource[] }) {
-  const router = useRouter();
-  const chapters = [
-    ...new Set(
-      (sources ?? [])
-        .map((s) => /ch(\d+)$/.exec(s.chapter_id)?.[1])
-        .filter((n): n is string => n !== undefined)
-        .map((n) => String(Number(n))),
-    ),
-  ];
-  if (chapters.length === 0) {
-    return null;
-  }
-  return (
-    <Pressable
-      accessibilityRole="link"
-      onPress={() => router.push({ pathname: '/reference', params: { chapter: chapters[0] } })}
-      style={styles.sourceLine}
-    >
-      <Feather name="book-open" size={12} color={colors.ink3} />
-      <Text style={styles.sourceLabel}>
-        {chapters.length === 1 ? `chapter ${chapters[0]}` : `chapters ${chapters.join(', ')}`}
-      </Text>
-    </Pressable>
-  );
-}
-
 /**
  * The wordmark's own bar line in conversation mode (#207): identity stays
  * on screen without rejoining the icon bar (#179). Pinned above the list;
@@ -203,14 +117,19 @@ export default function ChatHome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { ask } = useLocalSearchParams<{ ask?: string }>();
-  const { messages, send } = useChat();
+  const send = useChat((s) => s.send);
+  const startNew = useChat((s) => s.startNew);
+  const loadChats = useChat((s) => s.load);
   const [draft, setDraft] = useState('');
-  const listRef = useRef<Animated.FlatList<ChatMessage>>(null);
   const askedRef = useRef<string | undefined>(undefined);
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
     scrollY.value = e.contentOffset.y;
   });
+
+  useEffect(() => {
+    void loadChats();
+  }, [loadChats]);
 
   // Silent health check of the stored server URL, once per launch.
   useEffect(() => {
@@ -223,9 +142,11 @@ export default function ChatHome() {
   useEffect(() => {
     if (ask && ask !== askedRef.current) {
       askedRef.current = ask;
+      startNew();
       void send(ask);
+      router.push('/chat');
     }
-  }, [ask, send]);
+  }, [ask, send, startNew, router]);
 
   const submit = () => {
     const question = draft.trim();
@@ -233,7 +154,11 @@ export default function ChatHome() {
       return;
     }
     setDraft('');
+    // Home always opens a fresh thread; continuing one happens on the
+    // chat screen or from history.
+    startNew();
     void send(question);
+    router.push('/chat');
   };
 
   return (
@@ -262,10 +187,10 @@ export default function ChatHome() {
           onPress={() => router.push('/map')}
         />
         <TopBarButton
-          icon="sun"
-          label="Conditions"
+          icon="clock"
+          label="Chat history"
           color={darkHome.ink2}
-          onPress={() => router.push('/conditions')}
+          onPress={() => router.push('/chats')}
         />
         <TopBarButton
           icon="server"
@@ -274,47 +199,38 @@ export default function ChatHome() {
           onPress={() => router.push('/connect')}
         />
       </TopBar>
-      {messages.length > 0 && <WordmarkBar scrollY={scrollY} />}
+      <WordmarkBar scrollY={scrollY} />
       <KeyboardAvoidingView
         style={styles.body}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {messages.length === 0 ? (
-          <Animated.ScrollView
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            contentContainerStyle={styles.emptyScroll}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.empty}>
-              <Animated.View entering={FadeInDown.duration(450)}>
-                <Text style={styles.wordmark}>LifeKit</Text>
-              </Animated.View>
-              <Animated.View entering={FadeInDown.duration(450).delay(120)}>
-                <Text style={[typography.body, styles.tagline]}>your offline AI field guide to the world. </Text>
-              </Animated.View>
-              <Animated.View entering={FadeInDown.duration(450).delay(240)}>
-                <QuestionGallery onAsk={(question) => void send(question)} />
-              </Animated.View>
-            </View>
-            {/* The whole widget registry scrolls in under the chat face, so
-                every camera surface is reachable from the first screen. */}
-            <Animated.View entering={FadeInUp.duration(450).delay(360)}>
-              <WidgetDirectory />
+        <Animated.ScrollView
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          contentContainerStyle={styles.homeScroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <ConditionsStrip />
+          <View style={styles.empty}>
+            <Animated.View entering={FadeInDown.duration(450)}>
+              <Text style={[typography.body, styles.tagline]}>your offline AI field guide to the world. </Text>
             </Animated.View>
-          </Animated.ScrollView>
-        ) : (
-          <Animated.FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={(m) => m.id}
-            renderItem={({ item }) => <Message message={item} />}
-            contentContainerStyle={styles.list}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          />
-        )}
+            <Animated.View entering={FadeInDown.duration(450).delay(120)}>
+              <QuestionGallery
+                onAsk={(question) => {
+                  startNew();
+                  void send(question);
+                  router.push('/chat');
+                }}
+              />
+            </Animated.View>
+          </View>
+          {/* The whole widget registry scrolls in under the chat face, so
+              every camera surface is reachable from the first screen. */}
+          <Animated.View entering={FadeInUp.duration(450).delay(240)}>
+            <WidgetDirectory />
+          </Animated.View>
+        </Animated.ScrollView>
         <View style={[styles.inputArea, { paddingBottom: Math.max(insets.bottom, spacing.m) }]}>
           <View style={styles.inputRow}>
             <TextInput
@@ -357,25 +273,16 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
   },
-  list: {
-    padding: spacing.l,
-    gap: spacing.m,
-  },
-  emptyScroll: {
+  homeScroll: {
     flexGrow: 1,
   },
   empty: {
-    minHeight: 420,
+    minHeight: 360,
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.xxl,
     gap: spacing.m,
-  },
-  wordmark: {
-    ...typography.display,
-    color: darkHome.ink,
-    textAlign: 'center',
   },
   wordmarkBar: {
     alignItems: 'center',
@@ -420,51 +327,6 @@ const styles = StyleSheet.create({
     ...typography.listBody,
     color: darkHome.ink,
     textAlign: 'center',
-  },
-  bubble: {
-    maxWidth: '85%',
-    borderRadius: radius.surface,
-    padding: spacing.l,
-    gap: spacing.m,
-  },
-  userBubble: {
-    alignSelf: 'flex-end',
-    backgroundColor: colors.signature,
-  },
-  userText: {
-    ...typography.body,
-    color: darkHome.ink,
-  },
-  assistantBubble: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.card,
-  },
-  tool: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: spacing.xs + 2,
-    height: sizes.chip,
-    borderRadius: radius.chip,
-    backgroundColor: colors.signatureSoft,
-    paddingHorizontal: spacing.m,
-  },
-  toolLabel: {
-    ...aeonikFace('medium'),
-    fontSize: 12,
-    color: colors.signature,
-  },
-  sourceLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: spacing.xs,
-    paddingTop: spacing.xs,
-  },
-  sourceLabel: {
-    ...aeonikFace('regular'),
-    fontSize: 12,
-    color: colors.ink3,
   },
   inputArea: {
     gap: spacing.s,
