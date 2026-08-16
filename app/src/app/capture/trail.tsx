@@ -75,7 +75,7 @@ export default function Capture() {
     try {
       await ensureCaptureSession();
     } catch {
-      setMessage('Could not start a session on the server. Please connect on the Server screen first.');
+      setMessage('No server. Connect on the Server screen first.');
       return;
     }
     recordingRef.current = true;
@@ -94,7 +94,7 @@ export default function Capture() {
         }
         submitClip(video.uri, startedAt, 'video/quicktime');
       } catch {
-        setMessage('Recording stopped because the camera returned an error.');
+        setMessage('Camera error. Recording stopped.');
         break;
       }
     }
@@ -118,10 +118,10 @@ export default function Capture() {
   if (!Device.isDevice) {
     return (
       <View style={styles.screen}>
-        <TopBar title="Video mode" back />
+        <TopBar title="Record trail" back />
         <View style={styles.centered}>
           <Text style={[typography.body, styles.centeredText]}>
-            This simulator has no camera. Please open Video mode on a phone.
+            No camera on the simulator
           </Text>
         </View>
       </View>
@@ -131,7 +131,7 @@ export default function Capture() {
   if (permission === null) {
     return (
       <View style={styles.screen}>
-        <TopBar title="Video mode" back />
+        <TopBar title="Record trail" back />
       </View>
     );
   }
@@ -139,10 +139,10 @@ export default function Capture() {
   if (!permission.granted) {
     return (
       <View style={styles.screen}>
-        <TopBar title="Video mode" back />
+        <TopBar title="Record trail" back />
         <View style={styles.centered}>
           <Text style={[typography.body, styles.centeredText]}>
-            Video mode records short clips with the camera. Please allow camera access.
+            Camera access needed
           </Text>
           <Pressable
             style={styles.button}
@@ -155,7 +155,7 @@ export default function Capture() {
             }}
           >
             <Text style={typography.button}>
-              {permission.canAskAgain ? 'Allow camera access' : 'Open Settings'}
+              {permission.canAskAgain ? 'Allow camera' : 'Open Settings'}
             </Text>
           </Pressable>
         </View>
@@ -165,7 +165,7 @@ export default function Capture() {
 
   return (
     <View style={styles.screen}>
-      <TopBar title="Video mode" back />
+      <TopBar title="Record trail" back />
       <CameraView
         ref={cameraRef}
         style={styles.preview}
@@ -175,7 +175,7 @@ export default function Capture() {
         videoQuality="4:3"
         videoBitrate={VIDEO_BITRATE}
         onCameraReady={() => setCameraReady(true)}
-        onMountError={() => setMessage('The camera did not start. Please close and reopen Video mode.')}
+        onMountError={() => setMessage('Camera did not start. Close and reopen.')}
       />
       <View style={styles.panel}>
         {primeRow}
@@ -192,7 +192,7 @@ export default function Capture() {
         {message !== null && <Text style={styles.helper}>{message}</Text>}
         {clips.length === 0 ? (
           <Text style={styles.helper}>
-            Please press Record to start. Clips upload to the server as they finish.
+            Record. Clips upload as they finish.
           </Text>
         ) : (
           <FlatList
