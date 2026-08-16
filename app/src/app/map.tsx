@@ -79,6 +79,7 @@ export default function MapScreen() {
   const loadObservations = useObservations((s) => s.load);
   const addObservation = useObservations((s) => s.add);
   const removeObservation = useObservations((s) => s.remove);
+  const updateObservation = useObservations((s) => s.update);
   const insets = useSafeAreaInsets();
   const [archiveMissing, setArchiveMissing] = useState(false);
   const [documentUri, setDocumentUri] = useState<string>();
@@ -87,6 +88,8 @@ export default function MapScreen() {
   const [draftCategory, setDraftCategory] = useState<ObservationCategory>('note');
   const [draftNote, setDraftNote] = useState('');
   const [openObs, setOpenObs] = useState<Observation | null>(null);
+  const [editCategory, setEditCategory] = useState<ObservationCategory>('note');
+  const [editNote, setEditNote] = useState('');
   const [nearest, setNearest] = useState<NearestFeatures | null>(null);
   const [nearestState, setNearestState] = useState<NearestState>('idle');
   const [routedIndex, setRoutedIndex] = useState(0);
@@ -271,7 +274,12 @@ export default function MapScreen() {
                   setDraft({ lat: msg.lat, lng: msg.lng! });
                 } else if (msg.type === 'obs-tap' && msg.id !== undefined) {
                   setDraft(null);
-                  setOpenObs(observations.find((o) => o.id === msg.id) ?? null);
+                  const tapped = observations.find((o) => o.id === msg.id) ?? null;
+                  setOpenObs(tapped);
+                  if (tapped) {
+                    setEditCategory(tapped.category);
+                    setEditNote(tapped.note);
+                  }
                 }
               } catch {
                 // Non-JSON messages carry nothing actionable.
@@ -410,11 +418,35 @@ export default function MapScreen() {
           )}
           {openObs !== null && (
             <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.m }]}>
-              <View style={styles.noteHeader}>
-                <View style={[styles.chipDot, { backgroundColor: CATEGORY_TINT[openObs.category] }]} />
-                <Text style={styles.sheetTitle}>{CATEGORY_LABEL[openObs.category]}</Text>
+              <Text style={styles.sheetTitle}>Edit marker</Text>
+              <View style={styles.chipRow}>
+                {CATEGORIES.map((category) => (
+                  <Pressable
+                    key={category}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Category ${CATEGORY_LABEL[category]}`}
+                    onPress={() => setEditCategory(category)}
+                    style={[
+                      styles.chip,
+                      editCategory === category && {
+                        borderColor: CATEGORY_TINT[category],
+                        backgroundColor: 'rgba(255,255,255,0.06)',
+                      },
+                    ]}
+                  >
+                    <View style={[styles.chipDot, { backgroundColor: CATEGORY_TINT[category] }]} />
+                    <Text style={styles.chipText}>{CATEGORY_LABEL[category]}</Text>
+                  </Pressable>
+                ))}
               </View>
-              <Text style={styles.noteBody}>{openObs.note || 'No note.'}</Text>
+              <TextInput
+                value={editNote}
+                onChangeText={setEditNote}
+                placeholder="Note (what you saw)"
+                placeholderTextColor={darkHome.ink3}
+                style={styles.input}
+                multiline
+              />
               <View style={styles.sheetActions}>
                 <Pressable
                   accessibilityRole="button"
@@ -431,11 +463,25 @@ export default function MapScreen() {
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Close"
+                  accessibilityLabel="Cancel edit"
                   onPress={() => setOpenObs(null)}
+                  style={styles.sheetButton}
+                >
+                  <Text style={styles.sheetButtonText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Save marker"
+                  onPress={() => {
+                    void updateObservation(openObs.id, {
+                      category: editCategory,
+                      note: editNote.trim(),
+                    });
+                    setOpenObs(null);
+                  }}
                   style={[styles.sheetButton, styles.sheetButtonPrimary]}
                 >
-                  <Text style={[styles.sheetButtonText, styles.sheetButtonPrimaryText]}>Close</Text>
+                  <Text style={[styles.sheetButtonText, styles.sheetButtonPrimaryText]}>Save</Text>
                 </Pressable>
               </View>
             </View>

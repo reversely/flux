@@ -60,6 +60,10 @@ interface ObservationState {
   load: () => Promise<void>;
   add: (obs: Omit<Observation, 'id' | 'createdAt'>) => Promise<Observation>;
   remove: (id: string) => Promise<void>;
+  update: (
+    id: string,
+    changes: Partial<Pick<Observation, 'category' | 'note'>>,
+  ) => Promise<void>;
 }
 
 async function write(observations: Observation[]) {
@@ -98,6 +102,13 @@ export const useObservations = create<ObservationState>((set, get) => ({
   },
   remove: async (id) => {
     const observations = get().observations.filter((o) => o.id !== id);
+    set({ observations });
+    await write(observations);
+  },
+  update: async (id, changes) => {
+    const observations = get().observations.map((o) =>
+      o.id === id ? { ...o, ...changes } : o,
+    );
     set({ observations });
     await write(observations);
   },
