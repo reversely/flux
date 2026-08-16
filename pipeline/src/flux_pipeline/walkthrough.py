@@ -300,16 +300,18 @@ def load_traits(
             common = (
                 row.get(spec.common_name_column) if spec.common_name_column else None
             )
+            # A row whose trailing cells are empty may arrive short (an
+            # editor or hook can strip trailing tabs), so absent reads as "".
             title = (
-                row[spec.source_title_column]
+                row.get(spec.source_title_column)
                 if spec.source_title_column
-                else row[spec.key_column]
+                else row.get(spec.key_column)
             )
             meta[species] = (
                 tier,
                 raw,
-                title,
-                row[spec.revid_column],
+                title or "",
+                row.get(spec.revid_column) or "",
                 (common or "").strip() or None,
             )
     return traits, meta
