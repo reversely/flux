@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mapTranscript } from '@/api/speech';
 import type { WalkObservation, WalkQuestion, WalkSessionState } from '@/api/types';
 import { useNarration, useOpenMic } from '@/api/voice';
+import { stripMarkdown } from '@/components/AnswerText';
 import { cycleLines, useWatchLoop } from '@/live/watch';
 // One labeled anatomy diagram per fungi node, the asked region shaded.
 // A character with no entry (spore print, every berry node) shows no
@@ -272,6 +273,21 @@ export default function Walkthrough() {
     chunkSeconds: WATCH_CHUNK_S,
     decide,
     send: sendChunk,
+    // Wait coverage (PRD 1.6): the interview talks while the box works —
+    // the capture tip for this node, once, instead of dead air.
+    onReading: () => {
+      if (narration.isSpeaking()) {
+        return;
+      }
+      const question = currentRef.current;
+      if (question === undefined) {
+        return;
+      }
+      speakOnce(
+        `cover:${question.character}`,
+        `While the box looks: ${question.capture_condition ?? 'you can tap or say an option any time'}.`,
+      );
+    },
   });
   const watching = watchLoop.cycle.watching;
   const startWatching = watchLoop.start;
@@ -400,6 +416,17 @@ export default function Walkthrough() {
         }
       } catch {
         // The interpreter needs the server; the exact gate already ran.
+      }
+      // Not an answer to the open question: treat it as a question of the
+      // user's own, and let inference answer it by voice (the VSS shape).
+      setHeard(`"${text}" — asking the guide`);
+      try {
+        const answer = await client().chat(text);
+        setHeard(null);
+        void narration.speak(stripMarkdown(answer.text));
+        return;
+      } catch {
+        // Chat needs the server too; fall back to the option hint.
       }
       setHeard(`"${text}" — say a listed option`);
     }
@@ -636,7 +663,12 @@ export default function Walkthrough() {
                   />
                 </View>
                 <Text style={[typography.annotation, styles.heard]} numberOfLines={2}>
-                  {heard ?? 'Just talk. Say an option, or yes.'}
+                  {heard ??
+                    (talk.listening
+                      ? `Hearing you ${'▏▎▍▌'.slice(talk.level, talk.level + 1) || ''}`
+                      : talk.alive
+                        ? 'Mic open. Just talk.'
+                        : 'Mic not receiving — reopen this screen.')}
                 </Text>
               </View>
             )}

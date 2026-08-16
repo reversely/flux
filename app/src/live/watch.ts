@@ -24,8 +24,10 @@ export const SKIP_READING = 'model still reading the last chunk';
 export interface LiveCycle {
   /** The loop is running: the camera is recording chunks. */
   watching: boolean;
-  /** A chunk is with the model right now. */
+  /** A chunk is with the model right now; filming pauses until it answers. */
   reading: boolean;
+  /** One-based number of the chunk being filmed or read. */
+  chunkIndex: number;
   filmingStartedAt: number | null;
   readingStartedAt: number | null;
   lastResultAt: number | null;
@@ -39,6 +41,7 @@ export interface LiveCycle {
 const IDLE: LiveCycle = {
   watching: false,
   reading: false,
+  chunkIndex: 0,
   filmingStartedAt: null,
   readingStartedAt: null,
   lastResultAt: null,
@@ -55,10 +58,14 @@ export function useWatchLoop(options: {
   decide: () => string | null;
   /** Upload one chunk and apply its result; a throw lands in failure. */
   send: (uri: string) => Promise<void>;
+  /** The wait-coverage slot (PRD 1.6): fires the moment a chunk goes to
+   * the model, so the surface can talk — supplementary detail, the open
+   * question, a capture tip — instead of leaving dead air while the box
+   * works. Every surface fills it; the skeleton guarantees the moment. */
+  onReading?: (chunkIndex: number) => void;
 }) {
   const [cycle, setCycle] = useState<LiveCycle>(IDLE);
   const watchRef = useRef(false);
-  const inFlightRef = useRef(false);
   const motionRef = useRef<number[]>([]);
   const opts = useRef(options);
   opts.current = options;
@@ -111,9 +118,11 @@ export function useWatchLoop(options: {
     } catch {
       // No motion sensor: the steadiness gate simply always passes.
     }
+    let chunkIndex = 0;
     while (watchRef.current && opts.current.cameraRef.current !== null) {
       motionRef.current = [];
-      patch({ filmingStartedAt: Date.now() });
+      chunkIndex += 1;
+      patch({ filmingStartedAt: Date.now(), chunkIndex });
       let video;
       try {
         video = await opts.current.cameraRef.current.recordAsync({
@@ -127,9 +136,7 @@ export function useWatchLoop(options: {
         break;
       }
       let skip: string | null = null;
-      if (inFlightRef.current) {
-        skip = SKIP_READING;
-      } else if (motionAvg() > STEADY_THRESHOLD_G) {
+      if (motionAvg() > STEADY_THRESHOLD_G) {
         skip = SKIP_MOVING;
       } else {
         skip = opts.current.decide();
@@ -138,19 +145,18 @@ export function useWatchLoop(options: {
         patch({ skipReason: skip });
         continue;
       }
-      // Send without blocking the next chunk; one in flight at a time.
-      inFlightRef.current = true;
+      // Strictly one at a time: filming pauses here until the model
+      // answers this chunk, so nothing ever piles up in the void.
       patch({ reading: true, readingStartedAt: Date.now(), skipReason: null });
-      void opts.current
-        .send(video.uri)
-        .then(() => patch({ lastResultAt: Date.now(), failure: null }))
-        .catch((error: unknown) =>
-          patch({ failure: error instanceof Error ? error.message : String(error) }),
-        )
-        .finally(() => {
-          inFlightRef.current = false;
-          patch({ reading: false });
-        });
+      opts.current.onReading?.(chunkIndex);
+      try {
+        await opts.current.send(video.uri);
+        patch({ lastResultAt: Date.now(), failure: null });
+      } catch (error) {
+        patch({ failure: error instanceof Error ? error.message : String(error) });
+      } finally {
+        patch({ reading: false });
+      }
     }
     if (sub !== null) {
       sub.remove();
@@ -186,14 +192,15 @@ export function cycleLines(
     primary = `no answer from the server — ${cycle.failure}`;
   } else if (cycle.reading) {
     const elapsed = seconds(cycle.readingStartedAt);
+    const remaining = options.expectedReadSeconds - elapsed;
     primary =
-      elapsed > options.expectedReadSeconds * 2
-        ? `chunk → model · ${elapsed} s — slow`
-        : `chunk → model · ${elapsed} s of ~${options.expectedReadSeconds} s typical`;
+      remaining > 0
+        ? `chunk ${cycle.chunkIndex} with the model · ~${remaining} s left`
+        : `chunk ${cycle.chunkIndex} still with the model · ${elapsed} s (usually ~${options.expectedReadSeconds} s)`;
   } else if (cycle.skipReason !== null) {
     primary = cycle.skipReason;
   } else if (cycle.watching) {
-    primary = `filming · ${Math.min(options.chunkSeconds, seconds(cycle.filmingStartedAt))} s of ${options.chunkSeconds} s`;
+    primary = `filming chunk ${cycle.chunkIndex} · ${Math.min(options.chunkSeconds, seconds(cycle.filmingStartedAt))} s of ${options.chunkSeconds} s`;
   } else {
     primary = 'camera paused';
   }

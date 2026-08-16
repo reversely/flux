@@ -94,6 +94,13 @@ export function useOpenMic(options: {
 }) {
   const client = useSession((s) => s.client);
   const [listening, setListening] = useState(false);
+  // Liveness the screen can show: level buckets 0-3 from the last buffer,
+  // and whether audio buffers are arriving at all — a mic the audio
+  // session silently starved must look different from a quiet room.
+  const [level, setLevel] = useState(0);
+  const [alive, setAlive] = useState(false);
+  const lastBufferAtRef = useRef(0);
+  const lastBucketRef = useRef(0);
   const wsRef = useRef<TranscriptionStream | null>(null);
   const lastVoiceAtRef = useRef(0);
   const enabledRef = useRef(false);
@@ -136,6 +143,12 @@ export function useOpenMic(options: {
       }
       const rms = Math.sqrt(sum / Math.max(1, counted));
       const now = Date.now();
+      lastBufferAtRef.current = now;
+      const bucket = rms > VOICE_RMS * 3 ? 3 : rms > VOICE_RMS ? 2 : rms > VOICE_RMS / 3 ? 1 : 0;
+      if (bucket !== lastBucketRef.current) {
+        lastBucketRef.current = bucket;
+        setLevel(bucket);
+      }
       if (rms > VOICE_RMS) {
         lastVoiceAtRef.current = now;
       }
@@ -172,15 +185,21 @@ export function useOpenMic(options: {
     if (!options.enabled) {
       return;
     }
-    let alive = true;
+    let mounted = true;
     void (async () => {
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
         handlers.current.onProblem('denied');
         return;
       }
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      if (!alive) {
+      // Explicit routing: playAndRecord must keep playback on the speaker,
+      // or narration goes quiet through the earpiece.
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldRouteThroughEarpiece: false,
+      });
+      if (!mounted) {
         return;
       }
       try {
@@ -189,8 +208,13 @@ export function useOpenMic(options: {
         handlers.current.onProblem('denied');
       }
     })();
+    const aliveTicker = setInterval(
+      () => setAlive(Date.now() - lastBufferAtRef.current < 2000),
+      1000,
+    );
     return () => {
-      alive = false;
+      clearInterval(aliveTicker);
+      mounted = false;
       enabledRef.current = false;
       try {
         mic.stop();
@@ -203,7 +227,7 @@ export function useOpenMic(options: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.enabled]);
 
-  return { listening };
+  return { listening, level, alive };
 }
 
 export function useHoldToTalk(options: {

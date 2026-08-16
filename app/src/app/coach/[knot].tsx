@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { mapTranscript } from '@/api/speech';
 import { useNarration, useOpenMic } from '@/api/voice';
+import { stripMarkdown } from '@/components/AnswerText';
 import { cycleLines, useWatchLoop } from '@/live/watch';
 import { procedureById } from '@/data/coach';
 import { useSession } from '@/store/session';
@@ -74,6 +75,11 @@ export default function KnotCoach() {
   const wasOutOfFrameRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
   const pointerRef = useRef(0);
+  // Wait coverage (PRD 1.6): while a chunk is with the model, the coach
+  // reads the step's manual detail — once per step, not once per chunk.
+  const stepRef = useRef(0);
+  const coverSpokenForRef = useRef(-1);
+  stepRef.current = step;
 
   // Narration goes through the box's Kokoro voice with the on-device
   // fallback (#180); the coach was the last screen on raw device speech.
@@ -114,7 +120,13 @@ export default function KnotCoach() {
     }
     if (result.step > pointerRef.current) {
       pointerRef.current = result.step;
-      goTo(result.step);
+      setStep(result.step);
+      // Comment on the finding first, then instruct (the VSS shape):
+      // what the model saw is the evidence for moving on.
+      const next = knot?.steps[result.step];
+      void narration.speak(
+        `I can see it${result.seen ? `: ${result.seen}` : ''}. Next: ${next?.voice ?? ''}`,
+      );
     }
   };
 
@@ -125,6 +137,17 @@ export default function KnotCoach() {
     chunkSeconds: COACH_CLIP_SECONDS,
     decide: () => null,
     send: sendChunk,
+    onReading: () => {
+      if (narration.isSpeaking() || coverSpokenForRef.current === stepRef.current) {
+        return;
+      }
+      coverSpokenForRef.current = stepRef.current;
+      const active = knot?.steps[stepRef.current];
+      const line = active?.manual ?? active?.voice;
+      if (line !== undefined) {
+        void narration.speak(`While I check: ${line}`);
+      }
+    },
   });
   const checking = watchLoop.cycle.reading;
 
@@ -172,7 +195,18 @@ export default function KnotCoach() {
       } else if (mapped.action === 'repeat') {
         speak(step);
       } else {
-        setHeard(`"${text}" — say next, back, or repeat`);
+        // Anything else is a question: inference answers it by voice, with
+        // the procedure and step as context (the VSS conversation shape).
+        setHeard(`"${text}" — asking the guide`);
+        void client()
+          .chat(
+            `While tying a ${knot.name} (step ${step + 1}: ${knot.steps[step].screen}) the user asks: ${text}`,
+          )
+          .then((answer) => {
+            setHeard(null);
+            void narration.speak(stripMarkdown(answer.text));
+          })
+          .catch(() => setHeard(`"${text}" — say next, back, or repeat`));
       }
     },
     onProblem: (kind) =>
@@ -270,7 +304,11 @@ export default function KnotCoach() {
           </Pressable>
         )}
         <View style={[styles.chip, talk.listening && styles.chipActive]}>
-          <Feather name="mic" size={16} color={talk.listening ? HOME_BIOME.glow : darkHome.ink3} />
+          <Feather
+            name={talk.alive ? 'mic' : 'mic-off'}
+            size={16}
+            color={talk.listening ? HOME_BIOME.glow : talk.alive ? darkHome.ink : darkHome.ink3}
+          />
         </View>
       </View>
       {figure !== undefined && (
