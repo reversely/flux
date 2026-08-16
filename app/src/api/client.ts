@@ -219,6 +219,11 @@ export class ApiClient {
     character: string,
     fileUri: string,
   ): Promise<WalkObservation> {
+    return traced(
+      'POST',
+      `/v1/walkthrough/sessions/${sessionId}/observe`,
+      `clip, ${character}`,
+      async () => {
     const result = await FileSystem.uploadAsync(
       `${this.baseUrl}/v1/walkthrough/sessions/${sessionId}/observe`,
       fileUri,
@@ -234,9 +239,16 @@ export class ApiClient {
       throw new Error(`observe failed: ${result.status}`);
     }
     return JSON.parse(result.body) as WalkObservation;
+      },
+    );
   }
 
   async surveyWalkthrough(sessionId: string, fileUri: string): Promise<WalkSurveyResult> {
+    return traced(
+      'POST',
+      `/v1/walkthrough/sessions/${sessionId}/survey`,
+      'clip, every open feature',
+      async () => {
     const result = await FileSystem.uploadAsync(
       `${this.baseUrl}/v1/walkthrough/sessions/${sessionId}/survey`,
       fileUri,
@@ -251,6 +263,8 @@ export class ApiClient {
       throw new Error(`survey failed: ${result.status}`);
     }
     return JSON.parse(result.body) as WalkSurveyResult;
+      },
+    );
   }
 
   async createCoachSession(knot: string): Promise<CoachSessionState> {

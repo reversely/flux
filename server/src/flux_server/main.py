@@ -725,6 +725,7 @@ def create_app(
                 status_code=422, detail=f"unreadable clip: {error}"
             ) from error
         states = view.states.get(character, [])
+        started = time.monotonic()
         observation = walk_observer.observe(
             node["question"], states, frames, subject=view.title.lower()
         )
@@ -738,6 +739,10 @@ def create_app(
             observation=observation.observation,
             citation=node["citation"],
             off_subject=observation.off_subject,
+            trace=InferenceTrace(
+                model=os.environ.get("FLUX_COSMOS_MODEL", "nvidia/cosmos-reason2-8b"),
+                latency_ms=int((time.monotonic() - started) * 1000),
+            ),
         )
 
     @app.post(
@@ -783,8 +788,10 @@ def create_app(
             ) from error
         observations: list[WalkObservation] = []
         unseen: list[str] = []
+        pass_started = time.monotonic()
         for node in open_nodes:
             states = view.states.get(node["character"], [])
+            started = time.monotonic()
             observed = walk_observer.observe(
                 node["question"], states, frames, subject=view.title.lower()
             )
@@ -799,12 +806,22 @@ def create_app(
                     confidence=observed.confidence,
                     observation=observed.observation,
                     citation=node["citation"],
+                    trace=InferenceTrace(
+                        model=os.environ.get(
+                            "FLUX_COSMOS_MODEL", "nvidia/cosmos-reason2-8b"
+                        ),
+                        latency_ms=int((time.monotonic() - started) * 1000),
+                    ),
                 )
             )
         return WalkSurveyResult(
             session_id=session_id,
             observations=observations,
             unseen=unseen,
+            trace=InferenceTrace(
+                model=os.environ.get("FLUX_COSMOS_MODEL", "nvidia/cosmos-reason2-8b"),
+                latency_ms=int((time.monotonic() - pass_started) * 1000),
+            ),
         )
 
     @app.post(

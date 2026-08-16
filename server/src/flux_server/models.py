@@ -422,6 +422,7 @@ class WalkObservation(BaseModel):
     # True when the clip shows something other than the guide's subject
     # (#197); observation then names what the camera saw instead.
     off_subject: bool = False
+    trace: InferenceTrace | None = None
 
 
 class WalkSurveyResult(BaseModel):
@@ -433,6 +434,7 @@ class WalkSurveyResult(BaseModel):
     observations: list[WalkObservation]
     # Features the clip did not show; the screen directs the reframe.
     unseen: list[str]
+    trace: InferenceTrace | None = None
 
 
 class SkyOutlook(BaseModel):

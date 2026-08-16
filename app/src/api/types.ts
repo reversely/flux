@@ -178,6 +178,7 @@ export interface WalkObservation {
   confidence: number;
   observation: string;
   citation: string;
+  trace?: InferenceTrace;
   /** The clip shows something other than the guide's subject; observation
    * names what the camera saw instead. */
   off_subject?: boolean;
@@ -198,6 +199,7 @@ export interface WalkSurveyResult {
   session_id: string;
   observations: WalkObservation[];
   unseen: string[];
+  trace?: InferenceTrace;
 }
 
 export interface WalkAnswer {
