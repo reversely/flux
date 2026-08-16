@@ -196,19 +196,23 @@ export const PROCEDURES: Procedure[] = [
       {
         screen: 'Loose overhand knot. Hook hangs in the middle.',
         voice: 'Tie a loose overhand knot. The hook hangs from the middle.',
+        figure: require('../../assets/coach/palomar_overhand.jpg'),
       },
       {
         screen: 'Pass the loop over the whole hook.',
         voice: 'Pass the loop over the whole hook.',
+        figure: require('../../assets/coach/palomar_loop_over.jpg'),
       },
       {
         screen: 'Wet the knot (spit works). Pull both lines tight.',
         voice:
           'Wet the knot with spit or water so the line does not weaken from friction. Then pull both lines tight.',
+        figure: require('../../assets/coach/palomar_drawn.jpg'),
       },
       {
         screen: 'Trim the tag end (the short leftover).',
         voice: 'Trim the tag end, the short leftover line.',
+        figure: require('../../assets/coach/palomar_cinch.jpg'),
       },
     ],
   },

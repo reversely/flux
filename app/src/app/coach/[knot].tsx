@@ -28,13 +28,16 @@ type WatchState = 'off' | 'starting' | 'watching' | 'failed';
  * override. Narration is on-device speech until box TTS relays (#77/#80).
  */
 export default function KnotCoach() {
-  const { knot: knotId } = useLocalSearchParams<{ knot: string }>();
+  const { knot: knotId, step: stepParam } = useLocalSearchParams<{
+    knot: string;
+    step?: string;
+  }>();
   const knot = procedureById(knotId ?? '');
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const client = useSession((s) => s.client);
   const [permission, requestPermission] = useCameraPermissions();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => Number(stepParam) || 0);
   const [voiceOn, setVoiceOn] = useState(true);
   const [watch, setWatch] = useState<WatchState>('off');
   const cameraRef = useRef<CameraView>(null);
