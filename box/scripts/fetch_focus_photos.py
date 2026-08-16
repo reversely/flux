@@ -81,6 +81,10 @@ def fetch(url: str) -> bytes | None:
             if err.code not in (429, 503) or attempt == 3:
                 raise
             time.sleep(2**attempt)
+        except (urllib.error.URLError, OSError):
+            if attempt == 3:
+                raise
+            time.sleep(30)
     return None
 
 

@@ -39,6 +39,10 @@ def api_get(host: str, params: dict) -> dict:
             if err.code not in (429, 503) or attempt == 4:
                 raise
             time.sleep(int(err.headers.get("Retry-After") or 2**attempt))
+        except (urllib.error.URLError, OSError):
+            if attempt == 4:
+                raise
+            time.sleep(30)
     raise AssertionError("unreachable")
 
 
@@ -52,6 +56,10 @@ def fetch_bytes(url: str) -> bytes:
             if err.code not in (429, 503) or attempt == 5:
                 raise
             time.sleep(max(int(err.headers.get("Retry-After") or 0), 2**attempt))
+        except (urllib.error.URLError, OSError):
+            if attempt == 5:
+                raise
+            time.sleep(30)
     raise AssertionError("unreachable")
 
 
