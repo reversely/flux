@@ -54,7 +54,8 @@ echo "== lightning chat option"
 # container when the downloaded model exists; the chat option registers
 # only on a healthy probe, so chat runs unchanged without it (#237/#238).
 ssh -S "$SOCK" "$BOX" '
-  if [ -f ~/flux-model/lightning/model.safetensors ] && \
+  if [ -f ~/flux-model/lightning/config.json ] && \
+      ls ~/flux-model/lightning/*.safetensors >/dev/null 2>&1 && \
       ! docker ps --format "{{.Names}}" | grep -q "^nemotron-lightning$"; then
     docker rm nemotron-lightning >/dev/null 2>&1
     docker run -d --name nemotron-lightning --gpus all -p 30084:8000 \
