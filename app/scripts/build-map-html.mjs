@@ -200,6 +200,14 @@ map.on('load', function () {
   map.addLayer({ id: 'me-dot', type: 'circle', source: 'me', paint: {
     'circle-color': '#4FA8E8', 'circle-radius': 6,
     'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2.5 } });
+  map.addSource('route', { type: 'geojson', data: emptyFC });
+  map.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: {
+    'line-color': '#4FA8E8', 'line-width': 2.5, 'line-dasharray': [2, 2],
+    'line-opacity': 0.9 } });
+  map.addLayer({ id: 'route-end', type: 'circle', source: 'route',
+    filter: ['==', '$type', 'Point'], paint: {
+    'circle-color': '#4FA8E8', 'circle-radius': 7,
+    'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 } });
   map.addLayer({ id: 'obs-dots', type: 'circle', source: 'obs', paint: {
     'circle-color': ['match', ['get', 'category'],
       'water', CATEGORY_COLOR.water, 'food', CATEGORY_COLOR.food,
@@ -236,6 +244,22 @@ window.__native = function (msg) {
   } else if (msg.type === 'obs') {
     var obs = map.getSource('obs');
     if (obs) { obs.setData(msg.data); }
+  } else if (msg.type === 'route') {
+    var route = map.getSource('route');
+    if (route) {
+      route.setData({ type: 'FeatureCollection', features: [
+        { type: 'Feature', geometry: { type: 'LineString',
+          coordinates: [[msg.fromLng, msg.fromLat], [msg.toLng, msg.toLat]] },
+          properties: {} },
+        { type: 'Feature', geometry: { type: 'Point',
+          coordinates: [msg.toLng, msg.toLat] }, properties: {} }] });
+      map.fitBounds([[Math.min(msg.fromLng, msg.toLng), Math.min(msg.fromLat, msg.toLat)],
+        [Math.max(msg.fromLng, msg.toLng), Math.max(msg.fromLat, msg.toLat)]],
+        { padding: 80, duration: 900 });
+    }
+  } else if (msg.type === 'route-clear') {
+    var routeSrc = map.getSource('route');
+    if (routeSrc) { routeSrc.setData(emptyFC); }
   } else if (msg.type === 'fly') {
     map.flyTo({ center: [msg.lng, msg.lat], zoom: Math.max(map.getZoom(), msg.zoom || 13),
       duration: 900, essential: true });

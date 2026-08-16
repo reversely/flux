@@ -275,6 +275,22 @@ export interface TranscriptionResult {
   trace: SpeechTrace;
 }
 
+/** One nearest-feature hit (#226); lat/lon is the straight-line target. */
+export interface FeatureHit {
+  feature_class: string;
+  name?: string | null;
+  distance_m: number;
+  bearing_deg: number;
+  lat: number;
+  lon: number;
+}
+
+export interface NearestFeatures {
+  hits: FeatureHit[];
+  /** The layer's ODbL line; rendered beside results. */
+  attribution: string;
+}
+
 export interface SkyOutlook {
   outlook: string;
   clouds: string;

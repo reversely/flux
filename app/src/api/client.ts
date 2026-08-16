@@ -20,6 +20,7 @@ import type {
   WalkSessionState,
   WalkSurveyResult,
   WalkSpeciesDetail,
+  NearestFeatures,
 } from './types';
 
 const HEALTH_TIMEOUT_MS = 4000;
@@ -47,6 +48,11 @@ export class ApiClient {
 
   async chat(question: string): Promise<ChatAnswer> {
     return this.postJson<ChatAnswer>('/v1/chat', { question });
+  }
+
+  async nearestFeatures(lat: number, lon: number, cls?: string): Promise<NearestFeatures> {
+    const params = `lat=${lat}&lon=${lon}${cls ? `&cls=${cls}` : ''}`;
+    return this.getJson<NearestFeatures>(`/v1/features/nearest?${params}`);
   }
 
   async listChapters(): Promise<ChapterSummary[]> {

@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
+import type { NearestFeatures } from '@/api/types';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
 import { useSession } from '@/store/session';
@@ -41,6 +42,26 @@ const DEV_TERRAIN = __DEV__
 
 const CATEGORIES: ObservationCategory[] = ['water', 'food', 'hazard', 'camp', 'note'];
 
+const COMPASS_WINDS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+
+const FEATURE_LABEL: Record<string, string> = {
+  water: 'Lake or pond',
+  river: 'River',
+  stream: 'Stream',
+  canal: 'Canal',
+  spring: 'Spring',
+};
+
+function compass(bearingDeg: number): string {
+  return COMPASS_WINDS[Math.round(bearingDeg / 45) % 8];
+}
+
+function formatDistance(meters: number): string {
+  return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1)} km`;
+}
+
+type NearestState = 'idle' | 'loading' | 'no-fix' | 'no-layer' | 'error' | 'ready';
+
 const CATEGORY_TINT: Record<ObservationCategory, string> = {
   water: '#4FA8E8',
   food: '#7BC98A',
@@ -66,6 +87,9 @@ export default function MapScreen() {
   const [draftCategory, setDraftCategory] = useState<ObservationCategory>('note');
   const [draftNote, setDraftNote] = useState('');
   const [openObs, setOpenObs] = useState<Observation | null>(null);
+  const [nearest, setNearest] = useState<NearestFeatures | null>(null);
+  const [nearestState, setNearestState] = useState<NearestState>('idle');
+  const [routedIndex, setRoutedIndex] = useState(0);
   const webviewRef = useRef<WebView>(null);
   const lastFixRef = useRef<{ lat: number; lng: number } | null>(null);
   const centeredOnceRef = useRef(false);
@@ -140,6 +164,56 @@ export default function MapScreen() {
     [serverUrl],
   );
 
+  // Nearest water (#223): ask the server for the closest features to the
+  // fix, show them in a sheet, and draw a straight line to the chosen one.
+  // Trail routing takes over when the #148 graph lands (#149's fallback).
+  const drawRoute = useCallback(
+    (result: NearestFeatures, index: number) => {
+      const fix = lastFixRef.current;
+      const hit = result.hits[index];
+      if (fix === null || hit === undefined) {
+        return;
+      }
+      setRoutedIndex(index);
+      sendToMap({
+        type: 'route',
+        fromLat: fix.lat,
+        fromLng: fix.lng,
+        toLat: hit.lat,
+        toLng: hit.lon,
+      });
+    },
+    [sendToMap],
+  );
+
+  const askNearest = async () => {
+    setDraft(null);
+    setOpenObs(null);
+    const fix = lastFixRef.current;
+    if (fix === null) {
+      setNearest(null);
+      setNearestState('no-fix');
+      return;
+    }
+    setNearestState('loading');
+    try {
+      const result = await useSession.getState().client().nearestFeatures(fix.lat, fix.lng);
+      setNearest(result);
+      setNearestState('ready');
+      drawRoute(result, 0);
+    } catch (error) {
+      setNearest(null);
+      setNearestState(String(error).includes('503') ? 'no-layer' : 'error');
+    }
+  };
+
+  const closeNearest = () => {
+    setNearest(null);
+    setNearestState('idle');
+    setRoutedIndex(0);
+    sendToMap({ type: 'route-clear' });
+  };
+
   const saveDraft = async () => {
     if (draft === null) {
       return;
@@ -192,6 +266,8 @@ export default function MapScreen() {
                   }
                 } else if (msg.type === 'longpress' && msg.lat !== undefined) {
                   setOpenObs(null);
+                  setNearest(null);
+                  setNearestState('idle');
                   setDraft({ lat: msg.lat, lng: msg.lng! });
                 } else if (msg.type === 'obs-tap' && msg.id !== undefined) {
                   setDraft(null);
@@ -221,6 +297,66 @@ export default function MapScreen() {
           >
             <Feather name="crosshair" size={22} color={darkHome.ink} />
           </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Nearest water"
+            onPress={() => void askNearest()}
+            style={[styles.locateButton, { bottom: insets.bottom + spacing.l + 64 }]}
+          >
+            <Feather name="droplet" size={22} color={darkHome.ink} />
+          </Pressable>
+          {nearestState !== 'idle' && (
+            <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.m }]}>
+              <Text style={styles.sheetTitle}>Nearest water</Text>
+              {nearestState === 'loading' && <Text style={styles.noteBody}>Looking</Text>}
+              {nearestState === 'no-fix' && <Text style={styles.noteBody}>Waiting for GPS</Text>}
+              {nearestState === 'no-layer' && (
+                <Text style={styles.noteBody}>No feature layer on this server</Text>
+              )}
+              {nearestState === 'error' && <Text style={styles.noteBody}>Server unreachable</Text>}
+              {nearestState === 'ready' && nearest !== null && (
+                <>
+                  {nearest.hits.length === 0 && (
+                    <Text style={styles.noteBody}>Nothing within range</Text>
+                  )}
+                  {nearest.hits.map((hit, index) => (
+                    <Pressable
+                      key={`${hit.lat},${hit.lon}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Route to ${hit.name ?? hit.feature_class}`}
+                      onPress={() => drawRoute(nearest, index)}
+                      style={styles.hitRow}
+                    >
+                      <Feather
+                        name={index === routedIndex ? 'navigation' : 'droplet'}
+                        size={14}
+                        color={index === routedIndex ? CATEGORY_TINT.water : darkHome.ink3}
+                      />
+                      <Text style={styles.hitText}>
+                        {hit.name ?? FEATURE_LABEL[hit.feature_class] ?? hit.feature_class}
+                      </Text>
+                      <Text style={styles.hitDistance}>
+                        {formatDistance(hit.distance_m)} {compass(hit.bearing_deg)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                  <Text style={styles.attribution}>
+                    bearing line only · {nearest.attribution}
+                  </Text>
+                </>
+              )}
+              <View style={styles.sheetActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close nearest water"
+                  onPress={closeNearest}
+                  style={[styles.sheetButton, styles.sheetButtonPrimary]}
+                >
+                  <Text style={[styles.sheetButtonText, styles.sheetButtonPrimaryText]}>Close</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
           {draft !== null && (
             <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.m }]}>
               <Text style={styles.sheetTitle}>Mark this spot</Text>
@@ -407,6 +543,26 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
     paddingHorizontal: spacing.s,
     paddingVertical: spacing.xs,
+  },
+  hitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s,
+    paddingVertical: spacing.xs,
+  },
+  hitText: {
+    ...typography.body,
+    color: darkHome.ink,
+    flex: 1,
+  },
+  hitDistance: {
+    ...typography.annotation,
+    color: darkHome.ink2,
+  },
+  attribution: {
+    ...typography.annotation,
+    fontSize: 10,
+    color: darkHome.ink3,
   },
   noteHeader: {
     flexDirection: 'row',
