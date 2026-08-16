@@ -41,7 +41,7 @@ carries current guidance and names the divergence (PRD 6.5.7).
 | 9 Direction Finding | Improvised floating compass | FM 21-76 ch 18 | steps only | Commons Floating Compass.png is public domain and shows a floating needle | partial, figure found |
 | 10 Signaling and Rescue | Ground-to-air panels, signal mirror, signal fires | FM 21-76 ch 19, FAA AIM for body signals | steps only | smoke generator crop verified; figure 19-7 is per-step | partial |
 | 11 Environments | Desert water discipline, sea raft and immersion, cold layering | FM 21-76 ch 13, 15, 16 | steps only | mixed; the current NWS wind chill chart is on Commons as public domain and replaces figure 15-1 | partial |
-| 11 Environments | Tropical, ch 14 | under research | | | open |
+| 11 Environments | Tropical, ch 14 | FM 21-76 ch 14 | steps only | not yet audited | open, the last unsourced item |
 | 12 Man-Made Hazards | Personal decontamination | STP 031-COM-1006 | sequenced measures with a time budget | Commons decontamination category, 154 public-domain files | ready, #142 |
 | 12 Man-Made Hazards | Expedient fallout shelter, safe water after a release | FM 21-76 ch 23 | steps only | Nuclear War Survival Skills (ORNL-5037) is built on expedient shelter construction drawings; two Internet Archive copies carry a public domain mark, which is uploader-asserted and needs confirming against the edition | partial, lead to verify |
 | 5 Food | Snares, deadfall, fishing, game preparation, preserving | FM 21-76 ch 8 plus Harding 1907 and USDA Farmers' Bulletin 2131 | steps only | Commons has the deadfall and bottle-trap plates; Bulletin 2131 figure 18 is a per-step skinning series | ready except the tidal weir |
@@ -53,6 +53,14 @@ carries current guidance and names the divergence (PRD 6.5.7).
 | Disaster scenarios: flood, storm, earthquake, pandemic, chemical release, infrastructure failure | PRD 2.1 lists them as an MVP 1 feature | sourced from Ready.gov, public domain; all six ship as reference cards, with two enforceable values and one rehearsable sequence. See hazard-and-weather-sources.md |
 | Weather and sky reading | the PRD's cloud galleries | identification walk over ten genera; NOAA JetStream and FM Appendix G are public domain, Commons has per-genus imagery, the WMO atlas is unusable |
 | Universal edibility test | a timed checklist, not a camera walk | sourced: 13 steps summing to about 24 hours 48 minutes, from figure 9-5; ship the 1999 edition's list |
+
+## The manual behind all of this is truncated
+
+The repo's copy of FM 21-76 is a 233-page reprint that stops inside chapter 23, so every appendix
+is missing and the pack was parsed from roughly a third of the document. Two appendices carry the
+best data in the manual: Appendix B, 111 edible species with part, preparation, habitat, and a
+caution on one record, and Appendix G, clouds. Ticket #152 re-sources it from the 646-page Commons
+scan, and several rows above depend on that landing.
 
 ## What blocks the most rows
 
