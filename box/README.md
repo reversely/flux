@@ -21,6 +21,14 @@ app's state; do not depend on it. The MOTD's enP7s7 address (172.16.95.x)
 refuses key auth; use the wifi address above. Only the sudo DNS fix
 (`sudo resolvectl dns wlP9s9 1.1.1.1`) needs the user in an interactive session.
 
+## Wiring and backup
+
+`wiring.md` records every process, port, env variable, and launch command in the running
+system, and the rebuild path for all bytes from manifests. `scripts/backup_box_state.sh`
+pulls the hand-edited state (configs, overrides, blueprint edits, crontab) to
+`mac:~/FluxBackups/` as a timestamped tarball; data and models rebuild instead of
+restoring.
+
 ## Layout on the box
 
 - `~/flux/models/<name>/` holds one downloaded model per manifest row, with a
