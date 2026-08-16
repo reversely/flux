@@ -108,7 +108,8 @@ assembly attaches the image.
 | fm_figure_ref | TEXT | The FM figure number, such as `4-2`. |
 | image_path | TEXT, nullable | Pack-relative path to the image file. NULL until pack assembly attaches one. |
 | source_manual | TEXT | The manual the image comes from; `FM 21-76` until a clearer printing substitutes a figure (PRD 4.1). |
-| license | TEXT | License of the image, `public-domain` for US Army manuals. |
+| license | TEXT | License of the attached image file, `public-domain` for US Army manuals. Commons-harvested imagery is largely CC BY-SA or GFDL, so the value is per file, never per manual. |
+| attribution | TEXT, nullable | Source URL and author for the attached image file, in the app's attribution-line form (`source-url, author`). NULL until pack assembly attaches an image; packs built before this column omit it, and the server reads both. |
 
 ## Guide tables
 

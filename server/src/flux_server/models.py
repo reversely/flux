@@ -148,6 +148,9 @@ class Figure(BaseModel):
     image_path: str | None = None
     source_manual: str
     license: str
+    # Per-file source-url and author for the attached image (#144); absent
+    # until harvesting attaches one, and absent from packs built before it.
+    attribution: str | None = None
 
 
 class SearchHit(BaseModel):

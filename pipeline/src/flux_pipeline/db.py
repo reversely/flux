@@ -41,7 +41,8 @@ CREATE TABLE figure (
     fm_figure_ref TEXT NOT NULL,
     image_path    TEXT,
     source_manual TEXT NOT NULL,
-    license       TEXT NOT NULL
+    license       TEXT NOT NULL,
+    attribution   TEXT
 );
 """
 
@@ -49,7 +50,7 @@ _INSERTS = {
     "chapter": "INSERT INTO chapter VALUES (?, ?, ?, ?, ?)",
     "section": "INSERT INTO section VALUES (?, ?, ?, ?, ?)",
     "block": "INSERT INTO block VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    "figure": "INSERT INTO figure VALUES (?, ?, ?, ?, ?, ?)",
+    "figure": "INSERT INTO figure VALUES (?, ?, ?, ?, ?, ?, ?)",
 }
 
 

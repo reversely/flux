@@ -1680,6 +1680,17 @@
           "license": {
             "type": "string",
             "title": "License"
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution"
           }
         },
         "type": "object",
@@ -2474,7 +2485,7 @@
           "complete"
         ],
         "title": "WalkSessionState",
-        "description": "The whole session, recomputed from the transcript on every response.\n\ncandidates and danger_species carry full cards when the survivor set is\nsmall or the walk is complete, and stay absent while the set is large;\nthe counts are always present."
+        "description": "The whole session, recomputed from the transcript on every response.\n\ndanger_species carries full cards on every step (#136); candidates\ncarries them when the survivor set is small or the walk is complete and\nstays absent while the set is large. The counts are always present."
       },
       "WalkSpeciesCard": {
         "properties": {

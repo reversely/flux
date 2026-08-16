@@ -95,6 +95,9 @@ class Figure:
     image_path: str | None
     source_manual: str
     license: str
+    # source-url and author for the attached image file, URL-style per the
+    # app's attribution line; None until pack assembly attaches one (#137).
+    attribution: str | None = None
 
 
 @dataclass

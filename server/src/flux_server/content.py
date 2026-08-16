@@ -92,11 +92,20 @@ class ContentStore:
         )
 
     def figure(self, figure_id: str) -> dict | None:
-        return self._row(
-            "SELECT id, block_id, fm_figure_ref, image_path, source_manual,"
-            " license FROM figure WHERE id = ?",
-            (figure_id,),
-        )
+        # attribution arrived with #144; a pack built before it has no such
+        # column, and the non-breaking rule keeps old packs readable.
+        try:
+            return self._row(
+                "SELECT id, block_id, fm_figure_ref, image_path, source_manual,"
+                " license, attribution FROM figure WHERE id = ?",
+                (figure_id,),
+            )
+        except sqlite3.OperationalError:
+            return self._row(
+                "SELECT id, block_id, fm_figure_ref, image_path, source_manual,"
+                " license FROM figure WHERE id = ?",
+                (figure_id,),
+            )
 
     def search(self, query: str, limit: int) -> list[dict]:
         # Quote each term so FTS5 operators in user input read as words,
