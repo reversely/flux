@@ -64,7 +64,7 @@ One row per text unit, in reading order within its section.
 | text | TEXT | The block text. A procedure or mnemonic block opens with its printed method name on the first line, then a newline, then the body. A checklist or materials block holds one bullet item per line, each starting with `•`. |
 | figure_ref | TEXT, nullable | FM figure numbers the text cites, comma separated in order of first mention, such as `4-2` or `8-6,8-7`. NULL when the block cites no figure. |
 | source | TEXT | The source manual, `FM 21-76` for every row this build writes. |
-| review_status | TEXT, checked | `auto` or `needs_review`; see the review states section. |
+| review_status | TEXT, checked | `auto`, `needs_review`, or `edited`; see the review states section. |
 
 ### Block types
 
@@ -84,12 +84,17 @@ A CHECK constraint restricts `type` to these nine values.
 
 ### Review states
 
-A CHECK constraint restricts `review_status` to two values.
+A CHECK constraint restricts `review_status` to three values.
 
-- `auto`: the parser accepted the block without conditions.
+- `auto`: the parser accepted the block without conditions, or an editor approved a flagged
+  block as printed (figurative military language carries no transfer).
 - `needs_review`: an editor must confirm civilian transfer before the block publishes (PRD 8.1).
   Every block in chapters 20 to 22 takes this state, and so does any block elsewhere containing a
   sentence with a military term such as enemy, combat, camouflage, evasion, or weapon.
+- `edited`: an editor rewrote the block for civilian transfer, so its text no longer matches the
+  source manual verbatim. The replacement text lives in the pipeline's committed edits file
+  (`pipeline/edits/civilian_edits.json`), which the parse build applies; a block a purely military
+  clause could not transfer is dropped there rather than rewritten.
 
 ## Table: figure
 

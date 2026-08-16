@@ -50,7 +50,6 @@ function BlockView({ block }: { block: Block }) {
       {block.figure_ref !== null && (
         <Text style={typography.annotation}>Figure {block.figure_ref}</Text>
       )}
-      {block.review_status === 'needs_review' && <Tag label="Needs review" tone="yellow" />}
     </>
   );
 

@@ -33,7 +33,7 @@ CREATE TABLE block (
     text          TEXT NOT NULL,
     figure_ref    TEXT,
     source        TEXT NOT NULL,
-    review_status TEXT NOT NULL CHECK (review_status IN ('auto', 'needs_review'))
+    review_status TEXT NOT NULL CHECK (review_status IN ('auto', 'needs_review', 'edited'))
 );
 CREATE TABLE figure (
     id            TEXT PRIMARY KEY,

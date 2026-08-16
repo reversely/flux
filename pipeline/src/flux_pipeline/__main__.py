@@ -12,6 +12,12 @@ def main() -> None:
     parse_cmd = sub.add_parser("parse", help="parse the FM 21-76 PDF into content.db")
     parse_cmd.add_argument("pdf", type=Path)
     parse_cmd.add_argument("out_db", type=Path)
+    parse_cmd.add_argument(
+        "--edits",
+        type=Path,
+        default=None,
+        help="civilian-transfer edits file (default: edits/civilian_edits.json)",
+    )
     walk_cmd = sub.add_parser(
         "walkthrough", help="compile the mycomorphbox trait TSV into walk_ tables"
     )
@@ -25,12 +31,14 @@ def main() -> None:
         print(write_walkthrough(args.trait_tsv, args.db))
         return
 
+    from flux_pipeline.civilian import DEFAULT_EDITS_PATH, apply_civilian_edits
     from flux_pipeline.db import summarize, write_db
     from flux_pipeline.lines import normalize
     from flux_pipeline.parse import parse_lines
     from flux_pipeline.pdfio import extract_lines
 
     manual = parse_lines(normalize(extract_lines(args.pdf)))
+    manual = apply_civilian_edits(manual, args.edits or DEFAULT_EDITS_PATH)
     write_db(manual, args.out_db)
     print(summarize(manual))
 
