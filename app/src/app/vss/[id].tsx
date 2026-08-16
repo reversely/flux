@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as Device from 'expo-device';
+import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useEffect, useRef, useState } from 'react';
@@ -10,7 +11,7 @@ import { mapTranscript, suggestedOptions } from '@/api/speech';
 import { useHoldToTalk, useNarration } from '@/api/voice';
 import { Tag } from '@/components/Tag';
 import { TopBar } from '@/components/TopBar';
-import { findingFor, sourceById, vssById } from '@/data/vss';
+import { NORMALS_SOURCE, findingFor, localBaseline, sourceById, vssById } from '@/data/vss';
 import { useSession } from '@/store/session';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
@@ -51,6 +52,28 @@ export default function VssScreen() {
   const [heard, setHeard] = useState<string | null>(null);
   const camera = useRef<CameraView | null>(null);
   const client = useSession((s) => s.client);
+  // What this place usually does this month. The sky says what is coming;
+  // the base rate says how unusual that is here (#165).
+  const [baseline, setBaseline] = useState<{ station: string; line: string }>();
+
+  useEffect(() => {
+    if (id !== 'weather') {
+      return;
+    }
+    void (async () => {
+      const granted = await Location.getForegroundPermissionsAsync();
+      if (!granted.granted) {
+        return;
+      }
+      const fix = await Location.getLastKnownPositionAsync();
+      if (fix === null) {
+        return;
+      }
+      setBaseline(
+        localBaseline(fix.coords.latitude, fix.coords.longitude, new Date().getMonth() + 1),
+      );
+    })();
+  }, [id]);
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
   const question = session?.questions[step];
@@ -279,6 +302,14 @@ export default function VssScreen() {
           <View style={styles.card}>
             {finding.image !== undefined && <Image source={finding.image} style={styles.figure} />}
             <Text style={typography.surfaceTitle}>{finding.means}</Text>
+            {baseline !== undefined && (
+              <View style={styles.baseline}>
+                <Feather name="bar-chart-2" size={14} color={colors.ink2} />
+                <Text style={typography.annotation}>
+                  {baseline.station}: {baseline.line}
+                </Text>
+              </View>
+            )}
             <View style={styles.quote}>
               <Text style={styles.quoteText}>{finding.quote}</Text>
               {findingSource !== undefined && (
@@ -304,7 +335,7 @@ export default function VssScreen() {
 
         <View style={styles.sources}>
           <Text style={styles.sourcesHead}>Sources</Text>
-          {session.sources.map((s, i) => (
+          {(baseline === undefined ? session.sources : [...session.sources, NORMALS_SOURCE]).map((s, i) => (
             <Pressable key={s.id} onPress={() => void Linking.openURL(s.url)}>
               <Text style={styles.sourceLine}>
                 [{i + 1}] {s.title}
@@ -341,6 +372,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s },
   readingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   readingText: { ...typography.annotation, color: colors.signature },
+  baseline: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
   quote: {
     borderLeftWidth: 2,
     borderLeftColor: colors.steel[1],

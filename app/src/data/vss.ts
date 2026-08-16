@@ -1,5 +1,7 @@
 import type { ImageSourcePropType } from 'react-native';
 
+import normals from '../../assets/guides/climate-normals.json';
+
 /**
  * VSS sessions follow one shape (PRD 1.6): a short clip of the conditions,
  * a spoken interview while the box infers, tappable options for every
@@ -243,3 +245,63 @@ export function findingFor(session: VssSession, answers: Record<string, string>)
 export function sourceById(session: VssSession, id: string): VssSource | undefined {
   return session.sources.find((s) => s.id === id);
 }
+
+export const NORMALS_SOURCE: VssSource = {
+  id: 'noaa-normals',
+  title: 'NOAA monthly climate normals, 1991 to 2020',
+  url: 'https://www.ncei.noaa.gov/data/normals-monthly/1991-2020/access/',
+  licence: 'Public domain, US government work',
+};
+
+interface MonthNormal {
+  m: number;
+  wetDays: number | null;
+  tavg: number | null;
+  prcp: number | null;
+}
+
+interface StationNormal {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  months: MonthNormal[];
+}
+
+/**
+ * What this place usually does this month, from the nearest station's
+ * normals. The sky says what is coming; the base rate says how unusual that
+ * is here, which is the difference between naming a cloud and forecasting.
+ */
+export function localBaseline(
+  lat: number,
+  lon: number,
+  month: number,
+): { station: string; line: string } | undefined {
+  const stations = normals as StationNormal[];
+  let best: StationNormal | undefined;
+  let bestDistance = Infinity;
+  for (const station of stations) {
+    const distance = (station.lat - lat) ** 2 + (station.lon - lon) ** 2;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = station;
+    }
+  }
+  const record = best?.months.find((m) => m.m === month);
+  if (best === undefined || record === undefined || record.wetDays === null) {
+    return undefined;
+  }
+  const wet = record.wetDays;
+  const usual =
+    wet < 2 ? 'a dry month here' : wet < 6 ? 'a mixed month here' : 'a wet month here';
+  return {
+    station: best.name,
+    line: `${usual}: about ${wet} days of rain in an average ${MONTHS[month - 1]}, ${record.tavg ?? '?'} degrees average.`,
+  };
+}
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
