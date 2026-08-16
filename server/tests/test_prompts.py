@@ -32,7 +32,11 @@ def test_coach_task_keeps_the_benched_wording():
     prompt = coach_step_prompt("bowline", ["make a loop", "pass the end"])
     assert "You are watching someone tie a bowline step by step." in prompt
     assert "S0: make a loop\nS1: pass the end" in prompt
-    assert 'Answer with JSON only: {"step": "S<n>"}' in prompt
+    # The answer-format line extends the bench schema with the transparency
+    # fields (#197); the step field and its parse are unchanged.
+    assert '"step": "S<n>"' in prompt
+    assert '"seen":' in prompt
+    assert '"subject_present":' in prompt
 
 
 def test_trail_summary_layers_the_transcript():

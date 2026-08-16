@@ -289,6 +289,9 @@ export default function Capture() {
             {results.transcript != null && (
               <Text style={styles.helper}>You said: {results.transcript}</Text>
             )}
+            <Text style={styles.modelLine}>
+              VSS on the box · {clips.filter((c) => c.status === 'done').length} clips watched
+            </Text>
           </ScrollView>
         )}
         {results?.summary != null && (
@@ -319,7 +322,8 @@ export default function Capture() {
         )}
         {clips.length === 0 ? (
           <Text style={styles.helper}>
-            Record. Clips upload as they finish.
+            Record. Clips upload to the box as they finish; nothing is read
+            until you summarize.
           </Text>
         ) : (
           <FlatList
@@ -383,6 +387,10 @@ const styles = StyleSheet.create({
     ...dark.body,
     fontSize: 14,
     lineHeight: 21,
+  },
+  modelLine: {
+    ...dark.note,
+    marginTop: spacing.s,
   },
   askRow: {
     flexDirection: 'row',

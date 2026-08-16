@@ -23,10 +23,13 @@ logger = logging.getLogger(__name__)
 OBSERVE_TIMEOUT_S = 60.0
 
 OBSERVE_PROMPT = (
-    "You are looking at frames from one short clip of a specimen. Answer "
-    "exactly one question about one visible attribute.\n"
+    "You are looking at frames from one short clip of a specimen for a "
+    "field guide on {subject}. First check the frames actually show such a "
+    "specimen. If they clearly show something else instead (a mug, a face, "
+    "a room), answer off_subject and name what you see in the observation. "
+    "Otherwise answer exactly one question about one visible attribute.\n"
     "Question: {question}\n"
-    "Acceptable answers: {states}, or unsure.\n"
+    "Acceptable answers: {states}, unsure, or off_subject.\n"
     "If the evidence is not clearly visible in these frames, answer unsure. "
     'Reply with JSON only: {{"answer": "<one acceptable answer>", '
     '"confidence": <0 to 1>, "observation": "<one short sentence naming '
@@ -41,11 +44,14 @@ class Observation:
     state: str | None  # None encodes unsure
     confidence: float
     observation: str
+    # True when the model reports the frames show something other than the
+    # guide's subject entirely; observation then names what it saw.
+    off_subject: bool = False
 
 
 class ObserveClassifier(Protocol):
     def observe(
-        self, question: str, states: list[str], frames: list[bytes]
+        self, question: str, states: list[str], frames: list[bytes], subject: str
     ) -> Observation | None:
         """A bounded answer, or None when the model reply is unusable."""
         ...
@@ -59,9 +65,11 @@ class CosmosObserver:
         self._model = model
 
     def observe(
-        self, question: str, states: list[str], frames: list[bytes]
+        self, question: str, states: list[str], frames: list[bytes], subject: str
     ) -> Observation | None:
-        prompt = OBSERVE_PROMPT.format(question=question, states=", ".join(states))
+        prompt = OBSERVE_PROMPT.format(
+            subject=subject, question=question, states=", ".join(states)
+        )
         try:
             response = httpx.post(
                 self._url,
@@ -97,6 +105,7 @@ class CosmosObserver:
             state=state,
             confidence=confidence,
             observation=str(parsed.get("observation", ""))[:300],
+            off_subject=answer == "off_subject",
         )
 
 

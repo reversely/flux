@@ -166,6 +166,9 @@ export interface WalkObservation {
   confidence: number;
   observation: string;
   citation: string;
+  /** The clip shows something other than the guide's subject; observation
+   * names what the camera saw instead. */
+  off_subject?: boolean;
 }
 
 export interface WalkQuestion {
@@ -217,6 +220,11 @@ export interface CoachClipResult {
   step: number;
   advanced: boolean;
   trace?: InferenceTrace;
+  /** One clause of what the model saw in the clip. */
+  seen?: string;
+  /** False when the procedure's materials were not in frame; such a clip
+   * never moves the pointer. */
+  subject_present?: boolean;
 }
 
 export interface WalkSpeciesDetail extends WalkSpeciesCard {
@@ -252,4 +260,7 @@ export interface SkyOutlook {
   rain_days: number;
   high_f: number;
   source: string;
+  /** The clip does not show the sky; outlook carries the retake
+   * instruction and clouds what the camera saw instead. */
+  off_subject?: boolean;
 }

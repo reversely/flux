@@ -343,6 +343,12 @@ class CoachClipResult(BaseModel):
     step: int
     advanced: bool
     trace: InferenceTrace | None = None
+    # Transparency fields (#197): the model's own account of the clip. seen
+    # is one clause of what was visible; subject_present is false when the
+    # procedure's materials were not in frame (the pointer never advances
+    # on such a clip). Both optional, so older clients ignore them.
+    seen: str | None = None
+    subject_present: bool | None = None
 
 
 class SpeechTrace(BaseModel):
@@ -413,6 +419,9 @@ class WalkObservation(BaseModel):
     confidence: float
     observation: str
     citation: str
+    # True when the clip shows something other than the guide's subject
+    # (#197); observation then names what the camera saw instead.
+    off_subject: bool = False
 
 
 class SkyOutlook(BaseModel):
@@ -424,3 +433,6 @@ class SkyOutlook(BaseModel):
     rain_days: int
     high_f: int
     source: str
+    # True when the clip does not show the sky (#197): outlook carries the
+    # retake instruction and clouds what the camera saw instead.
+    off_subject: bool = False

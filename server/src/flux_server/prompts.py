@@ -11,7 +11,12 @@ the contract #169's evidence composer builds on.
 One prompt stays outside this module by measurement: CLASSIFY_PROMPT in
 nemotron.py scored 14/14 as worded, and a rewording is a re-measurement.
 The coach task sentences below keep the #64 bench wording for the same
-reason; only the base blocks in front of them are new.
+reason; only the base blocks in front of them are new. The one later change
+is the answer-format line, which now also asks for what is visible and
+whether the procedure's materials are in frame; the step field and its
+parse are unchanged, and the extended wording was re-verified live against
+the box on 2026-08-16 (bowline clip still classifies; an off-subject clip
+reports subject_present false).
 """
 
 BASE = (
@@ -73,9 +78,27 @@ def coach_step_prompt(knot_name: str, cues: list[str]) -> str:
         f"The procedure's steps are:\n{steps}\n\n"
         "These frames are one consecutive chunk of live video, in order. "
         "Which single step is being performed in this chunk? "
-        'Answer with JSON only: {"step": "S<n>"}'
+        f"{COACH_ANSWER_FORMAT}"
     )
     return compose(BASE, CLIP_OBSERVER, task)
+
+
+# The shared answer-format line for both coach prompts: the step field keeps
+# the bench contract; seen and subject_present are the transparency fields
+# the app shows so a model call is never silent about what it looked at.
+# Field order is measured, not stylistic: with step first, the model echoed
+# a cue verbatim as seen and reported a sky clip as subject_present true;
+# describing the frames before classifying grounded all three fields
+# (live probes, 2026-08-16).
+COACH_ANSWER_FORMAT = (
+    "First look at the frames alone and decide whether the rope or "
+    "materials for this procedure are visible in them at all. "
+    'Answer with JSON only: {"seen": "<one short clause describing what '
+    "the frames actually show, in your own words, never copied from the "
+    'step list>", "subject_present": <true only if the rope or materials '
+    "are visible in the frames; false for anything else such as sky, "
+    'faces, rooms, or unrelated objects>, "step": "S<n>"}'
+)
 
 
 def coach_procedure_prompt(procedure_phrase: str, cues: list[str]) -> str:
@@ -87,7 +110,7 @@ def coach_procedure_prompt(procedure_phrase: str, cues: list[str]) -> str:
         f"The procedure's steps are:\n{steps}\n\n"
         "These frames are one consecutive chunk of live video, in order. "
         "Which single step is being performed in this chunk? "
-        'Answer with JSON only: {"step": "S<n>"}'
+        f"{COACH_ANSWER_FORMAT}"
     )
     return compose(BASE, CLIP_OBSERVER, task)
 

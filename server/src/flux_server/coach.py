@@ -358,9 +358,23 @@ def frames_to_content(prompt: str, frames: list[bytes]) -> list[dict]:
     return content
 
 
+@dataclass(frozen=True)
+class ClipRead:
+    """One clip's classification plus what the model reported seeing.
+
+    step drives the pointer exactly as before; seen and subject_present are
+    the transparency half: the app shows them, and a clip whose frames do
+    not contain the procedure's materials never advances the pointer.
+    """
+
+    step: int | None
+    seen: str | None = None
+    subject_present: bool | None = None
+
+
 class StepClassifier(Protocol):
-    def classify(self, knot: CoachKnot, frames: list[bytes]) -> int | None:
-        """Index of the step the frames show, or None when unreadable."""
+    def classify(self, knot: CoachKnot, frames: list[bytes]) -> ClipRead:
+        """The step the frames show, with the model's own observation."""
 
 
 class CosmosStepClassifier:
@@ -372,7 +386,7 @@ class CosmosStepClassifier:
         # Routes name the model in the inference trace they return.
         self.model = model
 
-    def classify(self, knot: CoachKnot, frames: list[bytes]) -> int | None:
+    def classify(self, knot: CoachKnot, frames: list[bytes]) -> ClipRead:
         cues = [s.cue for s in knot.steps]
         if knot.classifier_phrase:
             prompt = coach_procedure_prompt(knot.classifier_phrase, cues)
@@ -402,12 +416,23 @@ class CosmosStepClassifier:
             text = response.json()["choices"][0]["message"]["content"]
         except (httpx.HTTPError, KeyError, IndexError) as error:
             logger.warning("coach classification failed: %s", error)
-            return None
+            return ClipRead(step=None)
+        seen, subject_present = _read_extras(text)
         match = re.search(r'"step"\s*:\s*"S(\d+)"', text)
         if match is None:
-            return None
+            return ClipRead(step=None, seen=seen, subject_present=subject_present)
         index = int(match.group(1))
-        return index if 0 <= index < len(knot.steps) else None
+        step = index if 0 <= index < len(knot.steps) else None
+        return ClipRead(step=step, seen=seen, subject_present=subject_present)
+
+
+def _read_extras(text: str) -> tuple[str | None, bool | None]:
+    """The seen clause and subject flag, tolerating a step-only reply."""
+    seen_match = re.search(r'"seen"\s*:\s*"([^"]*)"', text)
+    seen = seen_match.group(1).strip()[:200] if seen_match else None
+    present_match = re.search(r'"subject_present"\s*:\s*(true|false)', text)
+    present = present_match.group(1) == "true" if present_match else None
+    return (seen or None, present)
 
 
 def advance_pointer(predictions: list[int | None], n_steps: int) -> int:

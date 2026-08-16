@@ -182,7 +182,9 @@ export default function Walkthrough() {
         video.uri,
       );
       setSuggestion(observed);
-      if (observed.state !== undefined && observed.state !== null) {
+      if (observed.off_subject === true) {
+        void narration.speak(`That is not the specimen. Seeing ${observed.observation}`);
+      } else if (observed.state !== undefined && observed.state !== null) {
         void narration.speak(
           `Looks ${observed.state}. ${observed.observation} Confirm?`,
         );
@@ -350,7 +352,7 @@ export default function Walkthrough() {
                   </Pressable>
                   <Text style={[typography.annotation, styles.heard]} numberOfLines={2}>
                     {observing
-                      ? (suggestion?.cause ?? 'checking')
+                      ? '3 s clip → box model'
                       : (current.capture_condition ?? '')}
                   </Text>
                 </View>
@@ -373,7 +375,11 @@ export default function Walkthrough() {
                     </Text>
                   </Pressable>
                 ) : (
-                  <Text style={typography.annotation}>Not clearly visible. Adjust and retry.</Text>
+                  <Text style={typography.annotation}>
+                    {suggestion.off_subject === true
+                      ? 'Not the specimen — reframe and retry.'
+                      : 'Not clearly visible. Adjust and retry.'}
+                  </Text>
                 )}
                 <Text style={typography.annotation} numberOfLines={2}>
                   {suggestion.observation}

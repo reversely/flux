@@ -206,6 +206,13 @@ def main() -> int:
         ok and (body.get("state") is None or isinstance(body.get("state"), str)),
         f"{body.get('state')} conf={body.get('confidence')}" if ok else r.text[:80],
     )
+    # The test clip is rope, not a mushroom: the subject gate (#197) must
+    # say so instead of guessing a gill state.
+    check(
+        "observe rejects off-subject clip",
+        ok and body.get("off_subject") is True,
+        (body.get("observation") or "")[:70],
+    )
     check(
         "observe never writes transcript",
         client.get(f"{SERVER}/v1/walkthrough/sessions/{wid}").json()["answers"] == [],
@@ -225,11 +232,35 @@ def main() -> int:
             f"{SERVER}/v1/coach/sessions/{cs['session_id']}/clip",
             files={"video": ("clip.mp4", f, "video/mp4")},
         )
+    body = r.json() if r.status_code == 200 else {}
     check(
         "coach clip classifies",
-        r.status_code == 200 and "prediction" in r.json(),
-        json.dumps(r.json())[:60] if r.status_code == 200 else r.text[:80],
+        r.status_code == 200 and "prediction" in body,
+        json.dumps(body)[:60] if r.status_code == 200 else r.text[:80],
     )
+    check(
+        "coach clip reports what it saw",
+        r.status_code == 200
+        and bool(body.get("seen"))
+        and body.get("subject_present") is True,
+        (body.get("seen") or "")[:70],
+    )
+    # A sky clip has no rope: the coach must reject it and hold the pointer.
+    sky_probe = DEMO / "sky.mp4"
+    if sky_probe.exists():
+        with sky_probe.open("rb") as f:
+            r = client.post(
+                f"{SERVER}/v1/coach/sessions/{cs['session_id']}/clip",
+                files={"video": ("sky.mp4", f, "video/mp4")},
+            )
+        body = r.json() if r.status_code == 200 else {}
+        check(
+            "coach rejects off-subject clip",
+            r.status_code == 200
+            and body.get("subject_present") is False
+            and body.get("prediction") is None,
+            (body.get("seen") or r.text)[:70],
+        )
 
     print("== identify (perception)")
     ps = client.post(
@@ -281,8 +312,26 @@ def main() -> int:
     body = r.json() if ok else {}
     check(
         "sky read yields outlook",
-        ok and len(body.get("outlook", "")) > 40 and body.get("rain_days") == 5,
+        ok
+        and len(body.get("outlook", "")) > 40
+        and body.get("rain_days") == 5
+        and body.get("off_subject") is not True,
         body.get("outlook", r.text)[:70],
+    )
+    # The rope clip is not the sky: the reader must reject it with what it
+    # saw instead of inventing a forecast.
+    with clip.open("rb") as f:
+        r = client.post(
+            f"{SERVER}/v1/weather/read",
+            data={"month": "8"},
+            files={"video": ("clip.mp4", f, "video/mp4")},
+            timeout=300,
+        )
+    body = r.json() if r.status_code == 200 else {}
+    check(
+        "sky rejects off-subject clip",
+        r.status_code == 200 and body.get("off_subject") is True,
+        (body.get("clouds") or r.text)[:70],
     )
 
     print("== speech")

@@ -70,15 +70,22 @@ export default function Sky() {
       </View>
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.m }]}>
         {message !== null && <Text style={styles.helper}>{message}</Text>}
+        {reading && <Text style={styles.helper}>3 s clip → box models</Text>}
         {outlook !== null && (
           <ScrollView style={styles.outlookScroll}>
             <Text style={styles.outlookText}>{outlook.outlook.replace(/\*+/g, '')}</Text>
-            <Text style={styles.detail}>Sky now: {outlook.clouds}</Text>
-            <Text style={styles.detail}>
-              This month here: rain on about {outlook.rain_days} days, highs near{' '}
-              {outlook.high_f}°F.
-            </Text>
-            <Text style={styles.sourceLine}>{outlook.source}</Text>
+            {outlook.off_subject === true ? (
+              <Text style={styles.detail}>Camera sees: {outlook.clouds}</Text>
+            ) : (
+              <>
+                <Text style={styles.detail}>Sky now: {outlook.clouds}</Text>
+                <Text style={styles.detail}>
+                  This month here: rain on about {outlook.rain_days} days, highs near{' '}
+                  {outlook.high_f}°F.
+                </Text>
+                <Text style={styles.sourceLine}>{outlook.source}</Text>
+              </>
+            )}
           </ScrollView>
         )}
         <Pressable

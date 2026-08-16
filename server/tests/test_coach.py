@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 from fastapi.testclient import TestClient
-from flux_server.coach import KNOTS, CoachKnot, advance_pointer
+from flux_server.coach import KNOTS, ClipRead, CoachKnot, advance_pointer
 from flux_server.main import create_app
 
 
@@ -16,9 +16,10 @@ class ScriptedClassifier:
         self.script = list(script)
         self.calls: list[tuple[str, int]] = []
 
-    def classify(self, knot: CoachKnot, frames: list[bytes]) -> int | None:
+    def classify(self, knot: CoachKnot, frames: list[bytes]) -> ClipRead:
         self.calls.append((knot.id, len(frames)))
-        return self.script.pop(0)
+        scripted = self.script.pop(0)
+        return scripted if isinstance(scripted, ClipRead) else ClipRead(step=scripted)
 
 
 def make_clip() -> bytes:
@@ -163,3 +164,37 @@ def test_clip_without_classifier_is_503(tmp_path):
 def test_unknown_session_is_404(client_and_classifier):
     client, _ = client_and_classifier
     assert client.get("/v1/coach/sessions/nope").status_code == 404
+
+
+def test_off_subject_clip_never_advances(client_and_classifier):
+    client, classifier = client_and_classifier
+    classifier.script = [
+        ClipRead(step=1, seen="a coffee mug on a desk", subject_present=False),
+        ClipRead(step=1, seen="hands crossing rope ends", subject_present=True),
+        ClipRead(step=1, seen="hands crossing rope ends", subject_present=True),
+    ]
+    session_id = client.post("/v1/coach/sessions", json={"knot": "square"}).json()[
+        "session_id"
+    ]
+    clip = make_clip()
+
+    first = client.post(
+        f"/v1/coach/sessions/{session_id}/clip",
+        files={"video": ("clip.mp4", clip, "video/mp4")},
+    ).json()
+    # The guessed step is discarded: no rope in frame means no pointer input.
+    assert first["prediction"] is None
+    assert first["subject_present"] is False
+    assert first["seen"] == "a coffee mug on a desk"
+    assert (first["step"], first["advanced"]) == (0, False)
+
+    client.post(
+        f"/v1/coach/sessions/{session_id}/clip",
+        files={"video": ("clip.mp4", clip, "video/mp4")},
+    )
+    third = client.post(
+        f"/v1/coach/sessions/{session_id}/clip",
+        files={"video": ("clip.mp4", clip, "video/mp4")},
+    ).json()
+    assert (third["step"], third["advanced"]) == (1, True)
+    assert third["subject_present"] is True

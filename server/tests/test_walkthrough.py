@@ -259,8 +259,8 @@ class StubObserver:
         self.observation = observation
         self.calls = []
 
-    def observe(self, question, states, frames):
-        self.calls.append((question, tuple(states), len(frames)))
+    def observe(self, question, states, frames, subject):
+        self.calls.append((question, tuple(states), len(frames), subject))
         return self.observation
 
 
@@ -392,3 +392,29 @@ def test_observe_refuses_user_answered_node(observe_client):
     )
     assert response.status_code == 422
     assert observer.calls == []
+
+
+def test_observe_reports_off_subject(observe_client):
+    from flux_server.observe import Observation
+
+    observer = StubObserver(
+        Observation(
+            state=None,
+            confidence=0.9,
+            observation="A coffee mug on a table, not a fungus.",
+            off_subject=True,
+        )
+    )
+    client = observe_client(observer)
+    session_id = client.post("/v1/walkthrough/sessions").json()["session_id"]
+    response = client.post(
+        f"/v1/walkthrough/sessions/{session_id}/observe",
+        data={"character": "whichGills"},
+        files={"video": ("clip.mp4", make_clip_bytes(), "video/mp4")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["off_subject"] is True
+    assert body.get("state") is None
+    # The guide's title travels to the model as the expected subject.
+    assert observer.calls[0][3] == "fungi edibility"

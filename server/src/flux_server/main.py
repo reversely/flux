@@ -636,14 +636,19 @@ def create_app(
             ) from error
         before = advance_pointer(session["predictions"], len(knot.steps))
         started = time.monotonic()
-        prediction = coach_classifier.classify(knot, frames)
+        read = coach_classifier.classify(knot, frames)
         latency_ms = int((time.monotonic() - started) * 1000)
+        # A clip without the procedure's materials in frame never moves the
+        # pointer, whatever step the classifier guessed alongside.
+        prediction = None if read.subject_present is False else read.step
         session = coach_store.record(session_id, prediction)
         after = advance_pointer(session["predictions"], len(knot.steps))
         return CoachClipResult(
             prediction=prediction,
             step=after,
             advanced=after > before,
+            seen=read.seen,
+            subject_present=read.subject_present,
             trace=InferenceTrace(
                 model=getattr(coach_classifier, "model", "step-classifier"),
                 latency_ms=latency_ms,
@@ -679,6 +684,7 @@ def create_app(
             rain_days=reading.rain_days,
             high_f=reading.high_f,
             source="NOAA 1991-2020 Climate Normals, Seattle-Tacoma Intl (USW00024233)",
+            off_subject=reading.off_subject,
         )
 
     @app.post(
@@ -717,7 +723,9 @@ def create_app(
                 status_code=422, detail=f"unreadable clip: {error}"
             ) from error
         states = view.states.get(character, [])
-        observation = walk_observer.observe(node["question"], states, frames)
+        observation = walk_observer.observe(
+            node["question"], states, frames, subject=view.title.lower()
+        )
         if observation is None:
             raise HTTPException(status_code=502, detail="observe answer unusable")
         return WalkObservation(
@@ -727,6 +735,7 @@ def create_app(
             confidence=observation.confidence,
             observation=observation.observation,
             citation=node["citation"],
+            off_subject=observation.off_subject,
         )
 
     @app.post(

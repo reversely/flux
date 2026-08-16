@@ -17,6 +17,7 @@ from typing import Protocol
 import httpx
 
 from flux_server.coach import frames_to_content
+from flux_server.prompts import BASE, compose
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +41,19 @@ SEATAC_NORMALS = {
     12: {"rain_days": 18, "high_f": 47},
 }
 
+# This prompt is sent verbatim (no .format call), so braces are single.
 SKY_PROMPT = (
-    "These frames are one continuous look at the sky. Describe only what is "
-    "visible: cloud forms (cumulus, stratus, cirrus, cumulonimbus and so on), "
-    "how much of the sky they cover, their darkness, any motion or haze, and "
+    "These frames should be one continuous look at the sky. First check "
+    "that they actually show the sky; if they show something else instead "
+    "(a room, an object, the ground), set sky_visible false and put what "
+    "you actually see in clouds. Otherwise describe only what is visible: "
+    "cloud forms (cumulus, stratus, cirrus, cumulonimbus and so on), how "
+    "much of the sky they cover, their darkness, any motion or haze, and "
     "the light. "
-    'Reply with JSON only: {{"clouds": "<forms and coverage>", '
+    'Reply with JSON only: {"sky_visible": <true or false>, '
+    '"clouds": "<forms and coverage, or what is actually in frame>", '
     '"signs": "<what these skies typically precede>", '
-    '"visibility": "<clear/hazy/obscured>"}}'
+    '"visibility": "<clear/hazy/obscured>"}'
 )
 
 OUTLOOK_PROMPT = (
@@ -70,6 +76,9 @@ class SkyReading:
     month: int
     rain_days: int
     high_f: int
+    # True when the clip does not show the sky; outlook then carries the
+    # retake instruction and clouds names what the camera saw instead.
+    off_subject: bool = False
 
 
 class SkyReader(Protocol):
@@ -116,7 +125,25 @@ class CosmosNemotronSky:
         except ValueError:
             return None
         normals = SEATAC_NORMALS[month]
-        prompt = OUTLOOK_PROMPT.format(
+        if seen.get("sky_visible") is False:
+            # The model tends to answer with a paragraph; the rejection line
+            # keeps only its first clause, field-guide terse.
+            watched = str(seen.get("clouds", "something that is not the sky"))
+            watched = watched.split(". ")[0].rstrip(".")[:160]
+            return SkyReading(
+                outlook=(
+                    "This is not a look at the sky. The camera sees: "
+                    f"{watched}. Point the camera up and read again."
+                ),
+                clouds=watched,
+                month=month,
+                rain_days=normals["rain_days"],
+                high_f=normals["high_f"],
+                off_subject=True,
+            )
+        # The outlook is user-visible prose, so it takes the shared base
+        # contract (plain prose, no markdown) like every other surface.
+        prompt = compose(BASE, OUTLOOK_PROMPT).format(
             clouds=seen.get("clouds", "unclear sky"),
             signs=seen.get("signs", "no strong signal"),
             month=month,

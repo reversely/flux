@@ -65,8 +65,14 @@ export default function KnotCoach() {
   // failure lands in the traces tab with the full response.
   const [watchNote, setWatchNote] = useState<string | null>(null);
   const [heard, setHeard] = useState<string | null>(null);
+  // The model's own account of the last clip: what it saw, and whether the
+  // work was in frame at all. Shown under the fragment, so a model call is
+  // never silent about what it looked at.
+  const [seen, setSeen] = useState<string | null>(null);
+  const [inFrame, setInFrame] = useState<boolean | null>(null);
   const cameraRef = useRef<CameraView>(null);
   const watchingRef = useRef(false);
+  const wasOutOfFrameRef = useRef(false);
 
   // Narration goes through the box's Kokoro voice with the on-device
   // fallback (#180); the coach was the last screen on raw device speech.
@@ -127,6 +133,18 @@ export default function KnotCoach() {
         setChecking(true);
         const result = await client().coachClip(sessionId, video.uri);
         setChecking(false);
+        setSeen(result.seen ?? null);
+        setInFrame(result.subject_present ?? null);
+        // Off-subject clips reject with a spoken nudge, once per lapse, not
+        // every eight seconds.
+        if (result.subject_present === false) {
+          if (!wasOutOfFrameRef.current && watchingRef.current) {
+            void narration.speak('Camera cannot see your work. Bring it into the frame.');
+          }
+          wasOutOfFrameRef.current = true;
+        } else {
+          wasOutOfFrameRef.current = false;
+        }
         if (watchingRef.current && result.step > pointer) {
           pointer = result.step;
           goTo(result.step);
@@ -291,6 +309,17 @@ export default function KnotCoach() {
       )}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.m }]}>
         <Text style={styles.fragment}>{active.screen}</Text>
+        {(watch === 'watching' || checking) && (
+          <Text style={[typography.annotation, styles.voiceLine]} numberOfLines={2}>
+            {checking
+              ? `${COACH_CLIP_SECONDS} s clip → cosmos on the box`
+              : inFrame === false
+                ? `Not in frame — seeing: ${seen ?? 'something else'}`
+                : seen !== null
+                  ? `Sees: ${seen}`
+                  : 'Watching for your next move'}
+          </Text>
+        )}
         {heard !== null && (
           <Text style={[typography.annotation, styles.voiceLine]} numberOfLines={2}>
             {heard}
