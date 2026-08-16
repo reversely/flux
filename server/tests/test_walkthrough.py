@@ -431,3 +431,49 @@ def test_clean_artist_shortens_commons_paragraphs():
     assert clean_artist("Alan Rockefeller") == "Alan Rockefeller"
     long = "A very long descriptive credit that keeps going. Second sentence."
     assert clean_artist(long) == "A very long descriptive credit that keeps going"
+
+
+def test_species_with_no_trait_rows_stays_a_candidate(tmp_path):
+    # The filter rule's edge: recording nothing never eliminates, so a
+    # species with zero trait rows is a candidate before and after answers.
+    db = tmp_path / "content.db"
+    with sqlite3.connect(db) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE walk_question (
+                character TEXT PRIMARY KEY, ask_order INTEGER NOT NULL UNIQUE,
+                question TEXT NOT NULL, citation TEXT NOT NULL);
+            CREATE TABLE walk_state (
+                character TEXT NOT NULL, state TEXT NOT NULL,
+                PRIMARY KEY (character, state));
+            CREATE TABLE walk_species (
+                species TEXT PRIMARY KEY, edibility TEXT NOT NULL,
+                edibility_raw TEXT NOT NULL, source_title TEXT NOT NULL,
+                source_revid TEXT NOT NULL);
+            CREATE TABLE walk_trait (
+                species TEXT NOT NULL, character TEXT NOT NULL,
+                state TEXT NOT NULL, PRIMARY KEY (species, character, state));
+            INSERT INTO walk_question VALUES ('color', 1, 'Color?', 'test');
+            INSERT INTO walk_state VALUES ('color', 'red');
+            INSERT INTO walk_state VALUES ('color', 'white');
+            INSERT INTO walk_species VALUES ('Recorded', 'edible', 'edible', 'Recorded', '1');
+            INSERT INTO walk_species VALUES ('Blank', 'danger', 'danger', 'Blank', '1');
+            INSERT INTO walk_trait VALUES ('Recorded', 'color', 'red');
+            """
+        )
+    store = WalkthroughStore(db, tmp_path / "walkthroughs")
+    app = create_app(
+        data_dir=tmp_path / "sessions",
+        content=None,
+        tile_archive=None,
+        walkthrough=store,
+    )
+    client = TestClient(app)
+    session = client.post("/v1/walkthrough/sessions").json()
+    assert session["candidate_count"] == 2
+    answered = client.post(
+        f"/v1/walkthrough/sessions/{session['session_id']}/answer",
+        json={"character": "color", "states": ["white"]},
+    ).json()
+    survivors = {card["species"] for card in answered["candidates"]}
+    assert survivors == {"Blank"}

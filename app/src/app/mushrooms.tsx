@@ -106,7 +106,33 @@ export default function Mushrooms() {
     [matches],
   );
 
+  const severity = ['danger', 'caution', 'inedible', 'edible', 'unknown'];
+  const bySeverity = (a: WalkSpeciesDetail, b: WalkSpeciesDetail) =>
+    severity.indexOf(a.edibility) - severity.indexOf(b.edibility) ||
+    a.species.localeCompare(b.species);
+
   const sections = useMemo(() => {
+    if (filtering) {
+      // A species survives the filter two ways: it records an answered
+      // feature and matches it, or it records nothing for any answered
+      // feature (missing data never eliminates). The reader needs the
+      // difference: real matches first, the not-ruled-out tail after.
+      const answeredChars = Object.entries(answers)
+        .filter(([, states]) => states.length > 0)
+        .map(([character]) => character);
+      const matched = matches.filter((card) =>
+        answeredChars.some((character) => card.traits[character] !== undefined),
+      );
+      const noRecord = matches.filter(
+        (card) => !answeredChars.some((c) => card.traits[c] !== undefined),
+      );
+      return [
+        { title: 'Matched on your answers', data: [...matched].sort(bySeverity) },
+        ...(noRecord.length > 0
+          ? [{ title: 'Not ruled out (no record)', data: [...noRecord].sort(bySeverity) }]
+          : []),
+      ];
+    }
     const byGenus = new Map<string, WalkSpeciesDetail[]>();
     for (const card of matches) {
       const genus = card.species.split(' ')[0];
@@ -121,7 +147,8 @@ export default function Mushrooms() {
           (a, b) => Number(b.edibility === 'danger') - Number(a.edibility === 'danger'),
         ),
       }));
-  }, [matches]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matches, filtering, answers]);
 
   return (
     <View style={styles.screen}>

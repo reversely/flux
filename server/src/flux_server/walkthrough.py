@@ -257,11 +257,15 @@ class WalkthroughStore:
             e["character"]: states for e in transcript if (states := entry_states(e))
         }
         view = self.guides[guide_id]
+        # Iterate the species table, not the trait table: a species with no
+        # trait rows records nothing, and recording nothing never
+        # eliminates, so it stays a candidate through every answer.
         return [
             species
-            for species, chars in view.traits.items()
+            for species in view.species
             if all(
-                character not in chars or not chars[character].isdisjoint(states)
+                character not in (chars := view.traits.get(species, {}))
+                or not chars[character].isdisjoint(states)
                 for character, states in answers.items()
             )
         ]

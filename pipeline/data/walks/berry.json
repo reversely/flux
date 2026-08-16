@@ -21,63 +21,116 @@
     "unpalatable": "inedible",
     "unknown": "unknown"
   },
-  "unknown_values": ["", "na", "n/a", "unknown"],
+  "unknown_values": [
+    "",
+    "na",
+    "n/a",
+    "unknown"
+  ],
   "questions": [
     {
       "character": "habit",
       "question": "Growing as: a tree, an upright shrub, a trailing or climbing plant, or a soft-stemmed plant (herb)?",
       "answer_source": "both",
       "capture_condition": "the whole plant is in frame",
-      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), habit stated per species description"
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), habit stated per species description",
+      "states": [
+        "tree",
+        "shrub",
+        "trailing",
+        "vine",
+        "herb"
+      ]
     },
     {
       "character": "armature",
       "question": "Thorns or prickles on the stems?",
       "answer_source": "both",
       "capture_condition": "a stem section fills the frame up close",
-      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), armature stated per species description"
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), armature stated per species description",
+      "states": [
+        "thorny",
+        "unarmed"
+      ]
     },
     {
       "character": "leafArrangement",
       "question": "Leaves on the stem: alternate, opposite, whorled, or all at the base?",
       "answer_source": "both",
       "capture_condition": "a stem with several leaves is in frame",
-      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), leaf arrangement per species description"
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), leaf arrangement per species description",
+      "states": [
+        "alternate",
+        "opposite",
+        "whorled",
+        "basal"
+      ]
     },
     {
       "character": "leafType",
       "question": "Each leaf: one blade (simple), or split into leaflets (compound)?",
       "answer_source": "both",
       "capture_condition": "one full leaf fills the frame",
-      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), leaf form per species description"
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), leaf form per species description",
+      "states": [
+        "simple",
+        "compound"
+      ]
     },
     {
       "character": "fruitType",
       "question": "The fruit: aggregate (raspberry-like beads), berry (soft, small seeds), drupe (flesh around one stone), or pome (apple-like, seeds in a core)?",
       "answer_source": "both",
       "capture_condition": "a single fruit fills the frame, split open if possible",
-      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), fruit form per species description"
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), fruit form per species description",
+      "states": [
+        "aggregate",
+        "berry",
+        "drupe",
+        "pome"
+      ]
     },
     {
       "character": "fruitColor",
       "question": "Ripe fruit color?",
       "answer_source": "both",
       "capture_condition": "ripe fruit is in frame in daylight",
-      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), fruit color per species description"
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), fruit color per species description",
+      "states": [
+        "red",
+        "orange",
+        "yellow",
+        "blue",
+        "black",
+        "purple",
+        "white",
+        "green"
+      ]
     },
     {
       "character": "clusterForm",
       "question": "Fruits sit: single or in twos, in a flat-topped cluster, in a long hanging cluster (raceme), or in an umbrella head (umbel)?",
       "answer_source": "both",
       "capture_condition": "a fruiting branch is in frame",
-      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), inflorescence per species description"
+      "citation": "Piper & Beattie, Flora of the Northwest Coast (1915), inflorescence per species description",
+      "states": [
+        "single-or-paired",
+        "flat-cluster",
+        "raceme",
+        "umbel"
+      ]
     },
     {
       "character": "sap",
       "question": "Crushed leaf or broken twig: milky sap, a bitter-almond smell, or neither?",
       "answer_source": "user",
       "capture_condition": null,
-      "citation": "Chesnut, Principal Poisonous Plants of the United States (USDA 1898), cherry-laurel and wild cherry hydrocyanic odor"
+      "citation": "Chesnut, Principal Poisonous Plants of the United States (USDA 1898), cherry-laurel and wild cherry hydrocyanic odor",
+      "states": [
+        "milky",
+        "almond",
+        "none"
+      ]
     }
   ]
 }

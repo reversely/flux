@@ -95,6 +95,10 @@ class WalkQuestionSpec:
     answer_source: str
     capture_condition: str | None
     citation: str
+    # The question's full state vocabulary. Observed states union in, so a
+    # sparse trait table cannot compile a one-option question; a declared
+    # state no species records eliminates nobody under the filter rule.
+    states: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -146,6 +150,7 @@ def load_spec(path: Path) -> WalkSpec:
                 q.get("answer_source", "user"),
                 q.get("capture_condition"),
                 q["citation"],
+                tuple(q.get("states", ())),
             )
             for q in raw["questions"]
         ],
@@ -367,7 +372,7 @@ def write_walkthrough(tsv: Path, db_path: Path, spec: WalkSpec | None = None) ->
                     "clip" if q.answer_source != "user" else None,
                 ),
             )
-            for state in sorted(states_seen[q.character]):
+            for state in sorted(states_seen[q.character] | set(q.states)):
                 conn.execute(
                     "INSERT INTO walk_state (guide_id, character, state)"
                     " VALUES (?, ?, ?)",
