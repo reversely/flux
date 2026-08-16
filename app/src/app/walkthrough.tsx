@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef } from 'react';
 import * as Device from 'expo-device';
+import { Accelerometer } from 'expo-sensors';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import type { ImageSourcePropType } from 'react-native';
@@ -35,6 +36,16 @@ import { useSession } from '@/store/session';
 import { colors, radius, sizes, spacing, typography } from '@/theme/tokens';
 
 const SCOPE_BANNER_MS = 6000;
+
+// Continuous watch (#208): the camera records chunks of this length the
+// whole session; the decision layer chooses which chunks are worth the box.
+const WATCH_CHUNK_S = 3;
+// Mean deviation from 1 g above this reads as a moving camera: the user is
+// repositioning, not showing, and the chunk is not worth inference.
+const STEADY_THRESHOLD_G = 0.12;
+// The same verdict kind is spoken at most once per this window, so a
+// continuous loop stays a conversation rather than a nag.
+const SPEAK_REPEAT_MS = 12000;
 
 // Result ordering and tones: the worst verdict sorts first.
 const SEVERITY = ['danger', 'caution', 'inedible', 'edible', 'unknown'] as const;
@@ -184,8 +195,181 @@ export default function Walkthrough() {
   const [observePhase, setObservePhase] = useState<'idle' | 'filming' | 'checking'>('idle');
   const [suggestion, setSuggestion] = useState<WalkObservation | null>(null);
 
+  // Continuous watch (#208): the camera records chunk after chunk; each
+  // chunk passes the decision layer before any bytes leave the phone. The
+  // refs mirror render state for the loop, which outlives any one render.
+  const [watching, setWatching] = useState(false);
+  const [watchLine, setWatchLine] = useState('watching');
+  const watchRef = useRef(false);
+  const inFlightRef = useRef(false);
+  const motionRef = useRef<number[]>([]);
+  const walkRef = useRef<WalkSessionState | null>(null);
+  const currentRef = useRef<WalkQuestion | undefined>(undefined);
+  const suggestionRef = useRef<WalkObservation | null>(null);
+  const lastSpokenRef = useRef<{ kind: string; at: number }>({ kind: '', at: 0 });
+  walkRef.current = walk;
+  suggestionRef.current = suggestion;
+  currentRef.current = current;
+
+  const speakOnce = (kind: string, line: string) => {
+    const last = lastSpokenRef.current;
+    if (last.kind === kind && Date.now() - last.at < SPEAK_REPEAT_MS) {
+      return;
+    }
+    lastSpokenRef.current = { kind, at: Date.now() };
+    void narration.speak(line);
+  };
+
+  // The decision layer: the reason this chunk is not worth sending, or
+  // null to send. Every skip reason is shown, so the camera being on and
+  // inference happening stay two visibly separate facts.
+  const decide = (question: WalkQuestion | undefined): string | null => {
+    if (question === undefined) {
+      return 'every feature answered';
+    }
+    if (question.answer_source !== 'both' && question.answer_source !== 'camera') {
+      return 'this one needs your answer — say it or tap';
+    }
+    if (inFlightRef.current) {
+      return 'model still reading the last chunk';
+    }
+    const pending = suggestionRef.current;
+    if (pending?.state != null && pending.off_subject !== true) {
+      return 'waiting — say yes, or dismiss';
+    }
+    const samples = motionRef.current;
+    const avg =
+      samples.length > 3 ? samples.reduce((a, b) => a + b, 0) / samples.length : 0;
+    if (avg > STEADY_THRESHOLD_G) {
+      return 'moving — hold steady on the specimen';
+    }
+    return null;
+  };
+
+  const handleVerdict = (observed: WalkObservation, question: WalkQuestion) => {
+    if (currentRef.current?.character !== question.character) {
+      return; // The walk moved on while the model was reading.
+    }
+    setSuggestion(observed);
+    if (observed.off_subject === true) {
+      speakOnce('off', `That is not the specimen. Seeing ${observed.observation}`);
+    } else if (observed.state != null) {
+      speakOnce(
+        `state:${observed.state}`,
+        `Looks ${observed.state}. ${observed.observation} Say yes to mark it, or keep showing me.`,
+      );
+    } else {
+      speakOnce(
+        'unsure',
+        `Not clear yet. ${question.capture_condition ?? 'Show it closer.'}`,
+      );
+    }
+  };
+
+  const stopWatching = () => {
+    watchRef.current = false;
+    try {
+      cameraRef.current?.stopRecording();
+    } catch {
+      // Recorder already torn down.
+    }
+  };
+
+  const startWatching = async () => {
+    if (watchRef.current || cameraRef.current === null) {
+      return;
+    }
+    watchRef.current = true;
+    setWatching(true);
+    setWatchLine('watching');
+    let sub: { remove: () => void } | null = null;
+    try {
+      Accelerometer.setUpdateInterval(100);
+      sub = Accelerometer.addListener(({ x, y, z }) => {
+        motionRef.current.push(Math.abs(Math.hypot(x, y, z) - 1));
+        if (motionRef.current.length > 40) {
+          motionRef.current.shift();
+        }
+      });
+    } catch {
+      // No motion sensor: the steadiness gate simply always passes.
+    }
+    while (watchRef.current && cameraRef.current !== null) {
+      motionRef.current = [];
+      let video;
+      try {
+        video = await cameraRef.current.recordAsync({ maxDuration: WATCH_CHUNK_S });
+      } catch {
+        break;
+      }
+      if (!watchRef.current || video === undefined) {
+        break;
+      }
+      const question = currentRef.current;
+      const skip = decide(question);
+      if (skip !== null) {
+        setWatchLine(skip);
+        if (skip === 'every feature answered') {
+          break;
+        }
+        continue;
+      }
+      const sessionId = walkRef.current?.session_id;
+      if (sessionId === undefined || question === undefined) {
+        continue;
+      }
+      // Send without blocking the next chunk; one in flight at a time.
+      inFlightRef.current = true;
+      setWatchLine('chunk → cosmos on the box');
+      void client()
+        .observeWalkthrough(sessionId, question.character, video.uri)
+        .then((observed) => {
+          handleVerdict(observed, question);
+          setWatchLine('watching');
+        })
+        .catch(() => setWatchLine('the camera check needs the server'))
+        .finally(() => {
+          inFlightRef.current = false;
+        });
+    }
+    if (sub !== null) {
+      sub.remove();
+    }
+    watchRef.current = false;
+    setWatching(false);
+  };
+
+  // Watching starts by itself in camera mode: the session is hands-free by
+  // default, and the toggle in the card pauses it.
+  useEffect(() => {
+    if (useCamera && walk !== null) {
+      void startWatching();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useCamera, walk === null]);
+
+  // Leaving the screen ends the loop, the recorder, and any narration.
+  useEffect(
+    () => () => {
+      watchRef.current = false;
+      try {
+        cameraRef.current?.stopRecording();
+      } catch {
+        // Recorder already torn down.
+      }
+      narration.stop();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   const observe = async () => {
     if (walk === null || current === undefined || cameraRef.current === null) {
+      return;
+    }
+    if (watchRef.current) {
+      // The loop owns the camera; clearing the verdict lets it resume.
+      setSuggestion(null);
       return;
     }
     setSuggestion(null);
@@ -226,6 +410,19 @@ export default function Walkthrough() {
 
   const applyTranscript = async (text: string) => {
     if (walk === null || current === undefined) {
+      return;
+    }
+    // A pending camera verdict takes "yes" as its confirmation (#208), so
+    // the spoken loop closes without a tap.
+    const pending = suggestion;
+    if (
+      pending?.state != null &&
+      pending.off_subject !== true &&
+      /^(yes|yeah|yep|confirm|mark( it)?|ok(ay)?)\b/i.test(text.trim())
+    ) {
+      setHeard(null);
+      setSuggestion(null);
+      await toggle(pending.character, pending.state);
       return;
     }
     const mapped = mapTranscript(text, current.states);
@@ -314,6 +511,11 @@ export default function Walkthrough() {
           mode="video"
           facing="back"
           mute
+          onCameraReady={() => {
+            if (walkRef.current !== null) {
+              void startWatching();
+            }
+          }}
         />
       )}
       <TopBar title={walk?.guide_title ?? 'Mushrooms'} back dark={useCamera} />
@@ -356,19 +558,28 @@ export default function Walkthrough() {
       {/* The camera-check status banner: filming, then the model reading,
           then the verdict with its actions. It sits over the feed just above
           the dock, so what is happening to the video is never a mystery. */}
-      {useCamera && (observePhase !== 'idle' || suggestion !== null) && (
+      {useCamera && (watching || observePhase !== 'idle' || suggestion !== null) && (
         <View style={styles.observeStatus}>
-          {observePhase === 'filming' && (
-            <View style={styles.observeStatusRow}>
-              <View style={styles.recordDot} />
-              <Text style={styles.observeStatusTitle}>Filming · 3 s clip</Text>
-            </View>
-          )}
-          {observePhase === 'checking' && (
-            <View style={styles.observeStatusRow}>
-              <ActivityIndicator size="small" color="#B5E3DC" />
-              <Text style={styles.observeStatusTitle}>Clip → cosmos on the box</Text>
-            </View>
+          {suggestion === null && (
+            <>
+              <View style={styles.observeStatusRow}>
+                {watchLine === 'chunk → cosmos on the box' || observePhase === 'checking' ? (
+                  <ActivityIndicator size="small" color="#B5E3DC" />
+                ) : (
+                  <View style={styles.recordDot} />
+                )}
+                <Text style={styles.observeStatusTitle}>
+                  {observePhase === 'filming'
+                    ? 'Filming · 3 s clip'
+                    : observePhase === 'checking'
+                      ? 'Clip → cosmos on the box'
+                      : 'Watching'}
+                </Text>
+              </View>
+              {watching && observePhase === 'idle' && (
+                <Text style={styles.observeStatusBody}>{watchLine}</Text>
+              )}
+            </>
           )}
           {observePhase === 'idle' && suggestion !== null && (
             <>
@@ -435,7 +646,7 @@ export default function Walkthrough() {
                         : styles.observeActionText
                     }
                   >
-                    Retake
+                    {watching ? 'Keep looking' : 'Retake'}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -460,30 +671,25 @@ export default function Walkthrough() {
             <Text style={typography.surfaceTitle}>{current.question}</Text>
             {stateChips(current)}
             <Text style={typography.annotation}>{current.citation}</Text>
-            {useCamera &&
-              (current.answer_source === 'both' || current.answer_source === 'camera') && (
-                <View style={styles.observeRow}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Check with the camera"
-                    disabled={observing}
-                    onPress={() => void observe()}
-                    style={[styles.observeButton, observing && styles.observeButtonBusy]}
-                  >
-                    <Feather name="camera" size={16} color={colors.card} />
-                    <Text style={styles.observeButtonText}>
-                      {observing ? 'Checking' : 'Check with camera'}
-                    </Text>
-                  </Pressable>
-                  <Text style={[typography.annotation, styles.heard]} numberOfLines={2}>
-                    {observing
-                      ? observePhase === 'filming'
-                        ? 'Filming'
-                        : 'Model reading the clip'
-                      : (current.capture_condition ?? '')}
+            {useCamera && (
+              <View style={styles.observeRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={watching ? 'Pause the camera watch' : 'Watch with the camera'}
+                  disabled={observing}
+                  onPress={() => (watching ? stopWatching() : void startWatching())}
+                  style={[styles.observeButton, observing && styles.observeButtonBusy]}
+                >
+                  <Feather name={watching ? 'pause' : 'camera'} size={16} color={colors.card} />
+                  <Text style={styles.observeButtonText}>
+                    {watching ? 'Pause' : 'Watch'}
                   </Text>
-                </View>
-              )}
+                </Pressable>
+                <Text style={[typography.annotation, styles.heard]} numberOfLines={2}>
+                  {watching ? watchLine : (current.capture_condition ?? 'Camera paused.')}
+                </Text>
+              </View>
+            )}
             {wantCamera && (
               <View style={styles.voiceRow}>
                 <Pressable
