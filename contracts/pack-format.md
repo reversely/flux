@@ -263,3 +263,38 @@ which keeps 1.9M Washington points phone-sized where REAL storage measured
 | feature_id | INTEGER, references feature(id) | Owning feature. |
 | lat | INTEGER | Microdegrees. |
 | lon | INTEGER | Microdegrees. |
+
+## Trail-network graph
+
+A separate SQLite file, `trails.db`, beside the content database: the walkable
+way network the in-app router (#149) runs A* over. The build is
+`flux-pipeline trails <region.osm.pbf> <trails.db>` (#148) from the region's
+OSM extract.
+
+Ways with `highway` in path, footway, track, bridleway, steps, cycleway, or
+unclassified join the graph (service, residential, and living_street measured
+as half of Washington's node refs while carrying driveways and street grid,
+not trail navigation); ways tagged `access=no` or `access=private` stay out,
+because a route the user cannot legally walk is a wrong answer. A way splits into edges at junctions
+(nodes two kept ways share); interior vertices contribute distance only, so
+the graph carries junctions and endpoints. Edges are undirected; `a` and `b`
+order carries no meaning.
+
+The `meta` table matches the natural-feature layer: `license` (`ODbL-1.0`),
+`attribution`, `source`.
+
+### Table: node
+
+| column | type | notes |
+| --- | --- | --- |
+| id | INTEGER | Primary key, the OSM node id. |
+| lat | INTEGER | Microdegrees (WGS84 degrees times 1,000,000). |
+| lon | INTEGER | Microdegrees. |
+
+### Table: edge
+
+| column | type | notes |
+| --- | --- | --- |
+| a | INTEGER, references node(id) | One end. Indexed. |
+| b | INTEGER, references node(id) | The other end. Indexed. |
+| distance_m | INTEGER | Walked meters summed along the way between the ends, not the straight line. |

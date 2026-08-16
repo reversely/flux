@@ -49,7 +49,21 @@ def main() -> None:
     features_cmd.add_argument(
         "--source-url", default=None, help="recorded in the artifact's meta table"
     )
+    trails_cmd = sub.add_parser(
+        "trails", help="extract the walkable trail graph from an OSM extract (#148)"
+    )
+    trails_cmd.add_argument("osm_file", type=Path)
+    trails_cmd.add_argument("out_db", type=Path)
+    trails_cmd.add_argument(
+        "--source-url", default=None, help="recorded in the artifact's meta table"
+    )
     args = top.parse_args()
+
+    if args.command == "trails":
+        from flux_pipeline.trails import build_trails
+
+        print(build_trails(args.osm_file, args.out_db, args.source_url))
+        return
 
     if args.command == "features":
         from flux_pipeline.features import build_features
