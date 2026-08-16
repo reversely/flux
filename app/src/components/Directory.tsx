@@ -55,13 +55,17 @@ export function DirectoryRow({
         pressed && styles.rowPressed,
       ]}
     >
-      <Text style={[typography.displaySmall, styles.numeral]}>{entry.number}</Text>
+      <View style={styles.numeralCell}>
+        <Text style={[typography.displaySmall, styles.numeral]}>{entry.number}</Text>
+      </View>
       <View style={styles.body}>
         <View style={styles.titleRow}>
           <Text style={typography.surfaceTitle}>{entry.title}</Text>
           <Leader color={tint.line} />
           {entry.icon !== undefined && (
-            <Feather name={entry.icon} size={15} color={colors.ink3} />
+            <View style={styles.iconCell}>
+              <Feather name={entry.icon} size={15} color={colors.ink3} />
+            </View>
           )}
         </View>
         {entry.detail !== undefined && (
@@ -112,11 +116,16 @@ const styles = StyleSheet.create({
   rowPressed: {
     opacity: 0.6,
   },
+  // A fixed cell with tabular figures keeps every numeral column flush and
+  // on the title's baseline, whatever the digit count or the row's icon.
+  numeralCell: {
+    width: 44,
+    alignItems: 'flex-end',
+  },
   numeral: {
     color: colors.signature,
-    minWidth: 34,
-    textAlign: 'right',
-    marginTop: 1,
+    fontVariant: ['tabular-nums'],
+    lineHeight: 22,
   },
   body: {
     flex: 1,
@@ -127,6 +136,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: spacing.s,
+  },
+  iconCell: {
+    alignSelf: 'center',
+    width: 18,
+    alignItems: 'center',
   },
   leader: {
     flex: 1,
