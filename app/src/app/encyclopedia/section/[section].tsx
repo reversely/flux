@@ -41,7 +41,7 @@ function BulletList({ lines }: { lines: string[] }) {
 
 /**
  * Renders one typed block per the pack schema. Warnings take the red card
- * with no collapse or truncation anywhere in this reader (PRD 1.3-1.4:
+ * with no collapse or truncation anywhere in this reader (PRD 1.3 and 1.6:
  * warnings stay visible).
  */
 function BlockView({ block }: { block: Block }) {
